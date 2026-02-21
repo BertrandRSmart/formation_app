@@ -1,0 +1,112 @@
+{% extends "trainings/base.html" %}
+{% block title %}Kanban — {{ project.name }}{% endblock %}
+
+{% block content %}
+<div style="padding: 92px 18px 18px; min-height:100vh; color: rgba(255,255,255,0.92);
+background:
+radial-gradient(1200px 600px at 18% -10%, rgba(21,96,130,0.25), transparent 55%),
+radial-gradient(1000px 600px at 86% 10%, rgba(255,137,233,0.14), transparent 55%),
+linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.00)),
+#0B0F14;">
+
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:14px;">
+    <div>
+      <div style="font-size:22px; font-weight:950;">🧩 {{ project.name }} — Kanban</div>
+      <div style="opacity:.7; font-size:13px;">Tâches du projet.</div>
+
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+        <div style="padding:7px 10px; border-radius:999px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.05); font-weight:900;">
+          🟦 TODO : {{ stats.todo }}
+        </div>
+        <div style="padding:7px 10px; border-radius:999px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.05); font-weight:900;">
+          🟨 En cours : {{ stats.doing }}
+        </div>
+        <div style="padding:7px 10px; border-radius:999px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.05); font-weight:900;">
+          🟥 Bloqué : {{ stats.blocked }}
+        </div>
+        <div style="padding:7px 10px; border-radius:999px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.05); font-weight:900;">
+          🟩 Terminé : {{ stats.done }}
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <a href="{% url 'projects:projects_kanban' %}" style="text-decoration:none; padding:10px 14px; border-radius:12px;
+         border:1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.06); color:white; font-weight:900;">
+        ← Retour projets
+      </a>
+
+      <a href="{% url 'projects:task_create' %}?project={{ project.id }}" style="text-decoration:none; padding:10px 14px; border-radius:12px;
+         border:1px solid rgba(124,58,237,0.45); background: rgba(124,58,237,0.18); color:white; font-weight:900;">
+        ➕ Nouvelle tâche
+      </a>
+    </div>
+  </div>
+
+  <form method="get" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;">
+    <input name="q" value="{{ q }}" placeholder="Recherche…" style="flex:1; min-width:220px; padding:10px 12px; border-radius:12px;
+      background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.12); color:white; font-weight:800;" />
+
+    <select name="priority" style="padding:10px 12px; border-radius:12px; background:rgba(0,0,0,0.25);
+      border:1px solid rgba(255,255,255,0.12); color:white; font-weight:800;">
+      <option value="">Priorité</option>
+      <option value="1" {% if priority == "1" %}selected{% endif %}>Haute</option>
+      <option value="2" {% if priority == "2" %}selected{% endif %}>Normale</option>
+      <option value="3" {% if priority == "3" %}selected{% endif %}>Basse</option>
+    </select>
+
+    <button type="submit" style="padding:10px 14px; border-radius:12px; border:1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.06); color:white; font-weight:900;">Filtrer</button>
+  </form>
+
+  <div style="display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:12px;">
+    {% for key, col in columns.items %}
+      <div style="border-radius:18px; background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+        border:1px solid rgba(255,255,255,0.07); box-shadow: 0 18px 45px rgba(0,0,0,0.55); overflow:hidden;">
+
+        <div style="padding:12px 14px; border-bottom:1px solid rgba(255,255,255,0.08); font-weight:950;">
+          {% if key == "todo" %}🟦 TODO{% elif key == "doing" %}🟨 En cours{% elif key == "blocked" %}🟥 Bloqué{% else %}🟩 Terminé{% endif %}
+          <span style="opacity:.7; font-weight:800;">({{ col|length }})</span>
+        </div>
+
+        <div style="padding:12px; display:flex; flex-direction:column; gap:10px; max-height: 72vh; overflow:auto;">
+          {% for t in col %}
+            <div style="padding:12px; border-radius:16px; background:rgba(0,0,0,0.22);
+              border:1px solid rgba(255,255,255,0.10);">
+              <div style="font-weight:950;">{{ t.title }}</div>
+              <div style="opacity:.75; font-size:13px; margin-top:4px;">
+                {% if t.assignee %}@{{ t.assignee.username }}{% endif %}
+              </div>
+
+              <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+                <form method="post" action="{% url 'projects:task_move' t.id %}" style="margin:0;">
+                  {% csrf_token %}
+                  <input type="hidden" name="direction" value="left" />
+                  <button style="padding:8px 10px; border-radius:12px; border:1px solid rgba(255,255,255,0.12);
+                    background:rgba(255,255,255,0.06); color:white; font-weight:900;">←</button>
+                </form>
+
+                <form method="post" action="{% url 'projects:task_move' t.id %}" style="margin:0;">
+                  {% csrf_token %}
+                  <input type="hidden" name="direction" value="right" />
+                  <button style="padding:8px 10px; border-radius:12px; border:1px solid rgba(255,255,255,0.12);
+                    background:rgba(255,255,255,0.06); color:white; font-weight:900;">→</button>
+                </form>
+
+                <a href="{% url 'projects:task_edit' t.id %}" style="text-decoration:none; padding:8px 10px; border-radius:12px;
+                  border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); color:white; font-weight:900;">✏️</a>
+
+                <a href="{% url 'projects:task_delete' t.id %}" style="text-decoration:none; padding:8px 10px; border-radius:12px;
+                  border:1px solid rgba(239,68,68,0.40); background:rgba(239,68,68,0.15); color:white; font-weight:900;">🗑️</a>
+              </div>
+            </div>
+          {% empty %}
+            <div style="opacity:.6;">Aucune tâche.</div>
+          {% endfor %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+</div>
+{% endblock %}

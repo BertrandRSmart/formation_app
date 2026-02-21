@@ -1,0 +1,128 @@
+{% extends "trainings/base.html" %}
+
+
+{% block title %}Gérer les formations{% endblock %}
+
+{% block content %}
+
+<h1 style="margin:0 0 10px 0; font-size:34px;">Gérer les formations</h1>
+<div style="color:#94a3b8; margin-bottom:16px;">
+  Recherche une session, puis gère les participants.
+</div>
+
+<div style="display:grid; grid-template-columns: 1.1fr 0.9fr; gap:14px; align-items:start;">
+
+  <!-- COLONNE GAUCHE : recherche + liste sessions -->
+  <div style="
+      background:rgba(255,255,255,0.04);
+      border:1px solid rgba(148,163,184,0.25);
+      border-radius:16px;
+      padding:14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+  ">
+    <form method="get" style="display:flex; gap:10px; align-items:center;">
+      <input
+        type="text"
+        name="q"
+        value="{{ q }}"
+        placeholder="Référence de session (ex: S-2026-001)…"
+        style="
+          flex:1;
+          padding:12px 12px;
+          border-radius:12px;
+          border:1px solid rgba(148,163,184,0.35);
+          background:rgba(255,255,255,0.06);
+          color:inherit;
+          outline:none;
+        "
+      />
+      <button class="btn" type="submit" style="padding:12px 14px; border-radius:12px;">
+        🔎 Rechercher
+      </button>
+    </form>
+
+    <div style="margin-top:12px; display:flex; flex-direction:column; gap:10px;">
+      {% for s in sessions %}
+        <a href="{% url 'training_manage_home' %}?q={{ q|urlencode }}&session={{ s.id }}"
+           style="text-decoration:none; color:inherit;">
+          <div style="
+              padding:12px;
+              border-radius:14px;
+              border:1px solid rgba(148,163,184,0.22);
+              background:rgba(0,0,0,0.18);
+              transition: transform .08s ease;
+          ">
+            <div style="display:flex; justify-content:space-between; gap:10px;">
+              <div>
+                <div style="font-weight:800;">
+                  {{ s.display_ref|default:"Session #" }}{{ s.id }}
+                </div>
+                <div style="color:#94a3b8; font-size:13px; margin-top:2px;">
+                  {{ s.training }} • {{ s.start_date|date:"d/m/Y" }}
+                  {% if s.end_date %} → {{ s.end_date|date:"d/m/Y" }}{% endif %}
+                </div>
+              </div>
+              <div style="opacity:0.8; align-self:center;">➡️</div>
+            </div>
+          </div>
+        </a>
+      {% empty %}
+        <div style="color:#94a3b8; padding:10px;">
+          Aucune session trouvée.
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- COLONNE DROITE : aperçu participants -->
+  <div style="
+      background:rgba(255,255,255,0.04);
+      border:1px solid rgba(148,163,184,0.25);
+      border-radius:16px;
+      padding:14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+  ">
+    {% if selected_session %}
+      <div style="display:flex; justify-content:space-between; gap:10px; align-items:start;">
+        <div>
+          <div style="font-weight:900; font-size:16px;">
+            {{ selected_session.display_ref|default:"Session #" }}{{ selected_session.id }}
+          </div>
+          <div style="color:#94a3b8; font-size:13px; margin-top:2px;">
+            {{ selected_session.training }} • {{ selected_session.start_date|date:"d/m/Y" }}
+          </div>
+        </div>
+        <a class="btn" href="{% url 'session_detail_manage' selected_session.id %}" style="border-radius:12px;">
+          ⚙️ Ouvrir
+        </a>
+      </div>
+
+      <div style="margin-top:12px; display:flex; flex-direction:column; gap:8px;">
+        {% for reg in registrations|slice:":10" %}
+          <div style="
+              padding:10px;
+              border-radius:12px;
+              border:1px solid rgba(148,163,184,0.18);
+              background:rgba(0,0,0,0.16);
+          ">
+            <div style="font-weight:700;">
+              {{ reg.participant.last_name }} {{ reg.participant.first_name }}
+            </div>
+            <div style="color:#94a3b8; font-size:12px;">
+              {{ reg.participant.email }}
+            </div>
+          </div>
+        {% empty %}
+          <div style="color:#94a3b8;">Aucun participant.</div>
+        {% endfor %}
+      </div>
+
+    {% else %}
+      <div style="color:#94a3b8;">
+        Sélectionne une session pour afficher les participants.
+      </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

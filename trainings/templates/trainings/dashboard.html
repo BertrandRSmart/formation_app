@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Dashboard</title>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; background: #f6f7fb; }
+    header { background: #1f3a5f; color: white; padding: 14px 18px; }
+    nav a { color: white; text-decoration: none; margin-right: 14px; font-weight: 600; }
+    main { max-width: 1200px; margin: 18px auto; padding: 0 14px; }
+    .card { background:#fff; border-radius:10px; padding:14px; box-shadow:0 2px 8px rgba(0,0,0,.08); margin-bottom: 14px; }
+
+    /* =========================
+       Alertes convocations (Option A)
+       ========================= */
+
+    .alerts{
+      margin-bottom: 14px;
+      color: #0f172a;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    }
+
+    .alerts__header{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom: 12px;
+    }
+
+    .alerts__title{
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+
+    .alerts__title h2{
+      margin:0;
+      font-size: 20px;
+      letter-spacing: .2px;
+    }
+
+    .alerts__icon{
+      display:inline-flex;
+      width: 34px;
+      height: 34px;
+      align-items:center;
+      justify-content:center;
+      border-radius: 10px;
+      background: #fff7ed;
+      border: 1px solid #fed7aa;
+    }
+
+    .alerts__date{
+      font-size: 13px;
+      color:#64748b;
+      white-space: nowrap;
+    }
+
+    .alert-card{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap: 14px;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-left-width: 6px;
+      border-radius: 14px;
+      padding: 14px;
+      box-shadow: 0 8px 22px rgba(2, 6, 23, .06);
+      margin-bottom: 12px;
+    }
+
+    .alert-card--warning{ border-left-color: #f59e0b; }
+    .alert-card--danger { border-left-color: #ef4444; }
+    .alert-card--ok     { border-left-color: #22c55e; }
+
+    .alert-card__main{ flex: 1; min-width: 0; }
+
+    .alert-card__top{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .alert-card__name{
+      margin: 0;
+      font-size: 16px;
+      font-weight: 800;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .badge{
+      display:inline-flex;
+      align-items:center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+
+    .badge--warning{ background:#fffbeb; color:#92400e; border-color:#fde68a; }
+    .badge--danger { background:#fef2f2; color:#991b1b; border-color:#fecaca; }
+    .badge--ok     { background:#f0fdf4; color:#166534; border-color:#bbf7d0; }
+
+    .alert-card__meta{
+      display:flex;
+      flex-wrap:wrap;
+      gap: 8px;
+    }
+
+    .meta-pill{
+      display:inline-flex;
+      align-items:center;
+      gap: 6px;
+      padding: 7px 10px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 999px;
+      font-size: 13px;
+      color:#334155;
+    }
+
+    .alert-card__actions{
+      display:flex;
+      flex-direction:column;
+      gap: 8px;
+      flex: 0 0 auto;
+    }
+
+    .btn{
+      appearance:none;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      padding: 9px 12px;
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+      text-decoration:none;
+      text-align:center;
+    }
+
+    .btn--primary{
+      background: #1e40af;
+      color: #fff;
+      border-color: #1e40af;
+    }
+    .btn--primary:hover{ filter: brightness(1.05); }
+
+    .btn--ghost{
+      background: #ffffff;
+      color:#0f172a;
+      border-color:#e2e8f0;
+    }
+    .btn--ghost:hover{ background:#f8fafc; }
+
+    @media (max-width: 720px){
+      .alerts__header{ flex-direction:column; align-items:flex-start; }
+      .alert-card{ flex-direction:column; }
+      .alert-card__actions{ flex-direction:row; width:100%; }
+      .btn{ flex:1; }
+    }
+  </style>
+</head>
+
+<body>
+<header>
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <div style="font-size:18px; font-weight:700;">Formation App</div>
+    <nav>
+      <a href="/">Accueil</a>
+      <a href="/agenda/">Agenda</a>
+      <a href="/dashboard/">Dashboard</a>
+      <a href="/admin/">Admin</a>
+      <a href="/accounts/logout/">Déconnexion</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <h1 style="margin:0 0 12px 0;">Dashboard</h1>
+
+  <!-- =========================
+       Alertes convocations (Option A)
+       ========================= -->
+
+  <section class="alerts">
+    <div class="alerts__header">
+      <div class="alerts__title">
+        <span class="alerts__icon">🚨</span>
+        <h2>Alertes convocations</h2>
+      </div>
+      <div class="alerts__date">Aujourd’hui : {{ today|date:"d/m/Y" }}</div>
+    </div>
+
+    {# 
+      Tu peux remplacer ce "for" par ton vrai contexte.
+      Si tu n'as pas "convocation_alerts", mets le nom que tu utilises déjà dans ta view.
+    #}
+    {% if convocation_alerts %}
+      {% for a in convocation_alerts %}
+        <article class="alert-card alert-card--warning">
+          <div class="alert-card__main">
+            <div class="alert-card__top">
+              <h3 class="alert-card__name">{{ a.title }}</h3>
+              <span class="badge badge--warning">Convocation à envoyer aujourd’hui</span>
+            </div>
+
+            <div class="alert-card__meta">
+              <span class="meta-pill"><strong>Client</strong> : {{ a.client }}</span>
+              <span class="meta-pill"><strong>Formation</strong> : {{ a.training }}</span>
+              <span class="meta-pill">📅 {{ a.start|date:"d/m/Y" }} → {{ a.end|date:"d/m/Y" }}</span>
+            </div>
+          </div>
+
+          <div class="alert-card__actions">
+            <a class="btn btn--primary" href="{{ a.admin_url }}">Ouvrir dans l’admin</a>
+
+            <form method="post" action="{{ a.close_url }}">
+              {% csrf_token %}
+              <button class="btn btn--ghost" type="submit">Fermer</button>
+            </form>
+          </div>
+        </article>
+      {% endfor %}
+    {% else %}
+      <div class="card" style="background:#fff; border:1px dashed #cbd5e1;">
+        <div style="color:#64748b; font-weight:700;">Aucune alerte 🎉</div>
+        <div style="color:#94a3b8; font-size:13px; margin-top:6px;">
+          Rien à envoyer aujourd’hui.
+        </div>
+      </div>
+    {% endif %}
+  </section>
+
+  <!-- =========================
+       Ton graphique (inchangé)
+       ========================= -->
+
+  <div class="card">
+    <h3 style="margin-top:0;">Sessions par type de formation</h3>
+
+    <div style="max-width: 750px; height: 420px;">
+      <canvas id="pieByType"></canvas>
+    </div>
+
+    <!-- debug -->
+    <div style="margin-top:10px; font-size:12px; color:#666;">
+      labels: {{ labels_type|length }} / values: {{ values_type|length }}
+    </div>
+  </div>
+
+  {{ labels_type|json_script:"labels-type" }}
+  {{ values_type|json_script:"values-type" }}
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      const labels = JSON.parse(document.getElementById("labels-type").textContent || "[]");
+      const values = JSON.parse(document.getElementById("values-type").textContent || "[]");
+
+      console.log("labels", labels);
+      console.log("values", values);
+
+      const ctx = document.getElementById("pieByType");
+
+      new Chart(ctx, {
+        type: "doughnut",
+        data: {
+          labels: labels,
+          datasets: [{
+            label: "Sessions",
+            data: values
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: "right" }
+          }
+        }
+      });
+    });
+  </script>
+</main>
+
+</body>
+</html>

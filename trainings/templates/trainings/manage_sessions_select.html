@@ -1,0 +1,222 @@
+{% extends "trainings/base.html" %}
+{% block title %}Gérer les formations{% endblock %}
+
+{% block content %}
+<div style="
+  position: fixed;
+  inset: 0;
+  padding: 92px 18px 18px;
+  box-sizing: border-box;
+  overflow: hidden;
+  color: rgba(255,255,255,0.92);
+  background:
+    radial-gradient(1200px 600px at 18% -10%, rgba(21,96,130,0.25), transparent 55%),
+    radial-gradient(1000px 600px at 86% 10%, rgba(255,137,233,0.14), transparent 55%),
+    linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.00)),
+    #0B0F14;
+">
+
+  <style>
+    /* Scrollbar discrète (uniquement dans la liste participants) */
+    .scrollbox{ scrollbar-width: thin; }
+    .scrollbox::-webkit-scrollbar{ width: 10px; }
+    .scrollbox::-webkit-scrollbar-thumb{
+      background: rgba(255,255,255,0.16);
+      border-radius: 999px;
+      border: 2px solid rgba(0,0,0,0.25);
+    }
+    .scrollbox::-webkit-scrollbar-track{
+      background: rgba(255,255,255,0.04);
+      border-radius: 999px;
+    }
+
+    /* Ligne compacte nom + email */
+    .p-row{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 10px;
+
+      padding: 10px 12px;
+      border-radius: 14px;
+
+      background: rgba(0,0,0,0.20);
+      border: 1px solid rgba(255,255,255,0.10);
+
+      transition: border-color .12s ease, background .12s ease, transform .12s ease;
+    }
+    .p-row:hover{
+      border-color: rgba(255,255,255,0.16);
+      background: rgba(0,0,0,0.24);
+      transform: translateY(-1px);
+    }
+
+    .p-left{
+      min-width: 0;
+      display:flex;
+      align-items:baseline;
+      gap: 10px;
+      flex: 1 1 auto;
+    }
+    .p-name{
+      font-weight: 950;
+      font-size: 14px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 42ch;
+    }
+    .p-email{
+      font-size: 12px;
+      opacity: .72;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 46ch;
+    }
+
+    .p-actions{
+      display:flex;
+      gap: 8px;
+      flex: 0 0 auto;
+    }
+    .iconbtn{
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.06);
+      color: white;
+      text-decoration:none;
+      cursor:pointer;
+    }
+    .iconbtn--danger{
+      border-color: rgba(239,68,68,0.40);
+      background: rgba(239,68,68,0.15);
+    }
+
+    @media (max-width: 640px){
+      .p-left{ flex-direction:column; align-items:flex-start; gap:2px; }
+      .p-name, .p-email{ max-width: 100%; }
+    }
+  </style>
+
+  <!-- PANEL SELECT -->
+  <div style="
+      border-radius:18px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+      border: 1px solid rgba(255,255,255,0.07);
+      backdrop-filter: blur(14px);
+      box-shadow: 0 18px 45px rgba(0,0,0,0.55);
+      margin-bottom:16px;
+  ">
+    <div style="padding:14px 16px; border-bottom:1px solid rgba(255,255,255,0.08);">
+      <div style="font-size:18px; font-weight:950;">📚 Gérer les formations</div>
+      <div style="font-size:13px; opacity:.7;">Choisis une session par référence</div>
+    </div>
+
+    <div style="padding:14px 16px;">
+      <form method="get">
+        <select name="session" onchange="this.form.submit()"
+                style="width:100%; padding:10px 12px; border-radius:12px;
+                       background:rgba(0,0,0,0.25);
+                       border:1px solid rgba(255,255,255,0.12);
+                       color:white; font-weight:900;">
+          <option value="">— Sélectionner une session —</option>
+          {% for s in sessions %}
+            <option value="{{ s.id }}"
+              {% if selected_session and selected_session.id == s.id %}selected{% endif %}>
+              {{ s.reference|default:"Session" }} — {{ s.training }} • {{ s.start_date|date:"d/m/Y" }}
+            </option>
+          {% endfor %}
+        </select>
+      </form>
+    </div>
+  </div>
+
+  <!-- PANEL PARTICIPANTS -->
+  <div style="
+      border-radius:18px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+      border: 1px solid rgba(255,255,255,0.07);
+      backdrop-filter: blur(14px);
+      box-shadow: 0 18px 45px rgba(0,0,0,0.55);
+      height: calc(100vh - 92px - 18px - 16px - 120px);
+      display:flex;
+      flex-direction:column;
+      overflow:hidden;
+  ">
+
+    <div style="padding:14px 16px; border-bottom:1px solid rgba(255,255,255,0.08);
+                display:flex; justify-content:space-between; align-items:center; gap:12px; flex:0 0 auto;">
+      <div>
+        <div style="font-size:18px; font-weight:950;">
+          👥 Participants
+          {% if selected_session %}
+            <span style="font-size:13px; opacity:.75; font-weight:900;">
+              ({{ registrations|length }})
+            </span>
+          {% endif %}
+        </div>
+        {% if selected_session %}
+          <div style="font-size:13px; opacity:.7;">
+            {{ selected_session.reference }} • {{ selected_session.start_date|date:"d/m/Y" }}
+          </div>
+        {% endif %}
+      </div>
+
+      {% if selected_session %}
+        <a href="{% url 'session_participant_add' selected_session.id %}"
+           style="text-decoration:none;
+                  padding:9px 12px; border-radius:12px;
+                  border:1px solid rgba(124,58,237,0.45);
+                  background: rgba(124,58,237,0.18);
+                  color:white; font-weight:900;
+                  display:inline-flex; align-items:center; gap:8px;">
+          ➕ Ajouter
+        </a>
+      {% endif %}
+    </div>
+
+    {% if not selected_session %}
+      <div style="padding:16px; opacity:.6;">
+        Sélectionne une session pour afficher les participants.
+      </div>
+    {% else %}
+
+      <!-- ✅ SEULE SCROLLBAR : celle-ci -->
+      <div class="scrollbox" style="
+        padding:12px;
+        overflow:auto;
+        flex: 1 1 auto;
+      ">
+        {% for reg in registrations %}
+          <div class="p-row">
+            <div class="p-left">
+              <div class="p-name">{{ reg.participant.last_name }} {{ reg.participant.first_name }}</div>
+              <div class="p-email">{{ reg.participant.email }}</div>
+            </div>
+
+            <div class="p-actions">
+              <a class="iconbtn" href="{% url 'session_participant_edit' selected_session.id reg.id %}" title="Modifier">✏️</a>
+
+              <form method="post" action="{% url 'session_participant_delete' selected_session.id reg.id %}" style="margin:0;">
+                {% csrf_token %}
+                <button class="iconbtn iconbtn--danger" type="submit"
+                        onclick="return confirm('Retirer ce participant ?')" title="Retirer">🗑️</button>
+              </form>
+            </div>
+          </div>
+        {% empty %}
+          <div style="opacity:.6; padding:10px 4px;">Aucun participant.</div>
+        {% endfor %}
+      </div>
+
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

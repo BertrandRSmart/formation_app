@@ -1,0 +1,26 @@
+{% extends "trainings/base.html" %}
+{% block title %}Participant{% endblock %}
+{% block content %}
+
+<h1 style="margin-bottom:10px;">
+  {% if mode == "add" %}Ajouter un participant{% else %}Modifier le participant{% endif %}
+</h1>
+
+<form method="post" style="background:white; border:1px solid #e2e8f0; border-radius:12px; padding:14px;">
+  {% csrf_token %}
+
+  {{ p_form.as_p }}
+
+  {% if mode == "edit" %}
+    <h3 style="margin-top:14px;">Inscription</h3>
+    {{ r_form.as_p }}
+  {% endif %}
+
+  <div style="display:flex; gap:10px; margin-top:14px;">
+    <button class="btn" type="submit">Enregistrer</button>
+    <a class="btn" href="{% url 'training_manage_home' %}?session={{ session.id }}">Retour</a>
+
+  </div>
+</form>
+
+{% endblock %}

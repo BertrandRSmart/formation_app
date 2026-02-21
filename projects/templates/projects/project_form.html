@@ -1,0 +1,34 @@
+{% extends "trainings/base.html" %}
+{% block title %}Projet — BSmart{% endblock %}
+
+{% block content %}
+<div style="padding:92px 18px; color:white;">
+
+  <h1 style="margin-bottom:12px;">
+    {% if mode == "edit" %}✏️ Modifier le projet{% else %}➕ Nouveau projet{% endif %}
+  </h1>
+
+  <div class="alert-item">
+    <form method="post">
+      {% csrf_token %}
+
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        {{ form.name.label_tag }}
+        {{ form.name }}
+
+        {{ form.category.label_tag }}
+        {{ form.category }}
+
+        {{ form.description.label_tag }}
+        {{ form.description }}
+      </div>
+
+      <div style="margin-top:16px; display:flex; gap:10px;">
+        <button class="btn2 btn2--primary">Enregistrer</button>
+        <a class="btn2" href="{% url 'projects_list' %}">Annuler</a>
+      </div>
+    </form>
+  </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,335 @@
+{# templates/projects/projects_home.html #}
+{% extends "trainings/base.html" %}
+{% block title %}Kanban (Gestion des tâches){% endblock %}
+{% block body_class %}no-scroll{% endblock %}
+
+{% block content %}
+
+{# ✅ Debug: décommente si tu veux vérifier le template chargé #}
+{# 
+<div style="position:fixed; bottom:12px; left:12px; z-index:9999; background:#000; padding:6px 10px; border-radius:10px; font-weight:900;">
+  TEMPLATE: projects_home.html ✅
+</div>
+#}
+
+<div style="
+  position: fixed;
+  top: 90px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 18px 18px 32px;
+  box-sizing: border-box;
+  overflow: hidden;
+  color: rgba(255,255,255,0.92);
+  background:
+    radial-gradient(1200px 600px at 18% -10%, rgba(21,96,130,0.25), transparent 55%),
+    radial-gradient(1000px 600px at 86% 10%, rgba(255,137,233,0.14), transparent 55%),
+    linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.00)),
+    #0B0F14;
+">
+
+  <style>
+    .kb-wrap{
+      height: 100%;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      min-height:0;
+    }
+
+    .kb-head{
+      display:flex; justify-content:space-between; align-items:flex-end;
+      gap:12px;
+      flex:0 0 auto;
+    }
+    .kb-title{ font-size:21px; font-weight:950; margin:0; }
+    .kb-sub{ opacity:.7; font-size:12px; margin-top:4px; }
+
+    .kb-btn{
+      text-decoration:none; padding:9px 12px; border-radius:12px;
+      border:1px solid rgba(124,58,237,0.45);
+      background: rgba(124,58,237,0.18);
+      color:white; font-weight:900;
+      display:inline-flex; align-items:center; gap:8px;
+      white-space:nowrap;
+    }
+
+    .kb-filters{
+      display:flex; gap:10px; flex-wrap:wrap;
+      flex:0 0 auto;
+    }
+    .kb-input, .kb-select, .kb-filterbtn{
+      padding:9px 10px; border-radius:12px;
+      background:rgba(0,0,0,0.25);
+      border:1px solid rgba(255,255,255,0.12);
+      color:white; font-weight:800;
+      outline:none;
+      font-size:13px;
+    }
+    .kb-input{ flex:1; min-width:240px; }
+    .kb-filterbtn{
+      background: rgba(255,255,255,0.06);
+      font-weight:900;
+      cursor:pointer;
+    }
+
+    .kb-board{
+      flex: 1 1 auto;
+      min-height: 0;
+      display:grid;
+      grid-template-columns: 320px repeat(4, minmax(0, 1fr));
+      gap:12px;
+    }
+
+    @media(max-width: 1300px){
+      .kb-board{ grid-template-columns: 280px repeat(4, minmax(0, 1fr)); }
+    }
+    @media(max-width: 1100px){
+      .kb-board{ grid-template-columns: 1fr 1fr; }
+      .kb-input{ min-width: 200px; }
+    }
+    @media(max-width: 720px){
+      .kb-board{ grid-template-columns: 1fr; }
+      .kb-input{ min-width: 180px; }
+    }
+
+    .kb-col{
+      border-radius:18px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+      border:1px solid rgba(255,255,255,0.07);
+      box-shadow: 0 18px 45px rgba(0,0,0,0.55);
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+      min-height:0;
+    }
+    .kb-col-h{
+      padding:10px 12px;
+      border-bottom:1px solid rgba(255,255,255,0.08);
+      font-weight:950;
+      flex:0 0 auto;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      font-size:13px;
+    }
+    .kb-col-count{ opacity:.7; font-weight:800; }
+
+    .kb-col-body{
+      padding:10px;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      overflow:auto;
+      min-height:0;
+    }
+
+    .kb-card{
+      padding:10px;
+      border-radius:16px;
+      background:rgba(0,0,0,0.22);
+      border:1px solid rgba(255,255,255,0.10);
+    }
+    .kb-card-title{ font-weight:950; font-size:13px; }
+    .kb-card-meta{ opacity:.75; font-size:12px; margin-top:4px; }
+
+    .kb-actions{ display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+    .kb-mini, .kb-link{
+      padding:7px 9px; border-radius:12px;
+      border:1px solid rgba(255,255,255,0.12);
+      background:rgba(255,255,255,0.06);
+      color:white; font-weight:900;
+      text-decoration:none;
+      cursor:pointer;
+      font-size:12px;
+      line-height:1;
+    }
+
+    /* ✅ Badges ultra-compacts (compteurs uniquement) */
+    .kb-badges{
+      display:flex;
+      gap:6px;
+      flex-wrap:nowrap;
+      margin-top:6px;
+    }
+    .kb-badge{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding:3px 7px;
+      border-radius:999px;
+      font-size:11px;
+      line-height:1;
+      font-weight:950;
+      background:rgba(255,255,255,0.06);
+      border:1px solid rgba(255,255,255,0.10);
+      white-space:nowrap;
+    }
+    .kb-dot{
+      width:8px;
+      height:8px;
+      border-radius:3px;
+      display:inline-block;
+    }
+    .kb-dot.todo{ background:#3b82f6; }
+    .kb-dot.doing{ background:#facc15; }
+    .kb-dot.blocked{ background:#ef4444; }
+    .kb-dot.done{ background:#22c55e; }
+
+    /* ✅ Légende sticky */
+    .kb-legend{
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      padding-bottom: 6px;
+      background: linear-gradient(180deg, rgba(11,15,20,0.95), rgba(11,15,20,0.60));
+      backdrop-filter: blur(6px);
+    }
+    .kb-legend-row{
+      display:flex;
+      gap:6px;
+      flex-wrap:nowrap;
+    }
+    .kb-legend-label{
+      font-size:11px;
+      font-weight:900;
+      opacity:.85;
+    }
+  </style>
+
+  <div class="kb-wrap">
+    <div class="kb-head">
+      <div>
+        <div class="kb-title">🧩 Kanban (Gestion des tâches)</div>
+        <div class="kb-sub">Déplace les tâches avec les boutons ← →</div>
+      </div>
+
+      <a class="kb-btn" href="{% url 'projects:task_create' %}">➕ Nouvelle tâche</a>
+    </div>
+
+    <form method="get" class="kb-filters">
+      <input class="kb-input" name="q" value="{{ q }}" placeholder="Recherche…" />
+
+      <select class="kb-select" name="project">
+        <option value="">Tous les projets</option>
+        {% for p in projects %}
+          <option value="{{ p.id }}" {% if project_id == p.id|stringformat:"s" %}selected{% endif %}>{{ p.name }}</option>
+        {% endfor %}
+      </select>
+
+      <select class="kb-select" name="priority">
+        <option value="">Priorité</option>
+        <option value="1" {% if priority == "1" %}selected{% endif %}>Haute</option>
+        <option value="2" {% if priority == "2" %}selected{% endif %}>Normale</option>
+        <option value="3" {% if priority == "3" %}selected{% endif %}>Basse</option>
+      </select>
+
+      <button class="kb-filterbtn" type="submit">Filtrer</button>
+    </form>
+
+    <div class="kb-board">
+
+      <!-- ✅ Colonne Projets -->
+      <div class="kb-col">
+        <div class="kb-col-h">
+          <span>📁 Projets</span>
+          <span class="kb-col-count">({{ projects|length }})</span>
+        </div>
+
+        <div class="kb-col-body">
+
+          <!-- ✅ carte "Tous les projets" -->
+          <a href="?{% if q %}q={{ q|urlencode }}&{% endif %}{% if priority %}priority={{ priority|urlencode }}&{% endif %}"
+             style="text-decoration:none; color:inherit;">
+            <div class="kb-card" style="{% if not project_id %}border-color: rgba(124,58,237,0.60); background: rgba(124,58,237,0.16);{% endif %}">
+              <div class="kb-card-title">✨ Tous les projets</div>
+              <div class="kb-card-meta" style="opacity:.7;">Afficher toutes les tâches</div>
+            </div>
+          </a>
+
+          <!-- ✅ Légende -->
+          <div class="kb-legend">
+            <div class="kb-legend-row">
+              <span class="kb-badge"><span class="kb-dot todo"></span><span class="kb-legend-label">TODO</span></span>
+              <span class="kb-badge"><span class="kb-dot doing"></span><span class="kb-legend-label">En cours</span></span>
+              <span class="kb-badge"><span class="kb-dot blocked"></span><span class="kb-legend-label">Bloqué</span></span>
+              <span class="kb-badge"><span class="kb-dot done"></span><span class="kb-legend-label">Terminé</span></span>
+            </div>
+          </div>
+
+          {% for p in projects %}
+            <a href="?{% if q %}q={{ q|urlencode }}&{% endif %}{% if priority %}priority={{ priority|urlencode }}&{% endif %}project={{ p.id }}"
+               style="text-decoration:none; color:inherit;">
+              <div class="kb-card" style="{% if project_id == p.id|stringformat:'s' %}border-color: rgba(124,58,237,0.60); background: rgba(124,58,237,0.16);{% endif %}">
+                <div class="kb-card-title">{{ p.name }}</div>
+
+                <div class="kb-badges">
+                  <span class="kb-badge"><span class="kb-dot todo"></span>{{ p.todo_count }}</span>
+                  <span class="kb-badge"><span class="kb-dot doing"></span>{{ p.doing_count }}</span>
+                  <span class="kb-badge"><span class="kb-dot blocked"></span>{{ p.blocked_count }}</span>
+                  <span class="kb-badge"><span class="kb-dot done"></span>{{ p.done_count }}</span>
+                </div>
+              </div>
+            </a>
+          {% empty %}
+            <div style="opacity:.6;">Aucun projet.</div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- ✅ Colonnes Tâches -->
+      {% for key, col in columns.items %}
+        <div class="kb-col">
+          <div class="kb-col-h">
+            {% if key == "todo" %}
+              <span>🟦 TODO</span>
+            {% elif key == "doing" %}
+              <span>🟨 En cours</span>
+            {% elif key == "blocked" %}
+              <span>🟥 Bloqué</span>
+            {% else %}
+              <span>🟩 Terminé</span>
+            {% endif %}
+            <span class="kb-col-count">({{ col|length }})</span>
+          </div>
+
+          <div class="kb-col-body">
+            {% for t in col %}
+              <div class="kb-card">
+                <div class="kb-card-title">{{ t.title }}</div>
+                <div class="kb-card-meta">
+                  {{ t.project }}{% if t.assignee %} • @{{ t.assignee.username }}{% endif %}
+                </div>
+
+                <div class="kb-actions">
+                  <form method="post" action="{% url 'projects:task_move' t.id %}" style="margin:0;">
+                    {% csrf_token %}
+                    <input type="hidden" name="direction" value="left" />
+                    <button type="submit" class="kb-mini">←</button>
+                  </form>
+
+                  <form method="post" action="{% url 'projects:task_move' t.id %}" style="margin:0;">
+                    {% csrf_token %}
+                    <input type="hidden" name="direction" value="right" />
+                    <button type="submit" class="kb-mini">→</button>
+                  </form>
+
+                  <a class="kb-link" href="{% url 'projects:task_edit' t.id %}">✏️</a>
+
+                  {# ✅ pas de delete dans tes urls -> on l’enlève pour éviter NoReverseMatch #}
+                  {# <a class="kb-link kb-danger" href="{% url 'projects:task_delete' t.id %}">🗑️</a> #}
+                </div>
+              </div>
+            {% empty %}
+              <div style="opacity:.6;">Aucune tâche.</div>
+            {% endfor %}
+          </div>
+        </div>
+      {% endfor %}
+
+    </div>
+  </div>
+
+</div>
+{% endblock %}

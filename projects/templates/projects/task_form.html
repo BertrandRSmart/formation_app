@@ -1,0 +1,55 @@
+{% extends "trainings/base.html" %}
+{% block title %}Tâche{% endblock %}
+
+{% block content %}
+<div style="max-width:780px; margin: 110px auto 40px; padding: 0 16px;">
+
+  <div style="padding:16px; border-radius:18px; border:1px solid rgba(255,255,255,.10); background: rgba(0,0,0,.22);">
+    <h1 style="margin:0 0 14px; font-weight:950;">{% if task %}✏️ Modifier{% else %}➕ Nouvelle tâche{% endif %}</h1>
+
+    <form method="post" style="display:flex; flex-direction:column; gap:12px;">
+      {% csrf_token %}
+
+      <label style="font-weight:900; opacity:.85;">Titre</label>
+      <input name="title" value="{% if task %}{{ task.title }}{% endif %}"
+             style="padding:10px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.12); background: rgba(0,0,0,.25); color:white; font-weight:900;" />
+
+      <label style="font-weight:900; opacity:.85;">Projet</label>
+      <select name="project_id"
+              style="padding:10px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.12); background: rgba(0,0,0,.25); color:white; font-weight:900;">
+        <option value="">—</option>
+        {% for p in projects %}
+          <option value="{{ p.id }}"
+            {% if task and task.project_id == p.id %}selected{% endif %}>
+            {{ p.name }}
+          </option>
+        {% endfor %}
+      </select>
+
+      {% if task %}
+        <label style="font-weight:900; opacity:.85;">Statut</label>
+        <select name="status"
+                style="padding:10px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.12); background: rgba(0,0,0,.25); color:white; font-weight:900;">
+          <option value="TODO" {% if task.status == "TODO" %}selected{% endif %}>TODO</option>
+          <option value="IN_PROGRESS" {% if task.status == "IN_PROGRESS" %}selected{% endif %}>En cours</option>
+          <option value="BLOCKED" {% if task.status == "BLOCKED" %}selected{% endif %}>Bloqué</option>
+          <option value="DONE" {% if task.status == "DONE" %}selected{% endif %}>Terminé</option>
+        </select>
+      {% endif %}
+
+      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;">
+        <button type="submit"
+                style="padding:10px 14px; border-radius:12px; border:1px solid rgba(124,58,237,0.45); background: rgba(124,58,237,0.18); color:white; font-weight:950;">
+          Enregistrer
+        </button>
+
+        <a href="{% url 'projects:projects_home' %}"
+           style="padding:10px 14px; border-radius:12px; border:1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.06); color:white; font-weight:950; text-decoration:none;">
+          Retour
+        </a>
+      </div>
+    </form>
+  </div>
+
+</div>
+{% endblock %}

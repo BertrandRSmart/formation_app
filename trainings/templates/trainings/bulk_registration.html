@@ -1,0 +1,58 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block content %}
+
+<h1>Inscriptions en masse</h1>
+
+<form method="post">
+    {% csrf_token %}
+
+    <fieldset style="margin-bottom:30px;">
+        <h2>1️⃣ Sélection de la session</h2>
+        {{ form.session }}
+    </fieldset>
+
+    {% if selected_session %}
+        <div style="background:#f5f5f5; padding:15px; margin-bottom:25px;">
+            <strong>Session sélectionnée :</strong><br>
+            {{ selected_session.reference }} – 
+            {{ selected_session.training.title }}<br>
+            Client : {{ selected_session.client.name }}<br>
+            Dates : {{ selected_session.start_date }} → {{ selected_session.end_date }}
+        </div>
+    {% endif %}
+
+    <fieldset style="margin-bottom:30px;">
+        <h2>2️⃣ Participants existants</h2>
+        {{ form.existing_participants }}
+    </fieldset>
+
+    <fieldset>
+        <h2>3️⃣ Nouveaux participants</h2>
+
+        {{ formset.management_form }}
+
+        <table>
+            <tr>
+                <th>Prénom</th>
+                <th>Nom</th>
+                <th>Email</th>
+                <th>Service</th>
+            </tr>
+            {% for f in formset %}
+            <tr>
+                <td>{{ f.first_name }}</td>
+                <td>{{ f.last_name }}</td>
+                <td>{{ f.email }}</td>
+                <td>{{ f.company_service }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </fieldset>
+
+    <br>
+    <button type="submit" class="default">Enregistrer les inscriptions</button>
+</form>
+
+{% endblock %}

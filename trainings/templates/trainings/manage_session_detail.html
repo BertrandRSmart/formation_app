@@ -1,0 +1,47 @@
+{% extends "trainings/base.html" %}
+{% block title %}Session{% endblock %}
+{% block content %}
+
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+  <div>
+    <h1 style="margin:0;">Session {{ session.reference }}</h1>
+    <div style="color:#64748b;">{{ session.training }} • {{ session.start_date|date:"d/m/Y" }}</div>
+  </div>
+  <div style="display:flex; gap:10px;">
+    <a class="btn" href="{% url 'session_participant_add' session.id %}">➕ Ajouter</a>
+    <a class="btn" href="{% url 'training_manage_home' %}">← Retour</a>
+  </div>
+</div>
+
+<div style="background:white; border:1px solid #e2e8f0; border-radius:12px; padding:14px;">
+  <table style="width:100%; border-collapse:collapse;">
+    <thead>
+      <tr style="text-align:left; color:#64748b;">
+        <th style="padding:8px;">Participant</th>
+        <th style="padding:8px;">Email</th>
+        <th style="padding:8px;">Statut</th>
+        <th style="padding:8px;">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for reg in registrations %}
+        <tr style="border-top:1px solid #e2e8f0;">
+          <td style="padding:10px;">{{ reg.participant.last_name }} {{ reg.participant.first_name }}</td>
+          <td style="padding:10px;">{{ reg.participant.email }}</td>
+          <td style="padding:10px;">{{ reg.status }}</td>
+          <td style="padding:10px; display:flex; gap:8px;">
+            <a class="btn" href="{% url 'session_participant_edit' session.id reg.id %}">Modifier</a>
+            <form method="post" action="{% url 'session_participant_delete' session.id reg.id %}">
+              {% csrf_token %}
+              <button class="btn" type="submit">Retirer</button>
+            </form>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4" style="padding:10px; color:#64748b;">Aucun participant.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

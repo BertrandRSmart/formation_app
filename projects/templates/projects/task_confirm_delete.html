@@ -1,0 +1,25 @@
+{% extends "trainings/base.html" %}
+{% block title %}Supprimer{% endblock %}
+
+{% block content %}
+<div style="padding: 92px 18px 18px; min-height:100vh; color: rgba(255,255,255,0.92); background:#0B0F14;">
+  <div style="max-width:720px; margin:0 auto; border-radius:18px; padding:16px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+    border:1px solid rgba(255,255,255,0.07); box-shadow: 0 18px 45px rgba(0,0,0,0.55);">
+    <div style="font-size:18px; font-weight:950;">🗑️ Supprimer la tâche</div>
+    <div style="opacity:.75; margin-top:8px;">Confirmer la suppression : <strong>{{ task.title }}</strong></div>
+
+    <form method="post" style="margin-top:14px;">
+      {% csrf_token %}
+      <button type="submit" style="padding:10px 14px; border-radius:12px; border:1px solid rgba(239,68,68,0.40);
+        background: rgba(239,68,68,0.15); color:white; font-weight:900;">
+        Supprimer
+      </button>
+      <a href="{% url 'projects_home' %}" style="margin-left:8px; text-decoration:none; padding:10px 14px; border-radius:12px;
+        border:1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.06); color:white; font-weight:900;">
+        Annuler
+      </a>
+    </form>
+  </div>
+</div>
+{% endblock %}

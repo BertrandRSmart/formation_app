@@ -1,0 +1,96 @@
+{% extends "trainings/base.html" %}
+{% block title %}Kanban (Gestion projets){% endblock %}
+{% block body_class %}no-scroll{% endblock %}
+
+{% block content %}
+<div style="
+  position: fixed;
+  top: 90px;
+  left: 0; right: 0; bottom: 0;
+  padding: 18px;
+  box-sizing: border-box;
+  overflow: auto;
+  color: rgba(255,255,255,0.92);
+  background:
+    radial-gradient(1200px 600px at 18% -10%, rgba(21,96,130,0.25), transparent 55%),
+    radial-gradient(1000px 600px at 86% 10%, rgba(255,137,233,0.14), transparent 55%),
+    linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.00)),
+    #0B0F14;
+">
+
+  <style>
+    .wrap{ max-width: 1400px; margin:0 auto; }
+    .head{ display:flex; justify-content:space-between; align-items:flex-end; gap:12px; }
+    .title{ margin:0; font-size:22px; font-weight:950; }
+    .sub{ opacity:.7; font-size:13px; margin-top:6px; }
+
+    .grid{
+      margin-top: 14px;
+      display:grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+    @media(max-width: 1100px){ .grid{ grid-template-columns: 1fr 1fr; } }
+    @media(max-width: 720px){ .grid{ grid-template-columns: 1fr; } }
+
+    .card{
+      border-radius:18px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+      border:1px solid rgba(255,255,255,0.08);
+      box-shadow: 0 18px 45px rgba(0,0,0,0.55);
+      padding: 14px;
+      overflow:hidden;
+      position:relative;
+      text-decoration:none;
+      color:inherit;
+    }
+    .card:hover{ border-color: rgba(168,85,247,0.35); }
+    .name{ font-weight:950; font-size:15px; margin:0; }
+    .meta{ opacity:.7; font-size:12px; margin-top:6px; }
+
+    .badges{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+    .badge{
+      display:inline-flex; align-items:center; gap:6px;
+      padding:4px 8px;
+      border-radius:999px;
+      font-size:12px;
+      font-weight:950;
+      border:1px solid rgba(255,255,255,0.10);
+      background: rgba(0,0,0,0.20);
+    }
+    .dot{ width:8px; height:8px; border-radius:3px; display:inline-block; }
+    .todo{ background:#3b82f6; }
+    .doing{ background:#facc15; }
+    .blocked{ background:#ef4444; }
+    .done{ background:#22c55e; }
+  </style>
+
+  <div class="wrap">
+    <div class="head">
+      <div>
+        <h1 class="title">📁 Kanban (Gestion projets)</h1>
+        <div class="sub">Clique sur un projet pour aller sur le Kanban des tâches filtré automatiquement.</div>
+      </div>
+    </div>
+
+    <div class="grid">
+      {% for p in projects %}
+        <a class="card" href="{% url 'projects:projects_home' %}?project={{ p.id }}">
+          <div class="name">{{ p.name }}</div>
+          <div class="meta">{{ p.total_count }} tâche(s) au total</div>
+
+          <div class="badges">
+            <span class="badge"><span class="dot todo"></span>{{ p.todo_count }}</span>
+            <span class="badge"><span class="dot doing"></span>{{ p.doing_count }}</span>
+            <span class="badge"><span class="dot blocked"></span>{{ p.blocked_count }}</span>
+            <span class="badge"><span class="dot done"></span>{{ p.done_count }}</span>
+          </div>
+        </a>
+      {% empty %}
+        <div style="opacity:.7;">Aucun projet.</div>
+      {% endfor %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}

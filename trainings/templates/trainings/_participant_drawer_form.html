@@ -1,0 +1,30 @@
+<h2 style="margin:0 0 10px 0; font-size:18px; font-weight:950;">➕ Ajouter un participant</h2>
+<div style="opacity:.7; font-size:13px; margin-bottom:12px;">
+  Session : <strong>{{ session.reference }}</strong> — {{ session.start_date|date:"d/m/Y" }}
+</div>
+
+<form method="post" action="{% url 'session_participant_add' session.id %}">
+  {% csrf_token %}
+
+  <div style="display:grid; gap:10px;">
+    {{ p_form.as_p }}
+  </div>
+
+  <div style="display:flex; gap:10px; margin-top:14px;">
+    <button type="submit" style="
+      padding:10px 14px; border-radius:12px;
+      border:1px solid rgba(124,58,237,0.45);
+      background: rgba(124,58,237,0.18);
+      color:white; font-weight:900; cursor:pointer;">
+      Enregistrer
+    </button>
+
+    <button type="button" onclick="closeDrawer()" style="
+      padding:10px 14px; border-radius:12px;
+      border:1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.06);
+      color:white; font-weight:900; cursor:pointer;">
+      Fermer
+    </button>
+  </div>
+</form>

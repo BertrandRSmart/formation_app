@@ -1,0 +1,370 @@
+{# templates/trainings/base.html #}
+{% load static %}
+<!doctype html>
+<html lang="fr" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}BSmart Application{% endblock %}</title>
+
+  <style>
+    /* ✅ Reset global */
+    html, body { margin: 0; padding: 0; height: 100%; }
+    *, *::before, *::after { box-sizing: border-box; }
+
+    :root{
+      /* THEME */
+      --bg: #0B0F14;
+      --surface: rgba(255,255,255,.04);
+      --surface-2: rgba(255,255,255,.06);
+      --border: rgba(255,255,255,.10);
+      --text: rgba(255,255,255,.92);
+      --muted: rgba(255,255,255,.70);
+
+      /* Accent BSmart */
+      --accent-1: #3B82F6; /* bleu */
+      --accent-2: #A855F7; /* violet */
+      --accent-3: #7C3AED;
+
+      --shadow: 0 18px 45px rgba(0,0,0,.55);
+      --radius: 18px;
+    }
+
+    body{
+      color: var(--text);
+      background:
+        radial-gradient(1100px 420px at 12% -8%, rgba(59,130,246,.14), transparent 62%),
+        radial-gradient(1100px 420px at 82% 8%, rgba(168,85,247,.11), transparent 64%),
+        radial-gradient(900px 520px at 70% 112%, rgba(59,130,246,.06), transparent 60%),
+        linear-gradient(180deg, rgba(6,8,20,.96), rgba(11,15,28,.96));
+      background-color: var(--bg);
+      background-attachment: fixed;
+    }
+
+    /* =========================
+       ✅ BSmart Topbar (Glass)
+       ========================= */
+    .bsmart-topbar{
+      position: sticky;
+      top: 10px;
+      z-index: 1000;
+
+      max-width: calc(100% - 24px);
+      margin: 10px auto 16px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+
+      background:
+        radial-gradient(900px 260px at 15% 0%, rgba(59,130,246,.22), transparent 60%),
+        radial-gradient(900px 260px at 75% 20%, rgba(168,85,247,.18), transparent 60%),
+        linear-gradient(180deg, rgba(5,8,22,.92), rgba(11,16,38,.75));
+
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+
+      box-shadow:
+        var(--shadow),
+        inset 0 1px 0 rgba(255,255,255,.06);
+
+      animation: bsmartFadeUp .30s ease both;
+    }
+
+    @keyframes bsmartFadeUp{
+      from{ opacity:0; transform: translateY(-6px); }
+      to{ opacity:1; transform: translateY(0); }
+    }
+
+    .bsmart-topbar__inner{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 14px;
+      padding: 12px 16px;
+    }
+
+    /* =========================
+       ✅ Brand (logo + texte)
+       ========================= */
+    .bsmart-brand{
+      display:flex;
+      align-items:center;
+      gap: 14px;
+      text-decoration:none;
+      color: var(--text);
+      min-width: 340px;
+    }
+
+    .bsmart-logo{
+      height: 52px;
+      width: 240px;
+      object-fit: contain;
+      object-position: left center;
+      display:block;
+
+      filter: drop-shadow(0 8px 16px rgba(0,0,0,.55));
+      transition: transform .18s ease, filter .18s ease;
+    }
+
+    .bsmart-brand:hover .bsmart-logo{
+      transform: translateY(-1px);
+      filter:
+        drop-shadow(0 10px 18px rgba(0,0,0,.55))
+        drop-shadow(0 0 16px rgba(168,85,247,.45));
+    }
+
+    .bsmart-brand__text{
+      display:flex;
+      flex-direction:column;
+      line-height: 1.05;
+    }
+
+    .bsmart-brand__name{
+      font-weight: 950;
+      letter-spacing: .2px;
+      font-size: 16px;
+    }
+
+    .bsmart-brand__tagline{
+      margin-top: 4px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* =========================
+       ✅ Navigation
+       ========================= */
+    .bsmart-nav{
+      display:flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items:center;
+      justify-content:flex-end;
+    }
+
+    .bsmart-nav a{
+      text-decoration:none;
+      color: rgba(255,255,255,.88);
+
+      padding: 10px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+
+      font-weight: 800;
+      font-size: 13px;
+
+      transition: transform .15s ease, background .15s ease, border-color .15s ease, filter .15s ease;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
+    }
+
+    .bsmart-nav a:hover{
+      transform: translateY(-1px);
+      background: var(--surface-2);
+      border-color: rgba(255,255,255,.18);
+      filter: brightness(1.04);
+    }
+
+    .bsmart-nav a.is-active{
+      background:
+        radial-gradient(260px 60px at 30% 30%, rgba(59,130,246,.22), transparent 60%),
+        radial-gradient(260px 60px at 70% 70%, rgba(168,85,247,.22), transparent 60%),
+        var(--surface);
+      border-color: rgba(168,85,247,.35);
+      color: var(--text);
+    }
+
+    /* ✅ Responsive */
+    @media (max-width: 920px){
+      .bsmart-brand__tagline{ display:none; }
+      .bsmart-logo{ width: 200px; height: 48px; }
+      .bsmart-brand{ min-width: auto; }
+    }
+    @media (max-width: 640px){
+      .bsmart-brand__text{ display:none; }
+      .bsmart-logo{ width: 170px; height: 46px; }
+    }
+
+    /* =========================
+       ✅ Drawer (panel droite)
+       ========================= */
+    .drawer-backdrop{
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.55);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .18s ease;
+      z-index: 1400;
+    }
+    .drawer-backdrop.open{
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .drawer{
+      position: fixed;
+      top: 14px;
+      right: 14px;
+      height: calc(100vh - 28px);
+      width: min(520px, calc(100vw - 28px));
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+
+      background:
+        radial-gradient(900px 260px at 15% 0%, rgba(59,130,246,.18), transparent 60%),
+        radial-gradient(900px 260px at 75% 20%, rgba(168,85,247,.14), transparent 60%),
+        linear-gradient(180deg, rgba(5,8,22,.92), rgba(11,16,38,.75));
+
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+
+      box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,.06);
+
+      transform: translateX(12px);
+      opacity: 0;
+      pointer-events: none;
+      transition: transform .18s ease, opacity .18s ease;
+
+      display:flex;
+      flex-direction:column;
+      overflow:hidden;
+      z-index: 1500;
+    }
+    .drawer.open{
+      transform: translateX(0);
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .drawer-top{
+      padding: 14px 16px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap: 12px;
+    }
+
+    .drawer-top h2{
+      margin:0;
+      font-size:16px;
+      font-weight:950;
+    }
+
+    .drawer-body{
+      padding: 14px 16px;
+      overflow:auto;
+    }
+
+    .xbtn{
+      padding: 9px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06);
+      color: white;
+      font-weight: 900;
+      cursor: pointer;
+      text-decoration:none;
+    }
+    .xbtn:hover{ filter: brightness(1.06); }
+
+    .drawer .fieldwrap p{
+      margin: 0 0 10px 0;
+    }
+    .drawer label{
+      display:block;
+      font-size: 12px;
+      opacity:.8;
+      font-weight: 900;
+      margin-bottom: 6px;
+    }
+    .drawer input, .drawer select, .drawer textarea{
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(0,0,0,.25);
+      border: 1px solid rgba(255,255,255,.12);
+      color: white;
+      font-weight: 900;
+      outline: none;
+    }
+    .drawer textarea{ min-height: 90px; }
+  </style>
+
+  {% block extra_head %}{% endblock %}
+</head>
+
+<body class="{% block body_class %}{% endblock %}">
+
+  {% block top_nav %}
+  <header class="bsmart-topbar">
+    <div class="bsmart-topbar__inner">
+
+      <!-- ✅ liens robustes (pas de NoReverseMatch) -->
+      <a class="bsmart-brand" href="/">
+        <img class="bsmart-logo" src="{% static 'trainings/img/bsmart-logo.png' %}?v=4" alt="BSmart">
+        <div class="bsmart-brand__text">
+          <div class="bsmart-brand__name">BSmart Application</div>
+          <div class="bsmart-brand__tagline">Pilotage intelligent de vos formations</div>
+        </div>
+      </a>
+
+      <nav class="bsmart-nav">
+        <a class="{% if request.path == '/' %}is-active{% endif %}" href="/">Accueil</a>
+        <a class="{% if request.path|slice:':8' == '/agenda/' %}is-active{% endif %}" href="/agenda/">Agenda</a>
+        <a class="{% if request.path|slice:':11' == '/dashboard/' %}is-active{% endif %}" href="/dashboard/">Dashboard</a>
+        <a class="{% if request.path|slice:':6' == '/team/' %}is-active{% endif %}"
+            href="/team/?product=ARGONOS">
+          Équipe
+        </a>
+          Équipe
+        </a>
+
+
+        {% if request.user.is_staff %}
+          <a href="/admin/">Admin</a>
+        {% endif %}
+
+        <a href="{% url 'logout' %}">Déconnexion</a>
+      </nav>
+
+    </div>
+  </header>
+  {% endblock %}
+
+  <main style="margin:0; padding:0;">
+    {% block content %}{% endblock %}
+  </main>
+
+  {% block extra_js %}
+  <script>
+    function openDrawer(id){
+      var d = document.getElementById(id);
+      var b = document.getElementById(id + 'Backdrop');
+      if(!d || !b) return;
+      d.classList.add('open');
+      b.classList.add('open');
+      d.setAttribute('aria-hidden','false');
+      document.body.classList.add('no-scroll');
+    }
+
+    function closeDrawer(id){
+      var d = document.getElementById(id);
+      var b = document.getElementById(id + 'Backdrop');
+      if(!d || !b) return;
+      d.classList.remove('open');
+      b.classList.remove('open');
+      d.setAttribute('aria-hidden','true');
+      document.body.classList.remove('no-scroll');
+    }
+
+    document.addEventListener('keydown', function(e){
+      if(e.key === 'Escape'){
+        closeDrawer('participantDrawer');
+      }
+    });
+  </script>
+  {% endblock %}
+
+</body>
+</html>

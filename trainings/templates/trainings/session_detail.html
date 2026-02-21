@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Session {{ s.reference }}</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin:20px; }
+    .card { background:#fff; padding:16px; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,.08); max-width:900px; }
+    .row { margin: 6px 0; }
+    .label { font-weight: 700; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>Session {{ s.reference }}</h2>
+
+    <div class="row"><span class="label">Client :</span> {{ s.client.name }}</div>
+    <div class="row"><span class="label">Type :</span> {{ s.training_type.name }}</div>
+    <div class="row"><span class="label">Formation :</span> {{ s.training.title }}</div>
+    <div class="row"><span class="label">Dates :</span> {{ s.start_date }} → {{ s.end_date }}</div>
+    <div class="row"><span class="label">Formateur :</span> {{ s.trainer.first_name }} {{ s.trainer.last_name }}</div>
+
+    {% if s.backup_trainer %}
+      <div class="row"><span class="label">Backup :</span> {{ s.backup_trainer.first_name }} {{ s.backup_trainer.last_name }}</div>
+    {% endif %}
+
+    {% if s.on_client_site %}
+      <div class="row"><span class="label">Lieu :</span> Chez le client</div>
+      <div class="row"><span class="label">Adresse :</span> {{ s.client_address }}</div>
+    {% else %}
+      <div class="row"><span class="label">Salle :</span> {{ s.room.name }}</div>
+    {% endif %}
+  </div>
+</body>
+</html>

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <title>Connexion</title>
+  <style>
+    body { font-family: Arial, sans-serif; background:#f6f7fb; margin:0; }
+    .box { max-width: 420px; margin: 80px auto; background:#fff; padding: 18px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+    label { display:block; margin-top: 10px; font-weight: 600; }
+    input { width: 100%; padding: 10px; margin-top: 6px; }
+    button { margin-top: 14px; padding: 10px 12px; width: 100%; background:#1f3a5f; color:#fff; border:0; border-radius: 8px; font-weight: 700; cursor:pointer; }
+    .error { color: #b00020; margin-top: 10px; }
+    .muted { color:#666; font-size: 13px; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h2>Connexion</h2>
+
+    {% if form.errors %}
+      <div class="error">Identifiant ou mot de passe incorrect.</div>
+    {% endif %}
+
+    <form method="post">
+      {% csrf_token %}
+      <label for="id_username">Identifiant</label>
+      {{ form.username }}
+
+      <label for="id_password">Mot de passe</label>
+      {{ form.password }}
+
+      <button type="submit">Se connecter</button>
+    </form>
+
+    <div class="muted">
+      Accès réservé (application interne).
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,490 @@
+{# templates/trainings/agenda.html #}
+{% extends "trainings/base.html" %}
+{% load static %}
+
+{% block title %}Agenda — BSmart Application{% endblock %}
+{% block body_class %}no-scroll{% endblock %}
+
+{% block extra_head %}
+  <!-- FullCalendar (CDN) -->
+  <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+
+  <style>
+    :root{
+      --shadow: 0 18px 45px rgba(0,0,0,0.55);
+      --r: 18px;
+
+      /* accents */
+      --c-form: #3B82F6;
+      --c-violet: #A855F7;
+      --c-proj: #FF89E9;
+      --c-team: #DCEFE3;
+    }
+
+    /* ✅ Layout plein écran comme Home */
+    .dash{
+      position: fixed;
+      inset: 0;
+      box-sizing: border-box;
+      padding: 92px 18px 18px; /* espace topbar */
+      overflow: hidden;
+
+      background:
+        radial-gradient(1200px 600px at 18% -10%, rgba(59,130,246,0.20), transparent 55%),
+        radial-gradient(1000px 600px at 86% 10%, rgba(168,85,247,0.14), transparent 55%),
+        radial-gradient(1000px 700px at 70% 105%, rgba(220,239,227,0.10), transparent 60%),
+        linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.00));
+    }
+
+    .dash-grid{
+      height: 100%;
+      display:grid;
+      gap: 16px;
+
+      grid-template-columns: minmax(0, 1fr) clamp(300px, 26vw, 360px);
+      align-items: stretch;
+    }
+
+    .panel{
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+
+      border-radius: var(--r);
+      background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+      border: 1px solid rgba(255,255,255,0.07);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+
+      display:flex;
+      flex-direction:column;
+    }
+
+    .panel-header{
+      flex: 0 0 auto;
+      padding: 16px;
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap: 12px;
+
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01));
+    }
+
+    .title{ margin:0; font-size: 18px; font-weight: 950; color: rgba(255,255,255,0.92); }
+    .small{ font-size: 13px; color: rgba(255,255,255,0.65); }
+
+    .panel-body{
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: auto;
+      padding: 16px;
+    }
+
+    .panel-body::-webkit-scrollbar{ width: 8px; }
+    .panel-body::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.14); border-radius: 999px; }
+    .panel-body::-webkit-scrollbar-track{ background: rgba(255,255,255,0.04); }
+
+    /* ✅ Filtres */
+    .field label{
+      display:block;
+      font-size: 13px;
+      font-weight: 900;
+      margin: 10px 0 6px;
+      color: rgba(255,255,255,0.86);
+    }
+    .field select{
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(0,0,0,0.22);
+      color: rgba(255,255,255,0.92);
+      outline: none;
+    }
+
+    .btn{
+      width:100%;
+      margin-top: 12px;
+      padding: 10px 14px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.06);
+      color: rgba(255,255,255,0.92);
+      font-weight: 950;
+      cursor: pointer;
+    }
+    .btn:hover{ filter: brightness(1.08); }
+
+    .btn--primary{
+      border-color: rgba(168,85,247,0.45);
+      background: rgba(168,85,247,0.18);
+    }
+
+    /* ✅ Calendrier container */
+    /* ✅ Calendrier : fond gris clair harmonieux */
+
+   #calendar{
+     background: rgba(255,255,255,0.08);          /* gris clair soft */
+     border: 1px solid rgba(255,255,255,0.10);
+     border-radius: 16px;
+     padding: 12px;
+   }
+
+    /* ✅ Grille FullCalendar un peu plus claire */
+   .fc .fc-scrollgrid{
+     background: rgba(255,255,255,0.06);
+     border-radius: 14px;
+   }
+
+   /* cellules (jours) : gris clair + hover */
+   .fc .fc-daygrid-day{
+     background: rgba(255,255,255,0.05);
+   }
+   .fc .fc-daygrid-day:hover{
+     background: rgba(255,255,255,0.07);
+   }
+
+   /* ✅ Cases “hors mois” légèrement plus fades */
+   .fc .fc-day-other{
+     background: rgba(255,255,255,0.035);
+   }
+   .fc .fc-day-other .fc-daygrid-day-number{
+     opacity: .55;
+   }
+
+   /* en-têtes (lun/mar/...) légèrement clairs */
+   .fc .fc-col-header-cell{
+     background: rgba(255,255,255,0.06);
+   }
+   .fc .fc-col-header-cell-cushion{
+     color: rgba(255,255,255,0.82);
+   }
+
+   /* numéros des jours mieux lisibles */
+   .fc .fc-daygrid-day-number{
+     color: rgba(255,255,255,0.78);
+   }
+
+   /* option : le fond derrière la grille (si tu veux encore plus “light”) */
+   .fc-theme-standard td,
+   .fc-theme-standard th{
+     border-color: rgba(255,255,255,0.10) !important;
+   }
+
+
+    /* =========================
+       ✅ FullCalendar : style dark/glass
+       ========================= */
+    .fc{ color: rgba(255,255,255,0.90); }
+    .fc .fc-toolbar-title{ font-weight: 950; letter-spacing: .2px; }
+
+    .fc .fc-button{
+      border-radius: 12px !important;
+      border: 1px solid rgba(255,255,255,0.12) !important;
+      background: rgba(255,255,255,0.06) !important;
+      color: rgba(255,255,255,0.92) !important;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.06) !important;
+      padding: 8px 12px !important;
+      font-weight: 900 !important;
+      text-transform: none !important;
+    }
+    .fc .fc-button:hover{ filter: brightness(1.08); }
+
+    .fc .fc-button-primary:not(:disabled).fc-button-active{
+      border-color: rgba(168,85,247,0.45) !important;
+      background: rgba(168,85,247,0.18) !important;
+    }
+
+    .fc .fc-scrollgrid,
+    .fc .fc-scrollgrid-section > *{
+      border-color: rgba(255,255,255,0.08) !important;
+    }
+
+    .fc .fc-col-header-cell-cushion{
+      color: rgba(255,255,255,0.80);
+      font-weight: 950;
+      text-decoration: none;
+    }
+
+    .fc .fc-daygrid-day-number{
+      color: rgba(255,255,255,0.70);
+      font-weight: 850;
+    }
+
+    .fc .fc-daygrid-day{ background: rgba(0,0,0,0.08); }
+    .fc .fc-daygrid-day:hover{ background: rgba(255,255,255,0.02); }
+
+    .fc .fc-daygrid-event{
+      padding: 2px 6px;
+      font-weight: 900;
+      border-radius: 10px !important;
+      border: 1px solid rgba(255,255,255,0.18) !important;
+      box-shadow: 0 10px 22px rgba(0,0,0,0.25);
+      overflow:hidden;
+    }
+
+    /* ✅ Légende scroll */
+    #legend{
+      max-height: 300px;
+      overflow: auto;
+      padding-right: 6px;
+    }
+    #legend::-webkit-scrollbar{ width: 8px; }
+    #legend::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.14); border-radius: 999px; }
+    #legend::-webkit-scrollbar-track{ background: rgba(255,255,255,0.04); }
+
+    /* Responsive */
+    @media (max-width: 1100px){
+      .dash-grid{ grid-template-columns: 1fr; }
+      .right-col{ display:none; }
+      body.no-scroll{ overflow:auto; }
+      .dash{ position: static; min-height: 100vh; height:auto; padding: 92px 12px 18px; }
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+<div class="dash">
+  <div class="dash-grid">
+
+    <!-- ✅ Calendrier -->
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <div class="title">Agenda des sessions</div>
+          <div class="small">Mois / semaine / jour • couleurs par formation • clic = ouvre l’admin</div>
+        </div>
+        <div class="small">Astuce : change un filtre pour recharger</div>
+      </div>
+
+      <div class="panel-body" style="padding: 14px;">
+        <div id="calendar"></div>
+      </div>
+    </section>
+
+    <!-- ✅ Colonne droite : filtres + légende -->
+    <aside class="panel right-col">
+      <div class="panel-header">
+        <div>
+          <div class="title">Filtres</div>
+          <div class="small">Client & Formateur</div>
+        </div>
+      </div>
+
+      <div class="panel-body">
+        <div class="field">
+          <label for="filterClient">Client</label>
+          <select id="filterClient">
+            <option value="">Tous</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="filterTrainer">Formateur</label>
+          <select id="filterTrainer">
+            <option value="">Tous</option>
+          </select>
+        </div>
+
+        <button id="resetFilters" class="btn btn--primary">Réinitialiser</button>
+
+        <p class="small" style="margin-top:10px;">
+          Astuce : change un filtre pour recharger le calendrier.
+        </p>
+
+        <hr style="margin:14px 0; border:none; border-top:1px solid rgba(255,255,255,0.10);" />
+
+        <div style="font-weight:950; margin:0 0 10px 0;">Légende (Formations)</div>
+        <div id="legend"></div>
+      </div>
+    </aside>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', async function() {
+
+    function buildEventsUrl() {
+      const clientId = document.getElementById("filterClient").value;
+      const trainerId = document.getElementById("filterTrainer").value;
+
+      const url = new URL("/api/sessions/", window.location.origin);
+      if (clientId) url.searchParams.set("client_id", clientId);
+      if (trainerId) url.searchParams.set("trainer_id", trainerId);
+      return url.toString();
+    }
+
+    async function fillSelect(url, selectId) {
+      const res = await fetch(url);
+      if (!res.ok) return;
+      const data = await res.json();
+      const select = document.getElementById(selectId);
+
+      data.forEach(item => {
+        const opt = document.createElement("option");
+        opt.value = item.id;
+        opt.textContent = item.name;
+        select.appendChild(opt);
+      });
+    }
+
+    async function loadLegend() {
+      const res = await fetch("/api/trainings-legend/");
+      if (!res.ok) return;
+      const data = await res.json();
+      const legendEl = document.getElementById("legend");
+      legendEl.innerHTML = "";
+
+      data.forEach(group => {
+        const title = document.createElement("div");
+        title.textContent = group.training_type;
+        title.style.fontWeight = "900";
+        title.style.margin = "12px 0 8px 0";
+        title.style.fontSize = "13px";
+        title.style.color = "rgba(255,255,255,0.86)";
+        legendEl.appendChild(title);
+
+        group.items.forEach(item => {
+          const row = document.createElement("div");
+          row.style.display = "flex";
+          row.style.alignItems = "center";
+          row.style.gap = "10px";
+          row.style.marginBottom = "8px";
+
+          const dot = document.createElement("span");
+          dot.style.width = "14px";
+          dot.style.height = "14px";
+          dot.style.borderRadius = "4px";
+          dot.style.background = item.color;
+          dot.style.border = "1px solid rgba(255,255,255,0.18)";
+
+          const txt = document.createElement("span");
+          txt.textContent = item.title;
+          txt.style.fontSize = "13px";
+          txt.style.color = "rgba(255,255,255,0.86)";
+
+          row.appendChild(dot);
+          row.appendChild(txt);
+          legendEl.appendChild(row);
+        });
+      });
+    }
+
+    // Remplir listes + légende
+    await fillSelect("/api/clients/", "filterClient");
+    await fillSelect("/api/trainers/", "filterTrainer");
+    await loadLegend();
+
+    const calendarEl = document.getElementById('calendar');
+
+    const calendar = new FullCalendar.Calendar(calendarEl, {
+      initialView: 'dayGridMonth',
+      locale: 'fr',
+      height: 'auto',
+
+      headerToolbar: {
+        left: 'prev,next today',
+        center: 'title',
+        right: 'dayGridMonth,timeGridWeek,timeGridDay'
+      },
+
+      // ✅ événements filtrés
+      events: function(fetchInfo, successCallback, failureCallback) {
+        fetch(buildEventsUrl())
+          .then(r => r.json())
+          .then(successCallback)
+          .catch(failureCallback);
+      },
+
+      // ✅ applique la couleur envoyée par l'API (une couleur par Training)
+      eventDataTransform: function(eventData) {
+        if (eventData.training_color) {
+          eventData.backgroundColor = eventData.training_color;
+          eventData.borderColor = eventData.training_color;
+        }
+        return eventData;
+      },
+
+      // ✅ tooltip premium
+      eventDidMount: function(info) {
+        const p = info.event.extendedProps || {};
+
+        const tooltipHtml =
+          `<div style="font-size:13px; line-height:1.35">
+            <div style="font-weight:900; margin-bottom:6px;">${p.reference || info.event.title || ""}</div>
+            ${p.client ? `<div><b>Client :</b> ${p.client}</div>` : ""}
+            ${p.training ? `<div><b>Formation :</b> ${p.training}</div>` : ""}
+            ${p.training_type ? `<div><b>Type :</b> ${p.training_type}</div>` : ""}
+            ${p.trainer ? `<div><b>Formateur :</b> ${p.trainer}</div>` : ""}
+            ${p.backup_trainer ? `<div><b>Backup :</b> ${p.backup_trainer}</div>` : ""}
+            ${p.location ? `<div><b>Lieu :</b> ${p.location}</div>` : ""}
+            ${(p.start_date && p.end_date) ? `<div><b>Dates :</b> ${p.start_date} → ${p.end_date}</div>` : ""}
+            ${p.status ? `<div><b>Statut :</b> ${p.status}</div>` : ""}
+          </div>`;
+
+        const tip = document.createElement("div");
+        tip.style.position = "absolute";
+        tip.style.zIndex = "9999";
+
+        /* glass tooltip */
+        tip.style.background = "rgba(10,12,20,0.82)";
+        tip.style.backdropFilter = "blur(10px)";
+        tip.style.webkitBackdropFilter = "blur(10px)";
+        tip.style.border = "1px solid rgba(255,255,255,0.14)";
+        tip.style.color = "rgba(255,255,255,0.92)";
+        tip.style.padding = "10px";
+        tip.style.borderRadius = "12px";
+        tip.style.maxWidth = "380px";
+        tip.style.boxShadow = "0 10px 30px rgba(0,0,0,0.35)";
+        tip.style.display = "none";
+
+        tip.innerHTML = tooltipHtml;
+        document.body.appendChild(tip);
+
+        function moveTip(e) {
+          tip.style.left = (e.pageX + 12) + "px";
+          tip.style.top = (e.pageY + 12) + "px";
+        }
+
+        info.el.addEventListener("mouseenter", (e) => {
+          tip.style.display = "block";
+          moveTip(e);
+        });
+
+        info.el.addEventListener("mousemove", moveTip);
+
+        info.el.addEventListener("mouseleave", () => {
+          tip.style.display = "none";
+        });
+      },
+
+      // ✅ clic : ouvrir la session dans l'admin
+      eventClick: function(info) {
+        const p = info.event.extendedProps || {};
+        if (p.detail_url) {
+          window.open(p.detail_url, "_blank");
+        }
+      }
+    });
+
+    calendar.render();
+
+    // Changement filtres => reload
+    document.getElementById("filterClient").addEventListener("change", () => calendar.refetchEvents());
+    document.getElementById("filterTrainer").addEventListener("change", () => calendar.refetchEvents());
+
+    document.getElementById("resetFilters").addEventListener("click", () => {
+      document.getElementById("filterClient").value = "";
+      document.getElementById("filterTrainer").value = "";
+      calendar.refetchEvents();
+    });
+  });
+</script>
+{% endblock %}

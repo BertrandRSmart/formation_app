@@ -1,0 +1,501 @@
+{# templates/trainings/team_argonos.html #}
+{% extends "trainings/base.html" %}
+{% block title %}Équipe ArgonOS{% endblock %}
+{% block body_class %}no-scroll{% endblock %}
+
+{% block content %}
+<div style="
+  position: fixed;
+  top: 90px;
+  left: 0; right: 0; bottom: 0;
+  padding: 18px;
+  box-sizing: border-box;
+  overflow: hidden;
+  color: rgba(255,255,255,0.92);
+  background:
+    radial-gradient(1200px 600px at 18% -10%, rgba(21,96,130,0.25), transparent 55%),
+    radial-gradient(1000px 600px at 86% 10%, rgba(255,137,233,0.14), transparent 55%),
+    linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.00)),
+    #0B0F14;
+">
+
+  <style>
+    .page{
+      height:100%;
+      display:grid;
+      grid-template-columns: 340px minmax(0, 1fr);
+      gap: 14px;
+      min-height:0;
+    }
+
+    .panel{
+      min-height:0;
+      border-radius:18px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+      border: 1px solid rgba(255,255,255,0.07);
+      box-shadow: 0 18px 45px rgba(0,0,0,0.55);
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+    }
+
+    .panel-head{
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      flex:0 0 auto;
+      min-height:56px;
+    }
+
+    .panel-title{
+      font-weight: 950;
+      font-size: 14px;
+      margin:0;
+    }
+
+    .panel-sub{
+      opacity:.7;
+      font-size: 12px;
+      margin-top:4px;
+    }
+
+    .list{
+      padding: 12px;
+      overflow:auto;
+      min-height:0;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+
+    .trainer-card{
+      text-decoration:none;
+      color:inherit;
+      padding: 12px;
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.10);
+      background: rgba(0,0,0,0.22);
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+    }
+    .trainer-card:hover{ filter: brightness(1.04); }
+    .trainer-card.active{
+      border-color: rgba(168,85,247,0.40);
+      background: rgba(168,85,247,0.14);
+    }
+    .trainer-name{
+      font-weight: 950;
+      font-size: 13px;
+    }
+
+    /* Onglets + bouton header */
+    .tabs{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      align-items:center;
+      justify-content:flex-end;
+    }
+    .tabbtn{
+      border:1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.06);
+      color: rgba(255,255,255,0.92);
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-weight: 950;
+      font-size: 12px;
+      cursor:pointer;
+      text-decoration:none;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      white-space:nowrap;
+    }
+    .tabbtn:hover{ filter: brightness(1.06); }
+    .tabbtn.active{
+      border-color: rgba(124,58,237,0.50);
+      background: rgba(124,58,237,0.18);
+    }
+
+    .body{
+      padding: 14px;
+      overflow:auto;
+      min-height:0;
+    }
+
+    .box{
+      border:1px solid rgba(255,255,255,0.10);
+      background: rgba(0,0,0,0.22);
+      border-radius: 16px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+
+    .h2{ margin:0; font-size: 14px; font-weight: 950; }
+    .muted{ opacity:.7; font-size:12px; margin-top:6px; }
+
+    .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+
+    .pill{
+      display:inline-flex; align-items:center; gap:6px;
+      padding: 4px 10px; border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.10);
+      background: rgba(255,255,255,0.05);
+      font-weight: 950; font-size: 12px;
+      white-space:nowrap;
+    }
+
+    .item{
+      border:1px solid rgba(255,255,255,0.10);
+      background: rgba(0,0,0,0.20);
+      border-radius: 14px;
+      padding: 10px;
+      margin-top:10px;
+    }
+    .item-title{ font-weight: 950; font-size: 13px; }
+    .item-meta{ opacity:.7; font-size: 12px; margin-top:4px; }
+
+    .split-actions{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+      align-items:center;
+    }
+  </style>
+
+  <div class="page">
+
+    <!-- ✅ COLONNE GAUCHE : FORMATEURS -->
+    <aside class="panel">
+      <div class="panel-head">
+        <div>
+          <div class="panel-title">👥 Formateurs ArgonOS</div>
+          <div class="panel-sub">{{ trainers|length }} formateur(s)</div>
+        </div>
+      </div>
+
+      <div class="list">
+        {% for t in trainers %}
+          <a class="trainer-card {% if selected and selected.id == t.id %}active{% endif %}"
+             href="?trainer={{ t.id }}&tab={{ tab }}">
+            <div class="trainer-name">{{ t.first_name }} {{ t.last_name }}</div>
+            <div style="opacity:.65; font-weight:950;">›</div>
+          </a>
+        {% empty %}
+          <div style="opacity:.7;">Aucun formateur ArgonOS.</div>
+        {% endfor %}
+      </div>
+    </aside>
+
+    <!-- ✅ COLONNE DROITE : DÉTAIL -->
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <div class="panel-title">
+            {% if selected %}
+              Détail — {{ selected.first_name }} {{ selected.last_name }}
+            {% else %}
+              Détail
+            {% endif %}
+          </div>
+          <div class="panel-sub">Choisis un onglet pour afficher les infos</div>
+        </div>
+
+        <!-- ✅ “Onglets” + ✅ bouton unique (header) -->
+        <div class="tabs">
+          <a class="tabbtn {% if tab == 'detail' %}active{% endif %}"
+            href="{% url 'trainings:team_argonos' %}{% if selected %}?trainer={{ selected.id }}&tab=detail{% else %}?tab=detail{% endif %}">
+            🧾 Détail
+          </a>
+
+          <a class="tabbtn {% if tab == '1to1' %}active{% endif %}"
+            href="{% url 'trainings:team_argonos' %}{% if selected %}?trainer={{ selected.id }}&tab=1to1{% else %}?tab=1to1{% endif %}">
+            🗓️ 1 to 1
+          </a>
+
+          {% if tab == "1to1" and selected and can_create_this_week %}
+            <a class="tabbtn"
+              href="{% url 'trainings:create_one_to_one_argonos' %}?trainer={{ selected.id }}">
+              ➕ Créer 1 to 1 (semaine en cours)
+            </a>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="body">
+        {% if not selected %}
+          <div class="box">
+            <div class="h2">Sélectionne un formateur</div>
+            <div class="muted">Clique sur un nom à gauche.</div>
+          </div>
+        {% else %}
+
+          {% if tab == "detail" %}
+
+            <div class="box">
+              <div class="row" style="justify-content:space-between;">
+                <div>
+                  <div class="h2">Résumé</div>
+                  <div class="muted">Vue générale du formateur + progression ArgonOS.</div>
+                </div>
+                {% if selected %}
+                  <span class="pill">Modules actifs : {{ modules_count }}</span>
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="box">
+              <div class="row" style="justify-content:space-between;">
+                <div>
+                  <div class="h2">🧩 Modules ArgonOS — Maîtrise</div>
+                  <div class="muted">Auto-niveau + validations manager/certif + version validée.</div>
+                </div>
+
+                {% if selected %}
+                  <a class="tabbtn" target="_blank"
+                    href="/admin/argonteam/trainermodulemastery/?trainer__id__exact={{ selected.id }}">
+                    🛠️ Ouvrir (admin)
+                  </a>
+                {% endif %}
+              </div>
+
+              {% for row in module_rows %}
+                {% with m=row.mastery mod=row.module %}
+                  <div class="item">
+                    <div class="row" style="justify-content:space-between;">
+                      <div>
+                        <div class="item-title">
+                          {{ mod.name }}
+                          <span class="pill" style="margin-left:8px;">{{ mod.get_kind_display }}</span>
+                          <span class="pill">{{ mod.get_level_display }}</span>
+                        </div>
+                        <div class="item-meta">
+                          Version cible : v{{ mod.major_version }}.{{ mod.current_patch }}
+                        </div>
+                      </div>
+
+                      {% if m %}
+                        <div class="row">
+                          <span class="pill">Auto : {{ m.get_auto_level_display }}</span>
+                          <span class="pill">Manager : {{ m.get_manager_status_display }}</span>
+                          <span class="pill">Certif : {{ m.get_cert_status_display }}</span>
+
+                          {% if m.validated_major != None %}
+                            <span class="pill">Validé : v{{ m.validated_major }}.{{ m.validated_patch|default:"0" }}</span>
+                          {% else %}
+                            <span class="pill">Validé : —</span>
+                          {% endif %}
+                        </div>
+                      {% else %}
+                        <span class="pill">—</span>
+                      {% endif %}
+                    </div>
+                  </div>
+                {% endwith %}
+              {% empty %}
+                <div style="opacity:.7; margin-top:10px;">Aucun module actif.</div>
+              {% endfor %}
+            </div>
+
+            <div class="box">
+              <div class="h2">Dernières formations (sessions)</div>
+              <div class="muted">Les 10 dernières sessions associées à ce formateur.</div>
+
+              {% for s in recent_sessions %}
+                <div class="item">
+                  <div class="item-title">
+                    {{ s.reference }}{% if s.training %} — {{ s.training }}{% endif %}
+                  </div>
+                  <div class="item-meta">
+                  📅 {{ s.start_date|date:"d/m/Y" }} → {{ s.end_date|date:"d/m/Y" }} • {{ s.client }}
+                  </div>
+                </div>
+              {% empty %}
+                <div style="opacity:.7; margin-top:10px;">Aucune session trouvée.</div>
+              {% endfor %}
+            </div>
+
+          {% endif %}
+
+          {% if tab == "1to1" %}
+
+            <!-- ✅ Bloc Semaine en cours (sans bouton ici : bouton unique dans le header) -->
+            <div class="box">
+              <div class="row" style="justify-content:space-between;">
+                <div>
+                  <div class="h2">📌 1 to 1 de cette semaine</div>
+                  {% if this_week_start %}
+                    <div class="muted">Semaine du {{ this_week_start|date:"d/m/Y" }}</div>
+                  {% endif %}
+                </div>
+
+                {% if this_week_meeting %}
+                  <span class="pill">Réunion créée ✅</span>
+                {% else %}
+                  <span class="pill">Aucune réunion</span>
+                {% endif %}
+              </div>
+
+              {% if this_week_meeting %}
+                <div class="item" style="margin-top:12px;">
+                  <div class="row" style="justify-content:space-between;">
+                    <div class="item-title">Réunion créée ✅</div>
+                    <span class="pill">{{ this_week_meeting.get_status_display }}</span>
+                  </div>
+
+                  <div class="split-actions" style="margin-top:10px;">
+                    <a class="tabbtn"
+                       href="/admin/argonteam/onetoonemeeting/{{ this_week_meeting.id }}/change/"
+                       target="_blank">
+                      🛠️ Ouvrir (admin)
+                    </a>
+
+                    <a class="tabbtn"
+                       href="/admin/argonteam/onetooneobjective/add/?meeting={{ this_week_meeting.id }}"
+                       target="_blank">
+                      ➕ Ajouter un objectif (admin)
+                    </a>
+                  </div>
+
+                  {% if this_week_meeting.meeting_date %}
+                    <div class="item-meta">📅 Date : {{ this_week_meeting.meeting_date|date:"d/m/Y" }}</div>
+                  {% endif %}
+
+                  {% if this_week_objectives %}
+                    <div class="item-meta" style="margin-top:10px; font-weight:950;">Objectifs de la semaine :</div>
+                    {% for o in this_week_objectives %}
+                      <div class="item" style="margin-top:8px;">
+                        <div class="row" style="justify-content:space-between;">
+                          <div class="item-title">{{ o.title }}</div>
+                          {% if o.get_status_display %}
+                            <span class="pill">{{ o.get_status_display }}</span>
+                          {% elif o.done %}
+                            <span class="pill">✅ Fait</span>
+                          {% else %}
+                            <span class="pill">⏳ À faire</span>
+                          {% endif %}
+                        </div>
+
+                        <div class="item-meta">
+                          {% if o.get_category_display %}
+                            {{ o.get_category_display }}
+                          {% endif %}
+                          {% if o.due_date %} • échéance {{ o.due_date|date:"d/m/Y" }}{% endif %}
+                          {% if o.actionable %} • 🧩 Kanban{% endif %}
+                        </div>
+
+                        {% if o.description %}
+                          <div class="item-meta">📝 {{ o.description }}</div>
+                        {% endif %}
+                      </div>
+                    {% endfor %}
+                  {% else %}
+                    <div class="item-meta" style="margin-top:10px; opacity:.8;">
+                      Aucun objectif pour cette semaine (tu peux les ajouter dans l’admin pour l’instant).
+                    </div>
+                  {% endif %}
+                </div>
+              {% else %}
+                <div class="item" style="margin-top:12px;">
+                  <div class="item-title">Aucun 1 to 1 créé pour cette semaine</div>
+                  <div class="item-meta">Utilise le bouton dans le header : “Créer 1 to 1 (semaine en cours)”.</div>
+                </div>
+              {% endif %}
+            </div>
+
+            <!-- ✅ Historique des 1to1 -->
+            <div class="box">
+              <div class="row" style="justify-content:space-between;">
+                <div>
+                  <div class="h2">1 to 1 hebdomadaires</div>
+                  <div class="muted">Historique et objectifs.</div>
+                </div>
+                <span class="pill">{{ meetings|length }} réunion(s)</span>
+              </div>
+
+              {% for m in meetings %}
+                <div class="item">
+                  <div class="row" style="justify-content:space-between;">
+                    <div class="item-title">Semaine du {{ m.week_start|date:"d/m/Y" }}</div>
+                    <span class="pill">{{ m.get_status_display }}</span>
+                  </div>
+                  {% if m.meeting_date %}
+                    <div class="item-meta">📌 Date : {{ m.meeting_date|date:"d/m/Y" }}</div>
+                  {% endif %}
+                  {% if m.summary %}
+                    <div class="item-meta">📝 {{ m.summary }}</div>
+                  {% endif %}
+                </div>
+              {% empty %}
+                <div style="opacity:.7; margin-top:10px;">Aucun 1 to 1 pour l’instant.</div>
+              {% endfor %}
+            </div>
+
+            <!-- ✅ Objectifs en cours -->
+            <div class="box">
+              <div class="h2">Objectifs en cours</div>
+              <div class="muted">Objectifs dont le statut n’est pas “Terminé”.</div>
+
+              {% for o in objectives_open %}
+                <div class="item">
+                  <div class="row" style="justify-content:space-between;">
+                    <div class="item-title">{{ o.title }}</div>
+                    {% if o.get_status_display %}
+                      <span class="pill">{{ o.get_status_display }}</span>
+                    {% elif o.done %}
+                      <span class="pill">✅ Fait</span>
+                    {% else %}
+                      <span class="pill">⏳ À faire</span>
+                    {% endif %}
+                  </div>
+
+                  <div class="item-meta">
+                    {% if o.get_category_display %}{{ o.get_category_display }}{% endif %}
+                    {% if o.due_date %} • échéance {{ o.due_date|date:"d/m/Y" }}{% endif %}
+                    {% if o.actionable %} • 🧩 Kanban{% endif %}
+                  </div>
+
+                  {% if o.description %}
+                    <div class="item-meta">📝 {{ o.description }}</div>
+                  {% endif %}
+                </div>
+              {% empty %}
+                <div style="opacity:.7; margin-top:10px;">Aucun objectif en cours.</div>
+              {% endfor %}
+            </div>
+
+            <!-- ✅ Objectifs terminés -->
+            <div class="box">
+              <div class="h2">Objectifs terminés</div>
+              <div class="muted">Les 25 derniers objectifs “Terminé”.</div>
+
+              {% for o in objectives_done %}
+                <div class="item">
+                  <div class="row" style="justify-content:space-between;">
+                    <div class="item-title">{{ o.title }}</div>
+                    <span class="pill">✅ Terminé</span>
+                  </div>
+                  <div class="item-meta">
+                    {% if o.get_category_display %}{{ o.get_category_display }}{% endif %}
+                  </div>
+                </div>
+              {% empty %}
+                <div style="opacity:.7; margin-top:10px;">Aucun objectif terminé.</div>
+              {% endfor %}
+            </div>
+
+          {% endif %}
+
+        {% endif %}
+      </div>
+    </section>
+
+  </div>
+</div>
+{% endblock %}

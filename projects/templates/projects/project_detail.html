@@ -1,0 +1,54 @@
+{% extends "trainings/base.html" %}
+{% block title %}{{ project.name }} — Projet{% endblock %}
+
+{% block content %}
+<div style="padding:92px 18px; color:white;">
+
+  <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+    <div>
+      <h1 style="margin:0;">📌 {{ project.name }}</h1>
+      <div class="small" style="margin-top:6px;">
+        Catégorie : {{ project.category.name }}
+      </div>
+    </div>
+
+    <div style="display:flex; gap:10px;">
+      <a class="btn2 btn2--primary" href="{% url 'project_update' project.id %}">
+        Modifier
+      </a>
+      <a class="btn2" href="{% url 'projects_list' %}">
+        ← Liste
+      </a>
+    </div>
+  </div>
+
+  <div class="alert-item" style="margin-top:16px;">
+    <div style="font-weight:950; margin-bottom:6px;">Description</div>
+    {% if project.description %}
+      {{ project.description|linebreaksbr }}
+    {% else %}
+      <div class="small">Aucune description.</div>
+    {% endif %}
+  </div>
+
+  <div style="margin-top:20px;">
+    <h2 style="margin-bottom:10px;">🗂️ Tâches liées</h2>
+
+    {% if tasks %}
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        {% for t in tasks %}
+          <div class="alert-item">
+            <strong>{{ t.title }}</strong>
+            <div class="small">{{ t.get_status_display }}</div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="alert-item">
+        Aucune tâche pour ce projet.
+      </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

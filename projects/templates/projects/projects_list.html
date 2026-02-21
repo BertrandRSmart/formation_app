@@ -1,0 +1,88 @@
+{% extends "trainings/base.html" %}
+{% block title %}Projets — BSmart{% endblock %}
+
+{% block content %}
+<div style="padding: 92px 18px 18px; color: rgba(255,255,255,0.92);">
+
+  <!-- Header -->
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+    <div>
+      <h1 style="margin:0;">📁 Gestion des projets</h1>
+      <div class="small" style="margin-top:6px;">Liste des projets et filtres</div>
+    </div>
+
+    <div style="display:flex; gap:10px;">
+      <a class="btn2 btn2--primary" href="{% url 'project_create' %}">
+        ➕ Nouveau projet
+      </a>
+      <a class="btn2" href="{% url 'projects_home' %}">
+        🧩 Kanban
+      </a>
+    </div>
+  </div>
+
+  <!-- Filtres -->
+  <div class="alert-item" style="margin-top:16px;">
+    <form method="get" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+      <input
+        type="text"
+        name="q"
+        value="{{ q }}"
+        placeholder="Rechercher un projet..."
+        style="flex:1; min-width:200px;"
+      >
+
+      <select name="category" style="min-width:200px;">
+        <option value="">Toutes les catégories</option>
+        {% for cat in categories %}
+          <option value="{{ cat.id }}" {% if category == cat.id|stringformat:"s" %}selected{% endif %}>
+            {{ cat.name }}
+          </option>
+        {% endfor %}
+      </select>
+
+      <button class="btn2 btn2--primary">Filtrer</button>
+      <a class="btn2" href="{% url 'projects_list' %}">Réinitialiser</a>
+    </form>
+  </div>
+
+  <!-- Liste -->
+  {% if projects %}
+    <div style="margin-top:16px; display:flex; flex-direction:column; gap:10px;">
+      {% for p in projects %}
+        <div class="alert-item">
+          <div style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+            <div>
+              <div style="font-weight:950; font-size:15px;">
+                {{ p.name }}
+              </div>
+              <div class="small" style="margin-top:6px;">
+                Catégorie : <strong>{{ p.category.name }}</strong>
+              </div>
+              {% if p.description %}
+                <div style="margin-top:6px; opacity:.75;">
+                  {{ p.description|truncatechars:150 }}
+                </div>
+              {% endif %}
+            </div>
+
+            <div style="display:flex; gap:8px;">
+              <a class="btn2 btn2--primary" href="{% url 'project_detail' p.id %}">
+                Ouvrir
+              </a>
+              <a class="btn2" href="{% url 'project_update' p.id %}">
+                Modifier
+              </a>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="alert-item" style="margin-top:16px;">
+      Aucun projet pour l’instant.
+    </div>
+  {% endif %}
+
+</div>
+{% endblock %}

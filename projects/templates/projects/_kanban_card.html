@@ -1,0 +1,69 @@
+<div class="card"
+     draggable="true"
+     ondragstart="kbDragStart(event)"
+     data-task-id="{{ t.id }}"
+     data-status="{{ t.status }}">
+
+  <div class="card-top">
+    <div style="min-width:0;">
+      <div class="title">{{ t.title }}</div>
+      <div class="meta">
+        {{ t.project.name }}
+        {% if t.assigned_display %}
+          — 👤 {{ t.assigned_display }}
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="pill {% if t.priority == 'LOW' %}low{% elif t.priority == 'MEDIUM' %}medium{% else %}high{% endif %}">
+      {{ t.priority }}
+    </div>
+  </div>
+
+  {% if t.due_date %}
+    {% now "Y-m-d" as today_str %}
+    <div class="due {% if t.due_date|date:'Y-m-d' < today_str and t.status != 'DONE' %}overdue{% endif %}">
+      📅 {{ t.due_date|date:"d/m/Y" }}
+      {% if t.due_date|date:'Y-m-d' < today_str and t.status != 'DONE' %} — en retard{% endif %}
+    </div>
+  {% endif %}
+
+  <div class="btn-row">
+    <a class="btn-sm ghost" href="{% url 'task_edit' t.id %}">✏️ Modifier</a>
+
+    {% if t.status != "TODO" %}
+      <form method="post" action="{% url 'task_set_status' t.id 'TODO' %}" style="margin:0;">
+        {% csrf_token %}
+        <button class="btn-sm gray" type="submit">← TODO</button>
+      </form>
+    {% endif %}
+
+    {% if t.status == "TODO" %}
+      <form method="post" action="{% url 'task_set_status' t.id 'IN_PROGRESS' %}" style="margin:0;">
+        {% csrf_token %}
+        <button class="btn-sm" type="submit">→ En cours</button>
+      </form>
+    {% endif %}
+
+    {% if t.status == "IN_PROGRESS" %}
+      <form method="post" action="{% url 'task_set_status' t.id 'DONE' %}" style="margin:0;">
+        {% csrf_token %}
+        <button class="btn-sm green" type="submit">✅ Terminé</button>
+      </form>
+    {% endif %}
+
+    {% if t.status != "BLOCKED" and t.status != "DONE" %}
+      <form method="post" action="{% url 'task_set_status' t.id 'BLOCKED' %}" style="margin:0;">
+        {% csrf_token %}
+        <button class="btn-sm orange" type="submit">⛔ Bloqué</button>
+      </form>
+    {% endif %}
+
+    {% if t.status == "BLOCKED" %}
+      <form method="post" action="{% url 'task_set_status' t.id 'IN_PROGRESS' %}" style="margin:0;">
+        {% csrf_token %}
+        <button class="btn-sm" type="submit">↩ Reprendre</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
