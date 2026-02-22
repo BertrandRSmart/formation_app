@@ -167,6 +167,21 @@
       justify-content:flex-end;
       align-items:center;
     }
+
+    /* ✅ messages Django */
+    .flash{
+      border:1px solid rgba(255,255,255,0.10);
+      background: rgba(0,0,0,0.20);
+      border-radius: 14px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+      font-weight: 950;
+      font-size: 12px;
+    }
+    .flash.success{ border-color: rgba(34,197,94,0.35); background: rgba(34,197,94,0.10); }
+    .flash.error{ border-color: rgba(239,68,68,0.35); background: rgba(239,68,68,0.10); }
+    .flash.warning{ border-color: rgba(245,158,11,0.35); background: rgba(245,158,11,0.10); }
+    .flash.info{ border-color: rgba(59,130,246,0.35); background: rgba(59,130,246,0.10); }
   </style>
 
   <div class="page">
@@ -229,6 +244,14 @@
       </div>
 
       <div class="body">
+
+        {# ✅ Messages Django (success/error) #}
+        {% if messages %}
+          {% for message in messages %}
+            <div class="flash {{ message.tags|default:'info' }}">{{ message }}</div>
+          {% endfor %}
+        {% endif %}
+
         {% if not selected %}
           <div class="box">
             <div class="h2">Sélectionne un formateur</div>
@@ -244,9 +267,7 @@
                   <div class="h2">Résumé</div>
                   <div class="muted">Vue générale du formateur + progression ArgonOS.</div>
                 </div>
-                {% if selected %}
-                  <span class="pill">Modules actifs : {{ modules_count }}</span>
-                {% endif %}
+                <span class="pill">Modules actifs : {{ modules_count }}</span>
               </div>
             </div>
 
@@ -257,12 +278,10 @@
                   <div class="muted">Auto-niveau + validations manager/certif + version validée.</div>
                 </div>
 
-                {% if selected %}
-                  <a class="tabbtn" target="_blank"
-                    href="/admin/argonteam/trainermodulemastery/?trainer__id__exact={{ selected.id }}">
-                    🛠️ Ouvrir (admin)
-                  </a>
-                {% endif %}
+                <a class="tabbtn" target="_blank"
+                  href="/admin/argonteam/trainermodulemastery/?trainer__id__exact={{ selected.id }}">
+                  🛠️ Ouvrir (admin)
+                </a>
               </div>
 
               {% for row in module_rows %}
@@ -313,7 +332,7 @@
                     {{ s.reference }}{% if s.training %} — {{ s.training }}{% endif %}
                   </div>
                   <div class="item-meta">
-                  📅 {{ s.start_date|date:"d/m/Y" }} → {{ s.end_date|date:"d/m/Y" }} • {{ s.client }}
+                    📅 {{ s.start_date|date:"d/m/Y" }} → {{ s.end_date|date:"d/m/Y" }} • {{ s.client }}
                   </div>
                 </div>
               {% empty %}
@@ -325,14 +344,12 @@
 
           {% if tab == "1to1" %}
 
-            <!-- ✅ Bloc Semaine en cours (sans bouton ici : bouton unique dans le header) -->
+            <!-- ✅ Bloc Semaine en cours -->
             <div class="box">
               <div class="row" style="justify-content:space-between;">
                 <div>
                   <div class="h2">📌 1 to 1 de cette semaine</div>
-                  {% if this_week_start %}
-                    <div class="muted">Semaine du {{ this_week_start|date:"d/m/Y" }}</div>
-                  {% endif %}
+                  <div class="muted">Semaine du {{ this_week_start|date:"d/m/Y" }}</div>
                 </div>
 
                 {% if this_week_meeting %}
@@ -349,6 +366,7 @@
                     <span class="pill">{{ this_week_meeting.get_status_display }}</span>
                   </div>
 
+                  <!-- ✅ ICI : les 3 boutons (admin + page dédiée) -->
                   <div class="split-actions" style="margin-top:10px;">
                     <a class="tabbtn"
                        href="/admin/argonteam/onetoonemeeting/{{ this_week_meeting.id }}/change/"
@@ -360,6 +378,11 @@
                        href="/admin/argonteam/onetooneobjective/add/?meeting={{ this_week_meeting.id }}"
                        target="_blank">
                       ➕ Ajouter un objectif (admin)
+                    </a>
+
+                    <a class="tabbtn"
+                       href="{% url 'trainings:add_objective_this_week_argonos' %}?trainer={{ selected.id }}">
+                      ➕ Ajouter un objectif (depuis la page)
                     </a>
                   </div>
 
@@ -383,9 +406,7 @@
                         </div>
 
                         <div class="item-meta">
-                          {% if o.get_category_display %}
-                            {{ o.get_category_display }}
-                          {% endif %}
+                          {% if o.get_category_display %}{{ o.get_category_display }}{% endif %}
                           {% if o.due_date %} • échéance {{ o.due_date|date:"d/m/Y" }}{% endif %}
                           {% if o.actionable %} • 🧩 Kanban{% endif %}
                         </div>
@@ -397,7 +418,7 @@
                     {% endfor %}
                   {% else %}
                     <div class="item-meta" style="margin-top:10px; opacity:.8;">
-                      Aucun objectif pour cette semaine (tu peux les ajouter dans l’admin pour l’instant).
+                      Aucun objectif pour cette semaine.
                     </div>
                   {% endif %}
                 </div>

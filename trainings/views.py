@@ -12,6 +12,7 @@ from django.urls import reverse
 from django.shortcuts import redirect, get_object_or_404
 from django.utils import timezone
 from datetime import timedelta
+from django.contrib import messages
 from argonteam.models import (
     OneToOneMeeting,
     OneToOneObjective,
@@ -425,6 +426,10 @@ def team_argonos(request):
     this_week_start = _monday_of_week(today)
     this_week_meeting = None
     this_week_objectives = OneToOneObjective.objects.none()
+    if this_week_meeting:
+        this_week_objectives = (
+            this_week_meeting.objectives.all().order_by("-created_at")
+        )
     can_create_this_week = False
 
     # ✅ progression modules (pour l’onglet Détail)
@@ -544,33 +549,89 @@ def _monday_of_week(d):
     return d - timedelta(days=d.weekday())
 
 
-@require_POST
+# trainings/views.py
+
+from datetime import timedelta
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils import timezone
+
+from argonteam.models import (
+    OneToOneMeeting,
+    OneToOneObjective,
+    ObjectiveCategory,
+    ObjectiveStatus,
+)
+from .models import Trainer
+
+
+def _monday_of_week(d):
+    return d - timedelta(days=d.weekday())
+
+
+from datetime import timedelta
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils import timezone
+
+from argonteam.models import OneToOneMeeting, OneToOneObjective, ObjectiveCategory, ObjectiveStatus
+from .models import Trainer
+
+
+def _monday_of_week(d):
+    return d - timedelta(days=d.weekday())
+
+
 @login_required
 def add_objective_this_week_argonos(request):
-    trainer_id = request.POST.get("trainer")
+    """
+    GET  -> affiche la page dédiée (argon_add_objective.html)
+    POST -> crée l'objectif puis redirige vers team_argonos onglet 1to1
+    """
+    trainer_id = request.GET.get("trainer") or request.POST.get("trainer")
+    if not trainer_id:
+        messages.error(request, "Formateur manquant.")
+        return redirect("trainings:team_argonos")
+
     trainer = get_object_or_404(Trainer, id=trainer_id, product="ARGONOS")
 
-    # semaine courante (lundi)
     today = timezone.localdate()
-    week_start = today - timedelta(days=today.weekday())
+    week_start = _monday_of_week(today)
 
-    # il faut une réunion existante (on la crée si besoin)
     meeting, _ = OneToOneMeeting.objects.get_or_create(
         trainer=trainer,
         week_start=week_start,
         defaults={"meeting_date": today},
     )
 
+    if request.method == "GET":
+        return render(request, "trainings/argon_add_objective.html", {
+            "trainer": trainer,
+            "week_start": week_start,
+            "meeting": meeting,
+            "category_choices": ObjectiveCategory.choices,
+        })
+
+    # POST
     title = (request.POST.get("title") or "").strip()
     if not title:
-        return redirect(f"{reverse('trainings:team_argonos')}?trainer={trainer.id}&tab=1to1")
+        messages.error(request, "Titre obligatoire.")
+        return redirect(f"{reverse('trainings:add_objective_this_week_argonos')}?trainer={trainer.id}")
 
-    category = request.POST.get("category") or ObjectiveCategory.GOAL
-    actionable = request.POST.get("actionable") == "1"
+    category = (request.POST.get("category") or ObjectiveCategory.GOAL).strip()
+    valid_categories = {c[0] for c in ObjectiveCategory.choices}
+    if category not in valid_categories:
+        category = ObjectiveCategory.GOAL
+
     due_date = request.POST.get("due_date") or None
     description = (request.POST.get("description") or "").strip()
+    actionable = (request.POST.get("actionable") == "on")
 
-    obj = OneToOneObjective.objects.create(
+    OneToOneObjective.objects.create(
         trainer=trainer,
         meeting=meeting,
         title=title,
@@ -581,4 +642,70 @@ def add_objective_this_week_argonos(request):
         due_date=due_date,
     )
 
+    messages.success(request, "Objectif ajouté ✅")
     return redirect(f"{reverse('trainings:team_argonos')}?trainer={trainer.id}&tab=1to1")
+from django.urls import path
+from . import views
+from .views import bulk_registrations
+from . import views_manage
+
+app_name = "trainings"
+
+urlpatterns = [
+    # Home / pages principales
+    path("", views.home_view, name="home"),
+    path("agenda/", views.agenda_view, name="agenda"),
+    path("dashboard/", views.dashboard_view, name="dashboard"),
+
+    # ✅ Pages Équipe
+    
+    # ✅ Pages Équipe
+    # ✅ Pages Équipe
+    path("team/", views.team, name="team"),
+    path("team/argonos/", views.team_argonos, name="team_argonos"),
+    path("team/argonos/create-1to1/", views.create_one_to_one_argonos, name="create_one_to_one_argonos"),
+    path("team/argonos/add-objective/", views.add_objective_this_week_argonos, name="add_objective_this_week_argonos"),
+    
+    path("team/home/", views.team_home, name="team_home"),
+
+    # Alertes convocations
+    path("alerts/convocations/<int:session_id>/dismiss/", views.dismiss_convocation_alert, name="dismiss_convocation_alert"),
+
+    # API
+    path("api/sessions/", views.sessions_json, name="sessions_json"),
+    path("api/trainings/", views.trainings_by_type_json, name="trainings_by_type_json"),
+    path("api/clients/", views.clients_list_json, name="clients_list_json"),
+    path("api/trainers/", views.trainers_list_json, name="trainers_list_json"),
+    path("api/trainings-legend/", views.trainings_legend_json, name="trainings_legend_json"),
+
+    # Détail session existant
+    path("sessions/<int:session_id>/", views.session_detail_view, name="session_detail"),
+
+    # Inscriptions en masse
+    path("inscriptions/", bulk_registrations, name="bulk_registrations"),
+
+    # Gestion formations (board)
+    path("formations/", views_manage.training_manage_home, name="training_manage_home"),
+
+    # Gestion participants (add/edit/delete)
+    path("formations/<int:session_id>/participants/add/", views_manage.session_participant_add, name="session_participant_add"),
+    path("formations/<int:session_id>/participants/<int:registration_id>/edit/", views_manage.session_participant_edit, name="session_participant_edit"),
+    path("formations/<int:session_id>/participants/<int:registration_id>/delete/", views_manage.session_participant_delete, name="session_participant_delete"),
+
+    # Export CSV
+    path("formations/<int:session_id>/export-csv/", views_manage.export_participants_csv, name="export_participants_csv"),
+]
+
+from django.views.decorators.http import require_POST
+from django.contrib import messages
+from django.utils import timezone
+from datetime import timedelta
+
+from argonteam.models import (
+    OneToOneMeeting,
+    OneToOneObjective,
+    ObjectiveCategory,
+    ObjectiveStatus,
+)
+
+
