@@ -366,5 +366,14 @@
   </script>
   {% endblock %}
 
+  {% if messages %}
+    <div style="position:fixed; top:95px; right:18px; z-index:99999; display:flex; flex-direction:column; gap:8px;">
+      {% for message in messages %}
+        <div style="padding:10px 12px; border-radius:12px; background:rgba(0,0,0,0.55); border:1px solid rgba(255,255,255,0.10); color:white; font-weight:800;">
+          {{ message }}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
 </body>
 </html>

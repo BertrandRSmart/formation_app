@@ -708,4 +708,81 @@ from argonteam.models import (
     ObjectiveStatus,
 )
 
+from django.views.decorators.http import require_POST
 
+def _objective_valid_categories():
+    return {c[0] for c in ObjectiveCategory.choices}
+
+def _objective_valid_statuses():
+    return {s[0] for s in ObjectiveStatus.choices}
+
+from django.views.decorators.http import require_POST
+from django.contrib import messages
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+
+from argonteam.models import OneToOneObjective, ObjectiveStatus
+
+
+@require_POST
+@login_required
+def argonos_objective_toggle(request, objective_id: int):
+    obj = get_object_or_404(OneToOneObjective, pk=objective_id)
+
+    # petit garde-fou si tu veux limiter à ArgonOS
+    if getattr(obj.trainer, "product", "") != "ARGONOS":
+        messages.error(request, "Objectif non ArgonOS.")
+        return redirect("trainings:team_argonos")
+
+    obj.status = ObjectiveStatus.TODO if obj.status == ObjectiveStatus.DONE else ObjectiveStatus.DONE
+    obj.save(update_fields=["status"])
+
+    messages.success(request, "Statut mis à jour ✅")
+    return redirect(f"{reverse('trainings:team_argonos')}?trainer={obj.trainer_id}&tab=1to1")
+
+
+@require_POST
+@login_required
+def argonos_objective_delete(request, objective_id: int):
+    obj = get_object_or_404(OneToOneObjective, pk=objective_id)
+
+    if getattr(obj.trainer, "product", "") != "ARGONOS":
+        messages.error(request, "Objectif non ArgonOS.")
+        return redirect("trainings:team_argonos")
+
+    trainer_id = obj.trainer_id
+    obj.delete()
+
+    messages.success(request, "Objectif supprimé 🗑️")
+    return redirect(f"{reverse('trainings:team_argonos')}?trainer={trainer_id}&tab=1to1")
+
+
+@login_required
+def argonos_objective_edit(request, objective_id: int):
+    obj = get_object_or_404(OneToOneObjective, pk=objective_id)
+
+    if getattr(obj.trainer, "product", "") != "ARGONOS":
+        messages.error(request, "Objectif non ArgonOS.")
+        return redirect("trainings:team_argonos")
+
+    if request.method == "POST":
+        title = (request.POST.get("title") or "").strip()
+        description = (request.POST.get("description") or "").strip()
+        due_date = request.POST.get("due_date") or None
+        actionable = request.POST.get("actionable") == "on"
+
+        if not title:
+            messages.error(request, "Titre obligatoire.")
+            return redirect(reverse("trainings:argonos_objective_edit", args=[obj.id]))
+
+        obj.title = title
+        obj.description = description
+        obj.due_date = due_date
+        obj.actionable = actionable
+        obj.save(update_fields=["title", "description", "due_date", "actionable"])
+
+        messages.success(request, "Objectif modifié ✏️")
+        return redirect(f"{reverse('trainings:team_argonos')}?trainer={obj.trainer_id}&tab=1to1")
+
+    # GET
+    return render(request, "trainings/argon_edit_objective.html", {"o": obj})

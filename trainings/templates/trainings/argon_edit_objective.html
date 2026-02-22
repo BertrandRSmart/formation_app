@@ -1,0 +1,59 @@
+{% extends "trainings/base.html" %}
+{% block title %}Éditer un objectif — ArgonOS{% endblock %}
+{% block body_class %}no-scroll{% endblock %}
+
+{% block content %}
+<div style="position: fixed; top: 90px; left:0; right:0; bottom:0; padding:18px; overflow:auto; background:#0B0F14; color:rgba(255,255,255,0.92);">
+  <div style="max-width:900px; margin:0 auto; border:1px solid rgba(255,255,255,0.08); border-radius:18px; background:rgba(255,255,255,0.04); padding:16px;">
+
+    <div style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:center;">
+      <div style="font-weight:950; font-size:16px;">✏️ Éditer l’objectif</div>
+      <a href="{% url 'trainings:team_argonos' %}?trainer={{ o.trainer_id }}&tab=1to1"
+         style="text-decoration:none; border:1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.06);
+                color: rgba(255,255,255,0.92); padding: 10px 14px; border-radius: 999px; font-weight: 950; font-size: 12px;">
+        ← Retour
+      </a>
+    </div>
+
+    <form method="post" style="margin-top:14px;">
+      {% csrf_token %}
+
+      <div style="opacity:.7; font-size:12px; margin-bottom:6px;">Titre *</div>
+      <input name="title" value="{{ o.title }}" required
+             style="width:100%; padding:10px 12px; border-radius:12px; border:1px solid rgba(255,255,255,0.12);
+                    background: rgba(255,255,255,0.06); color: white; outline:none;">
+
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:12px;">
+        <div>
+          <div style="opacity:.7; font-size:12px; margin-bottom:6px;">Échéance</div>
+          <input type="date" name="due_date" value="{{ o.due_date|date:'Y-m-d' }}"
+                 style="padding:10px 12px; border-radius:12px; border:1px solid rgba(255,255,255,0.12);
+                        background: rgba(255,255,255,0.06); color: white; outline:none;">
+        </div>
+
+        <label style="display:inline-flex; align-items:center; gap:8px; padding: 6px 10px; border-radius:999px;
+                      border:1px solid rgba(255,255,255,0.10); background: rgba(255,255,255,0.05);
+                      font-weight:950; font-size:12px; cursor:pointer; margin-top:18px;">
+          <input type="checkbox" name="actionable" {% if o.actionable %}checked{% endif %}>
+          🧩 Kanban
+        </label>
+      </div>
+
+      <div style="margin-top:12px;">
+        <div style="opacity:.7; font-size:12px; margin-bottom:6px;">Détails</div>
+        <textarea name="description" rows="5"
+                  style="width:100%; padding:10px 12px; border-radius:12px; border:1px solid rgba(255,255,255,0.12);
+                        background: rgba(255,255,255,0.06); color: white; outline:none;">{{ o.description }}</textarea>
+      </div>
+
+      <button type="submit"
+              style="margin-top:12px; border:1px solid rgba(124,58,237,0.50); background: rgba(124,58,237,0.18);
+                    color: rgba(255,255,255,0.92); padding: 10px 14px; border-radius:999px;
+                    font-weight:950; font-size:12px; cursor:pointer;">
+        ✅ Enregistrer
+      </button>
+    </form>
+
+  </div>
+</div>
+{% endblock %}

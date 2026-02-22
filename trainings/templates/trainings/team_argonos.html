@@ -1,3 +1,5 @@
+<!-- DEBUG: TEAM_ARGONOS TEMPLATE OK -->
+
 {# templates/trainings/team_argonos.html #}
 {% extends "trainings/base.html" %}
 {% block title %}Équipe ArgonOS{% endblock %}
@@ -394,15 +396,54 @@
                     <div class="item-meta" style="margin-top:10px; font-weight:950;">Objectifs de la semaine :</div>
                     {% for o in this_week_objectives %}
                       <div class="item" style="margin-top:8px;">
-                        <div class="row" style="justify-content:space-between;">
-                          <div class="item-title">{{ o.title }}</div>
-                          {% if o.get_status_display %}
-                            <span class="pill">{{ o.get_status_display }}</span>
-                          {% elif o.done %}
-                            <span class="pill">✅ Fait</span>
-                          {% else %}
-                            <span class="pill">⏳ À faire</span>
-                          {% endif %}
+                        <div class="row" style="justify-content:space-between; align-items:center;">
+                          <div class="item-title">
+                            {{ o.title }}
+                          </div>
+
+                          <div class="row" style="justify-content:flex-end;">
+                            {# ✅ Toggle TODO/DONE #}
+                            <form method="post"
+                                  action="{% url 'trainings:argonos_objective_toggle' o.id %}"
+                                  style="margin:0;">
+                              {% csrf_token %}
+                              <button type="submit" class="tabbtn">
+                                {% if o.status == "DONE" %}
+                                  ↩️ Rouvrir
+                                {% else %}
+                                  ✅ Terminer
+                                {% endif %}
+                              </button>
+                            </form>
+
+                            {# ✅ Éditer (page dédiée) #}
+                            <a class="tabbtn"
+                              href="{% url 'trainings:argonos_objective_edit' o.id %}">
+                              ✏️ Éditer
+                            </a>
+
+                            {# ✅ Supprimer #}
+                            <form method="post"
+                                  action="{% url 'trainings:argonos_objective_delete' o.id %}"
+                                  style="margin:0;"
+                                  onsubmit="return confirm('Supprimer cet objectif ?');">
+                              {% csrf_token %}
+                              <button type="submit" class="tabbtn">
+                                🗑️ Supprimer
+                              </button>
+                            </form>
+
+                            {# ✅ Badge statut (optionnel) #}
+                            {% if o.get_status_display %}
+                              <span class="pill">{{ o.get_status_display }}</span>
+                            {% else %}
+                              {% if o.status == "DONE" %}
+                                <span class="pill">✅ Terminé</span>
+                              {% else %}
+                                <span class="pill">⏳ À faire</span>
+                              {% endif %}
+                            {% endif %}
+                          </div>
                         </div>
 
                         <div class="item-meta">
