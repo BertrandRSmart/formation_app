@@ -236,6 +236,10 @@
             🗓️ 1 to 1
           </a>
 
+          <a class="tabbtn"
+            href="{% url 'trainings:argonos_manager_dashboard' %}">
+            📊 Dashboard
+          </a>
           {% if tab == "1to1" and selected and can_create_this_week %}
             <a class="tabbtn"
               href="{% url 'trainings:create_one_to_one_argonos' %}?trainer={{ selected.id }}">
@@ -385,6 +389,11 @@
                     <a class="tabbtn"
                        href="{% url 'trainings:add_objective_this_week_argonos' %}?trainer={{ selected.id }}">
                       ➕ Ajouter un objectif (depuis la page)
+                    </a>
+
+                    <a class="tabbtn"
+                      href="{% url 'trainings:argonos_objectives_kanban' %}?trainer={{ selected.id }}">
+                      🧩 Voir Kanban objectifs
                     </a>
                   </div>
 

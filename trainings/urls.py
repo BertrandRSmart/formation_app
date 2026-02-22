@@ -38,9 +38,13 @@ urlpatterns = [
         name="argonos_objective_delete",
     ),
 
+    # Kanban objectifs ArgonOS
+    path("team/argonos/kanban/", views.argonos_objectives_kanban, name="argonos_objectives_kanban"),
+    path("team/argonos/objectives/<int:objective_id>/set/<str:status>/", views.argonos_objective_set_status, name="argonos_objective_set_status"),
     # Alertes convocations
     path("alerts/convocations/<int:session_id>/dismiss/", views.dismiss_convocation_alert, name="dismiss_convocation_alert"),
 
+    path("team/argonos/dashboard/", views.argonos_manager_dashboard, name="argonos_manager_dashboard"),
     # API
     path("api/sessions/", views.sessions_json, name="sessions_json"),
     path("api/trainings/", views.trainings_by_type_json, name="trainings_by_type_json"),
@@ -50,6 +54,23 @@ urlpatterns = [
 
     # Détail session
     path("sessions/<int:session_id>/", views.session_detail_view, name="session_detail"),
+
+    # ArgonOS — objectifs (actions depuis la page)
+    path(
+    "team/argonos/objectives/<int:objective_id>/toggle/",
+    views.argonos_objective_toggle,
+    name="argonos_objective_toggle",
+    ),
+    path(
+    "team/argonos/objectives/<int:objective_id>/edit/",
+    views.argonos_objective_edit,
+    name="argonos_objective_edit",
+    ),
+    path(
+    "team/argonos/objectives/<int:objective_id>/delete/",
+    views.argonos_objective_delete,
+    name="argonos_objective_delete",
+    ),
 
     # Inscriptions en masse
     path("inscriptions/", views.bulk_registrations, name="bulk_registrations"),

@@ -176,7 +176,10 @@
 
       <div class="tabs">
         <a class="tab {% if product == 'MERCURE' %}is-active{% endif %}" href="/team/?product=MERCURE">Mercure</a>
-        <a class="tab {% if product == 'ARGONOS' %}is-active{% endif %}" href="/team/?product=ARGONOS">ArgonOS</a>
+        <a class="tab {% if product == 'ARGONOS' %}is-active{% endif %}"
+            href="{% url 'trainings:team_argonos' %}">
+          ArgonOS
+        </a>
       </div>
 
       <div class="panel-body">
