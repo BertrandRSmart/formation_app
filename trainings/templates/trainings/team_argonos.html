@@ -224,7 +224,6 @@
           <div class="panel-sub">Choisis un onglet pour afficher les infos</div>
         </div>
 
-        <!-- ✅ “Onglets” + ✅ bouton unique (header) -->
         <div class="tabs">
           <a class="tabbtn {% if tab == 'detail' %}active{% endif %}"
             href="{% url 'trainings:team_argonos' %}{% if selected %}?trainer={{ selected.id }}&tab=detail{% else %}?tab=detail{% endif %}">
@@ -236,10 +235,10 @@
             🗓️ 1 to 1
           </a>
 
-          <a class="tabbtn"
-            href="{% url 'trainings:argonos_manager_dashboard' %}">
+          <a class="tabbtn" href="{% url 'trainings:argonos_manager_dashboard' %}">
             📊 Dashboard
           </a>
+
           {% if tab == "1to1" and selected and can_create_this_week %}
             <a class="tabbtn"
               href="{% url 'trainings:create_one_to_one_argonos' %}?trainer={{ selected.id }}">
@@ -372,7 +371,6 @@
                     <span class="pill">{{ this_week_meeting.get_status_display }}</span>
                   </div>
 
-                  <!-- ✅ ICI : les 3 boutons (admin + page dédiée) -->
                   <div class="split-actions" style="margin-top:10px;">
                     <a class="tabbtn"
                        href="/admin/argonteam/onetoonemeeting/{{ this_week_meeting.id }}/change/"
@@ -386,11 +384,13 @@
                       ➕ Ajouter un objectif (admin)
                     </a>
 
+                    {# ✅ SAFE : ne pas pointer vers une URL POST en GET #}
                     <a class="tabbtn"
-                       href="{% url 'trainings:add_objective_this_week_argonos' %}?trainer={{ selected.id }}">
+                       href="{% url 'trainings:team_argonos' %}?trainer={{ selected.id }}&tab=1to1">
                       ➕ Ajouter un objectif (depuis la page)
                     </a>
 
+                    {# ✅ Kanban #}
                     <a class="tabbtn"
                       href="{% url 'trainings:argonos_objectives_kanban' %}?trainer={{ selected.id }}">
                       🧩 Voir Kanban objectifs
@@ -403,12 +403,11 @@
 
                   {% if this_week_objectives %}
                     <div class="item-meta" style="margin-top:10px; font-weight:950;">Objectifs de la semaine :</div>
+
                     {% for o in this_week_objectives %}
                       <div class="item" style="margin-top:8px;">
                         <div class="row" style="justify-content:space-between; align-items:center;">
-                          <div class="item-title">
-                            {{ o.title }}
-                          </div>
+                          <div class="item-title">{{ o.title }}</div>
 
                           <div class="row" style="justify-content:flex-end;">
                             {# ✅ Toggle TODO/DONE #}
@@ -442,7 +441,7 @@
                               </button>
                             </form>
 
-                            {# ✅ Badge statut (optionnel) #}
+                            {# ✅ Badge statut #}
                             {% if o.get_status_display %}
                               <span class="pill">{{ o.get_status_display }}</span>
                             {% else %}
@@ -515,26 +514,44 @@
 
               {% for o in objectives_open %}
                 <div class="item">
-                  <div class="row" style="justify-content:space-between;">
-                    <div class="item-title">{{ o.title }}</div>
-                    {% if o.get_status_display %}
-                      <span class="pill">{{ o.get_status_display }}</span>
-                    {% elif o.done %}
-                      <span class="pill">✅ Fait</span>
-                    {% else %}
-                      <span class="pill">⏳ À faire</span>
-                    {% endif %}
-                  </div>
+                  <div class="row" style="justify-content:space-between; align-items:center;">
+                    <div>
+                      <div class="item-title">{{ o.title }}</div>
+                      <div class="item-meta">
+                        {% if o.get_category_display %}{{ o.get_category_display }}{% endif %}
+                        {% if o.due_date %} • échéance {{ o.due_date|date:"d/m/Y" }}{% endif %}
+                        {% if o.actionable %} • 🧩 Kanban{% endif %}
+                      </div>
+                      {% if o.description %}
+                        <div class="item-meta">📝 {{ o.description }}</div>
+                      {% endif %}
+                    </div>
 
-                  <div class="item-meta">
-                    {% if o.get_category_display %}{{ o.get_category_display }}{% endif %}
-                    {% if o.due_date %} • échéance {{ o.due_date|date:"d/m/Y" }}{% endif %}
-                    {% if o.actionable %} • 🧩 Kanban{% endif %}
-                  </div>
+                    <div class="row" style="justify-content:flex-end;">
+                      <form method="post"
+                            action="{% url 'trainings:argonos_objective_toggle' o.id %}"
+                            style="margin:0;">
+                        {% csrf_token %}
+                        <button type="submit" class="tabbtn">✅ Terminer</button>
+                      </form>
 
-                  {% if o.description %}
-                    <div class="item-meta">📝 {{ o.description }}</div>
-                  {% endif %}
+                      <a class="tabbtn" href="{% url 'trainings:argonos_objective_edit' o.id %}">
+                        ✏️ Éditer
+                      </a>
+
+                      <form method="post"
+                            action="{% url 'trainings:argonos_objective_delete' o.id %}"
+                            style="margin:0;"
+                            onsubmit="return confirm('Supprimer cet objectif ?');">
+                        {% csrf_token %}
+                        <button type="submit" class="tabbtn">🗑️ Supprimer</button>
+                      </form>
+
+                      {% if o.get_status_display %}
+                        <span class="pill">{{ o.get_status_display }}</span>
+                      {% endif %}
+                    </div>
+                  </div>
                 </div>
               {% empty %}
                 <div style="opacity:.7; margin-top:10px;">Aucun objectif en cours.</div>
@@ -548,12 +565,37 @@
 
               {% for o in objectives_done %}
                 <div class="item">
-                  <div class="row" style="justify-content:space-between;">
-                    <div class="item-title">{{ o.title }}</div>
-                    <span class="pill">✅ Terminé</span>
-                  </div>
-                  <div class="item-meta">
-                    {% if o.get_category_display %}{{ o.get_category_display }}{% endif %}
+                  <div class="row" style="justify-content:space-between; align-items:center;">
+                    <div>
+                      <div class="item-title">{{ o.title }}</div>
+                      <div class="item-meta">
+                        {% if o.get_category_display %}{{ o.get_category_display }}{% endif %}
+                        {% if o.actionable %} • 🧩 Kanban{% endif %}
+                      </div>
+                    </div>
+
+                    <div class="row" style="justify-content:flex-end;">
+                      <form method="post"
+                            action="{% url 'trainings:argonos_objective_toggle' o.id %}"
+                            style="margin:0;">
+                        {% csrf_token %}
+                        <button type="submit" class="tabbtn">↩️ Rouvrir</button>
+                      </form>
+
+                      <a class="tabbtn" href="{% url 'trainings:argonos_objective_edit' o.id %}">
+                        ✏️ Éditer
+                      </a>
+
+                      <form method="post"
+                            action="{% url 'trainings:argonos_objective_delete' o.id %}"
+                            style="margin:0;"
+                            onsubmit="return confirm('Supprimer cet objectif ?');">
+                        {% csrf_token %}
+                        <button type="submit" class="tabbtn">🗑️ Supprimer</button>
+                      </form>
+
+                      <span class="pill">✅ Terminé</span>
+                    </div>
                   </div>
                 </div>
               {% empty %}

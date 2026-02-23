@@ -278,18 +278,20 @@
         </div>
       </div>
 
-      <!-- ✅ Colonnes Tâches -->
-      {% for key, col in columns.items %}
+      <!-- ✅ Colonnes Tâches (FIX: plus de columns[key]) -->
+      {% for key, label, col in kanban_cols %}
         <div class="kb-col">
           <div class="kb-col-h">
-            {% if key == "todo" %}
-              <span>🟦 TODO</span>
-            {% elif key == "doing" %}
-              <span>🟨 En cours</span>
-            {% elif key == "blocked" %}
-              <span>🟥 Bloqué</span>
+            {% if key == "TODO" %}
+              <span>🟦 {{ label }}</span>
+            {% elif key == "IN_PROGRESS" %}
+              <span>🟨 {{ label }}</span>
+            {% elif key == "BLOCKED" %}
+              <span>🟥 {{ label }}</span>
+            {% elif key == "DONE" %}
+              <span>🟩 {{ label }}</span>
             {% else %}
-              <span>🟩 Terminé</span>
+              <span>{{ label }}</span>
             {% endif %}
             <span class="kb-col-count">({{ col|length }})</span>
           </div>
@@ -316,9 +318,6 @@
                   </form>
 
                   <a class="kb-link" href="{% url 'projects:task_edit' t.id %}">✏️</a>
-
-                  {# ✅ pas de delete dans tes urls -> on l’enlève pour éviter NoReverseMatch #}
-                  {# <a class="kb-link kb-danger" href="{% url 'projects:task_delete' t.id %}">🗑️</a> #}
                 </div>
               </div>
             {% empty %}

@@ -312,16 +312,19 @@ class Registration(models.Model):
     def _capacity(self) -> int:
         title = (self.session.training.title or "").strip()
 
+        cap20 = {"Globale"}
         cap10 = {
-            "Initiation",
-            "Data Exploration niveau 1",
-            "Data Préparation niveau 1",
+         "Initiation",
+         "Data Exploration niveau 1",
+         "Data Préparation niveau 1",
         }
         cap6 = {
             "Développeur niveau 1",
             "Admin Système Installation",
         }
 
+        if title in cap20:
+            return 20
         if title in cap10:
             return 10
         if title in cap6:

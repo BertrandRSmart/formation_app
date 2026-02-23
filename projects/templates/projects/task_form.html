@@ -1,50 +1,114 @@
 {% extends "trainings/base.html" %}
 {% block title %}Tâche{% endblock %}
+{% block body_class %}no-scroll{% endblock %}
 
 {% block content %}
 <div style="max-width:780px; margin: 110px auto 40px; padding: 0 16px;">
 
+  <style>
+    .f-label{ font-weight:900; opacity:.85; font-size:12px; margin-bottom:6px; }
+    .f-field input, .f-field select, .f-field textarea{
+      width:100%;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(0,0,0,.25);
+      color:white;
+      font-weight:900;
+      outline:none;
+      box-sizing:border-box;
+    }
+    .f-field textarea{ resize: vertical; }
+    .f-err{ color:#fca5a5; font-size:12px; margin-top:6px; font-weight:900; }
+    .grid2{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:12px;
+    }
+    @media(max-width:720px){ .grid2{ grid-template-columns: 1fr; } }
+  </style>
+
   <div style="padding:16px; border-radius:18px; border:1px solid rgba(255,255,255,.10); background: rgba(0,0,0,.22);">
-    <h1 style="margin:0 0 14px; font-weight:950;">{% if task %}✏️ Modifier{% else %}➕ Nouvelle tâche{% endif %}</h1>
+    <h1 style="margin:0 0 14px; font-weight:950;">
+      {% if mode == "edit" %}✏️ Modifier{% else %}➕ Nouvelle tâche{% endif %}
+    </h1>
 
     <form method="post" style="display:flex; flex-direction:column; gap:12px;">
       {% csrf_token %}
 
-      <label style="font-weight:900; opacity:.85;">Titre</label>
-      <input name="title" value="{% if task %}{{ task.title }}{% endif %}"
-             style="padding:10px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.12); background: rgba(0,0,0,.25); color:white; font-weight:900;" />
-
-      <label style="font-weight:900; opacity:.85;">Projet</label>
-      <select name="project_id"
-              style="padding:10px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.12); background: rgba(0,0,0,.25); color:white; font-weight:900;">
-        <option value="">—</option>
-        {% for p in projects %}
-          <option value="{{ p.id }}"
-            {% if task and task.project_id == p.id %}selected{% endif %}>
-            {{ p.name }}
-          </option>
-        {% endfor %}
-      </select>
-
-      {% if task %}
-        <label style="font-weight:900; opacity:.85;">Statut</label>
-        <select name="status"
-                style="padding:10px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.12); background: rgba(0,0,0,.25); color:white; font-weight:900;">
-          <option value="TODO" {% if task.status == "TODO" %}selected{% endif %}>TODO</option>
-          <option value="IN_PROGRESS" {% if task.status == "IN_PROGRESS" %}selected{% endif %}>En cours</option>
-          <option value="BLOCKED" {% if task.status == "BLOCKED" %}selected{% endif %}>Bloqué</option>
-          <option value="DONE" {% if task.status == "DONE" %}selected{% endif %}>Terminé</option>
-        </select>
+      {# erreurs globales #}
+      {% if form.non_field_errors %}
+        <div class="f-err">{{ form.non_field_errors|striptags }}</div>
       {% endif %}
+
+      {# PROJET #}
+      <div class="f-field">
+        <div class="f-label">{{ form.project.label }}{% if form.project.field.required %} *{% endif %}</div>
+        {{ form.project }}
+        {% if form.project.errors %}<div class="f-err">{{ form.project.errors|striptags }}</div>{% endif %}
+      </div>
+
+      {# TITRE #}
+      <div class="f-field">
+        <div class="f-label">{{ form.title.label }}{% if form.title.field.required %} *{% endif %}</div>
+        {{ form.title }}
+        {% if form.title.errors %}<div class="f-err">{{ form.title.errors|striptags }}</div>{% endif %}
+      </div>
+
+      {# DESCRIPTION #}
+      <div class="f-field">
+        <div class="f-label">{{ form.description.label }}</div>
+        {{ form.description }}
+        {% if form.description.errors %}<div class="f-err">{{ form.description.errors|striptags }}</div>{% endif %}
+      </div>
+
+      {# STATUT / ORDER #}
+      <div class="grid2">
+        <div class="f-field">
+          <div class="f-label">{{ form.status.label }}</div>
+          {{ form.status }}
+          {% if form.status.errors %}<div class="f-err">{{ form.status.errors|striptags }}</div>{% endif %}
+        </div>
+
+        <div class="f-field">
+          <div class="f-label">{{ form.order.label }}</div>
+          {{ form.order }}
+          {% if form.order.errors %}<div class="f-err">{{ form.order.errors|striptags }}</div>{% endif %}
+        </div>
+      </div>
+
+      {# PRIORITY / ASSIGNEE #}
+      <div class="grid2">
+        <div class="f-field">
+          <div class="f-label">{{ form.priority.label }}</div>
+          {{ form.priority }}
+          {% if form.priority.errors %}<div class="f-err">{{ form.priority.errors|striptags }}</div>{% endif %}
+        </div>
+
+        <div class="f-field">
+          <div class="f-label">{{ form.assignee.label }}</div>
+          {{ form.assignee }}
+          {% if form.assignee.errors %}<div class="f-err">{{ form.assignee.errors|striptags }}</div>{% endif %}
+        </div>
+      </div>
+
+      {# DUE DATE #}
+      <div class="f-field">
+        <div class="f-label">{{ form.due_date.label }}</div>
+        {{ form.due_date }}
+        {% if form.due_date.errors %}<div class="f-err">{{ form.due_date.errors|striptags }}</div>{% endif %}
+      </div>
 
       <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;">
         <button type="submit"
-                style="padding:10px 14px; border-radius:12px; border:1px solid rgba(124,58,237,0.45); background: rgba(124,58,237,0.18); color:white; font-weight:950;">
+                style="padding:10px 14px; border-radius:12px; border:1px solid rgba(124,58,237,0.45);
+                       background: rgba(124,58,237,0.18); color:white; font-weight:950; cursor:pointer;">
           Enregistrer
         </button>
 
         <a href="{% url 'projects:projects_home' %}"
-           style="padding:10px 14px; border-radius:12px; border:1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.06); color:white; font-weight:950; text-decoration:none;">
+           style="padding:10px 14px; border-radius:12px; border:1px solid rgba(255,255,255,.12);
+                  background: rgba(255,255,255,.06); color:white; font-weight:950; text-decoration:none;">
           Retour
         </a>
       </div>

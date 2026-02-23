@@ -13,7 +13,7 @@ class BulkRegistrationForm(forms.Form):
     existing_participants = forms.ModelMultipleChoiceField(
         queryset=Participant.objects.none(),
         required=False,
-        widget=forms.SelectMultiple(attrs={"size": "12"}),
+        widget=forms.SelectMultiple(attrs={"size": "30"}),
         label="Participants existants",
     )
 
@@ -65,4 +65,4 @@ class NewParticipantForm(forms.Form):
         return data
 
 
-NewParticipantFormSet = formset_factory(NewParticipantForm, extra=5, can_delete=False)
+NewParticipantFormSet = formset_factory(NewParticipantForm, extra=25, can_delete=False)
