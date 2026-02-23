@@ -248,7 +248,7 @@
           <div style="flex:1; min-width:0;">
             <h3>📚 Formations</h3>
             <ul>
-              <li><a href="/admin/trainings/session/">Sessions</a></li>
+              <li><a href="{% url 'trainings:training_manage_home' %}">📚 Gestion des sessions</a></li>
               <li><a href="/admin/trainings/training/">Catalogue formations</a></li>
               <li><a href="/admin/trainings/participant/">Participants</a></li>
               <li><a href="/admin/trainings/session/add/">Créer une session</a></li>
@@ -309,9 +309,9 @@
           <span>Planifier une nouvelle session.</span>
         </a>
 
-        <a class="action" href="/admin/trainings/session/" style="--accent: var(--c-form);">
-          <strong>Gérer les sessions</strong>
-          <span>Modifier dates, formateurs, statuts, participants.</span>
+        <a class="action" href="{% url 'trainings:training_manage_home' %}" style="--accent: var(--c-form);">
+          <strong>Gestion des sessions</strong>
+          <span>Vue avancée (filtres + participants + export).</span>
         </a>
 
         <a class="action" href="/agenda/" style="--accent: var(--c-form);">
@@ -338,7 +338,7 @@
           <span>Accéder à la gestion Mercure / ArgonOS (onglets).</span>
         </a>
 
-      </div>
+</div>
     </section>
 
     <!-- ALERTS SUMMARY -->

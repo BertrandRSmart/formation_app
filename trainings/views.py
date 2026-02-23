@@ -1011,6 +1011,32 @@ def argonos_manager_dashboard(request):
     today = timezone.localdate()
     soon_limit = today + timedelta(days=7)
 
+    filter_type = request.GET.get("filter")
+    filtered_objectives = None
+
+    if filter_type:
+        base_qs = OneToOneObjective.objects.filter(trainer__product="ARGONOS")
+
+        if filter_type == "overdue":
+            filtered_objectives = base_qs.filter(
+                due_date__lt=today
+            ).exclude(status=ObjectiveStatus.DONE)
+
+        elif filter_type == "due_soon":
+            filtered_objectives = base_qs.filter(
+                due_date__gte=today,
+                due_date__lte=soon_limit
+            ).exclude(status=ObjectiveStatus.DONE)
+
+        elif filter_type == "blocked":
+            filtered_objectives = base_qs.filter(status=ObjectiveStatus.BLOCKED)
+
+        elif filter_type == "open":
+            filtered_objectives = base_qs.exclude(status=ObjectiveStatus.DONE)
+
+        elif filter_type == "done":
+            filtered_objectives = base_qs.filter(status=ObjectiveStatus.DONE)
+
     trainers = Trainer.objects.filter(product="ARGONOS").order_by("last_name", "first_name")
 
     # Objectifs (scope ArgonOS via trainer__product)
@@ -1102,7 +1128,8 @@ def argonos_manager_dashboard(request):
     return render(request, "trainings/argon_manager_dashboard.html", {
         "today": today,
         "soon_limit": soon_limit,
-
+        "filter_type": filter_type,
+        "filtered_objectives": filtered_objectives,
         "kpi_total": kpi_total,
         "kpi_open": kpi_open,
         "kpi_done": kpi_done,

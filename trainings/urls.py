@@ -45,6 +45,7 @@ urlpatterns = [
     path("alerts/convocations/<int:session_id>/dismiss/", views.dismiss_convocation_alert, name="dismiss_convocation_alert"),
 
     path("team/argonos/dashboard/", views.argonos_manager_dashboard, name="argonos_manager_dashboard"),
+    
     # API
     path("api/sessions/", views.sessions_json, name="sessions_json"),
     path("api/trainings/", views.trainings_by_type_json, name="trainings_by_type_json"),
