@@ -1,0 +1,61 @@
+{% extends "trainings/base.html" %}
+{% block title %}Alertes{% endblock %}
+
+{% block content %}
+<div style="max-width:1500px; margin:0 auto; padding:18px 16px;">
+  <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+    <div>
+      <h1 style="margin:0 0 6px;">Alertes formateurs</h1>
+      <div style="color:#64748b;">Historique complet (actives / en cours / clôturées). Visible staff uniquement.</div>
+    </div>
+
+    <a href="{% url 'trainer_eval:alerts_create' %}"
+       style="display:inline-flex; align-items:center; gap:8px; padding:10px 14px; border-radius:12px;
+              border:1px solid rgba(255,255,255,0.14); background:rgba(255,255,255,0.08);
+              color:rgba(255,255,255,0.95); text-decoration:none; font-weight:600;">
+      ➕ Nouvelle alerte
+    </a>
+  </div>
+
+  <div style="margin-top:16px; overflow:auto; border:1px solid rgba(255,255,255,0.08); border-radius:12px;">
+    <table style="width:100%; min-width:1200px; border-collapse:collapse;">
+      <thead>
+        <tr style="text-align:left; background:rgba(255,255,255,0.04);">
+          <th style="padding:10px;">Date</th>
+          <th style="padding:10px;">Formateur</th>
+          <th style="padding:10px;">Formation</th>
+          <th style="padding:10px;">Catégorie</th>
+          <th style="padding:10px;">Sévérité</th>
+          <th style="padding:10px;">Statut</th>
+          <th style="padding:10px;">Indicateur</th>
+          <th style="padding:10px;">Valeur</th>
+          <th style="padding:10px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for it in items %}
+          <tr style="border-top:1px solid rgba(255,255,255,0.06);">
+            <td style="padding:10px;">{{ it.triggered_on|date:"d/m/Y" }}</td>
+            <td style="padding:10px;">{{ it.trainer }}</td>
+            <td style="padding:10px;">{% if it.training %}{{ it.training }}{% else %}<span style="opacity:0.8;">(Global)</span>{% endif %}</td>
+            <td style="padding:10px;">{{ it.get_category_display }}</td>
+            <td style="padding:10px;">
+              <span style="padding:4px 8px; border-radius:999px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06);">
+                {{ it.get_severity_display }}
+              </span>
+            </td>
+            <td style="padding:10px;">{{ it.get_status_display }}</td>
+            <td style="padding:10px; color:#cbd5e1;">{{ it.metric|default:"" }}</td>
+            <td style="padding:10px; color:#cbd5e1;">{{ it.value|default:"" }}</td>
+            <td style="padding:10px;">
+              <a class="btn" href="{% url 'trainer_eval:alerts_edit' it.id %}">Modifier</a>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="9" style="padding:14px; color:#64748b;">Aucune alerte pour l’instant.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -44,6 +44,9 @@ INSTALLED_APPS = [
     "dashboards",
     "projects",
     "argonteam.apps.ArgonteamConfig",
+    "trainer_eval",
+    
+    
     
 
 ]

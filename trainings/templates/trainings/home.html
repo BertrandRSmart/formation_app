@@ -29,12 +29,58 @@
     padding: 92px 18px 18px;
     overflow: hidden;
     color: var(--text);
-
-    /* ✅ on garde ton fond premium ici (il se mixe avec home-gradient) */
     background: transparent;
   }
-      
-  
+
+  /* ✅ utilisé dans LIGNE 3 (ÉQUIPE) */
+  .action--full{ grid-column: 1 / -1; }
+
+  /* =========================================================
+     ✅ Grille "Pilotage formateurs" (indépendante des actions)
+     ========================================================= */
+  .quick-grid{
+    display:grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap:12px;
+  }
+
+  .quick-card{
+    display:block;
+    padding:14px;
+    border-radius:14px;
+    border:1px solid rgba(255,255,255,0.10);
+    background: rgba(255,255,255,0.04);
+    text-decoration:none;
+    color: rgba(255,255,255,0.92);
+    transition: transform .12s ease, background .12s ease, border-color .12s ease;
+  }
+  .quick-card:hover{
+    transform: translateY(-2px);
+    background: rgba(255,255,255,0.06);
+    border-color: rgba(255,255,255,0.18);
+  }
+
+  .qc-title{ font-weight:700; margin-bottom:6px; }
+  .qc-sub{ opacity:0.72; font-size:13px; }
+
+  /* ✅ Rangée Pilotage : rendu plus lisible + responsive */
+  .quick-grid--pilotage{
+    display:grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+  }
+
+  /* ✅ Couleur différente (pilotage) */
+  .quick-grid--pilotage .quick-card--pilotage{
+    background: rgba(99,102,241,0.10);
+    border-color: rgba(99,102,241,0.22);
+  }
+  .quick-grid--pilotage .quick-card--pilotage:hover{
+    background: rgba(99,102,241,0.16);
+    border-color: rgba(99,102,241,0.32);
+  }
+
+  /* ========================================================= */
 
   .dash-grid{
     flex: 1 1 auto;
@@ -338,7 +384,39 @@
           <span>Accéder à la gestion Mercure / ArgonOS (onglets).</span>
         </a>
 
-</div>
+        <!-- LIGNE 4 (PILOTAGE FORMATEURS) -->
+        {% if request.user.is_staff %}
+          <div style="grid-column: 1 / -1; margin-top:12px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px;">
+              <h3 style="margin:0;">Pilotage formateurs</h3>
+              <div style="opacity:0.75; font-size:12px;">Zone interne</div>
+            </div>
+
+            <div class="quick-grid quick-grid--pilotage">
+              <a class="quick-card quick-card--pilotage" href="{% url 'trainer_eval:dashboard' %}">
+                <div class="qc-title">📊 Dashboard formateurs</div>
+                <div class="qc-sub">Classement, score, niveaux</div>
+              </a>
+
+              <a class="quick-card quick-card--pilotage" href="{% url 'trainer_eval:internal_eval_list' %}">
+                <div class="qc-title">🧠 Évaluations internes</div>
+                <div class="qc-sub">Global + par formation</div>
+              </a>
+
+              <a class="quick-card quick-card--pilotage" href="{% url 'trainer_eval:contributions_list' %}">
+                <div class="qc-title">🧩 Contributions</div>
+                <div class="qc-sub">Contenus, mentorat, projets</div>
+              </a>
+
+              <a class="quick-card quick-card--pilotage" href="{% url 'trainer_eval:session_satisfaction_list' %}">
+                <div class="qc-title">⭐ Satisfaction sessions</div>
+                <div class="qc-sub">Note client /20 (sessions)</div>
+              </a>
+            </div>
+          </div>
+        {% endif %}
+
+      </div>
     </section>
 
     <!-- ALERTS SUMMARY -->

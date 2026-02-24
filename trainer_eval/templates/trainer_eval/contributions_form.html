@@ -1,0 +1,52 @@
+{% extends "trainings/base.html" %}
+{% block title %}{% if obj %}Modifier{% else %}Nouvelle{% endif %} contribution{% endblock %}
+
+{% block content %}
+<div style="max-width:900px; margin:0 auto; padding:18px 16px;">
+  <h1 style="margin:0 0 8px;">{% if obj %}Modifier{% else %}Nouvelle{% endif %} contribution</h1>
+  <div style="color:#64748b; margin-bottom:16px;">
+    Les points ont une valeur par défaut selon le type (modifiable).
+  </div>
+
+  <form method="post">
+    {% csrf_token %}
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+      <div>
+        <label>Formateur</label>
+        {{ form.trainer }}
+      </div>
+
+      <div>
+        <label>Formation (optionnel)</label>
+        {{ form.training }}
+      </div>
+
+      <div>
+        <label>Type</label>
+        {{ form.kind }}
+      </div>
+
+      <div>
+        <label>Points</label>
+        {{ form.points }}
+      </div>
+
+      <div>
+        <label>Date</label>
+        {{ form.date }}
+      </div>
+    </div>
+
+    <div style="margin-top:12px;">
+      <label>Description</label>
+      {{ form.description }}
+    </div>
+
+    <div style="display:flex; gap:10px; margin-top:14px;">
+      <button class="btn" type="submit">Enregistrer</button>
+      <a class="btn" href="{% url 'trainer_eval:contributions_list' %}" style="opacity:0.85;">Retour</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

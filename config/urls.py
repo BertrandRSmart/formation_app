@@ -10,6 +10,8 @@ urlpatterns = [
     # ✅ Projects (Kanban)
     path("projects/", include(("projects.urls", "projects"), namespace="projects")),
 
+    path("trainer-eval/", include("trainer_eval.urls")),
+
 
     # Admin custom
     path(

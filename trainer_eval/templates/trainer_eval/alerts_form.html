@@ -1,0 +1,63 @@
+{% extends "trainings/base.html" %}
+{% block title %}{% if obj %}Modifier{% else %}Nouvelle{% endif %} alerte{% endblock %}
+
+{% block content %}
+<div style="max-width:900px; margin:0 auto; padding:18px 16px;">
+  <h1 style="margin:0 0 8px;">{% if obj %}Modifier{% else %}Nouvelle{% endif %} alerte</h1>
+  <div style="color:#64748b; margin-bottom:16px;">
+    Historisée : garde le statut (Active → En cours → Clôturée).
+  </div>
+
+  <form method="post">
+    {% csrf_token %}
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+      <div>
+        <label>Formateur</label>
+        {{ form.trainer }}
+      </div>
+      <div>
+        <label>Formation (optionnel)</label>
+        {{ form.training }}
+      </div>
+
+      <div>
+        <label>Catégorie</label>
+        {{ form.category }}
+      </div>
+      <div>
+        <label>Sévérité</label>
+        {{ form.severity }}
+      </div>
+
+      <div>
+        <label>Date</label>
+        {{ form.triggered_on }}
+      </div>
+      <div>
+        <label>Statut</label>
+        {{ form.status }}
+      </div>
+
+      <div>
+        <label>Indicateur (optionnel)</label>
+        {{ form.metric }}
+      </div>
+      <div>
+        <label>Valeur (optionnel)</label>
+        {{ form.value }}
+      </div>
+    </div>
+
+    <div style="margin-top:12px;">
+      <label>Commentaire manager</label>
+      {{ form.manager_comment }}
+    </div>
+
+    <div style="display:flex; gap:10px; margin-top:14px;">
+      <button class="btn" type="submit">Enregistrer</button>
+      <a class="btn" href="{% url 'trainer_eval:alerts_list' %}" style="opacity:0.85;">Retour</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

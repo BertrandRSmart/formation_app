@@ -1,0 +1,67 @@
+{% extends "trainings/base.html" %}
+{% block title %}{% if obj %}Modifier{% else %}Nouvelle{% endif %} évaluation interne{% endblock %}
+
+{% block content %}
+<h1 style="margin:0 0 8px;">{% if obj %}Modifier{% else %}Nouvelle{% endif %} évaluation interne</h1>
+<div style="color:#64748b; margin-bottom:16px;">
+  Laisse “Formation” vide pour une évaluation globale.
+</div>
+
+<form method="post" style="max-width:780px;">
+  {% csrf_token %}
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+    <div>
+      <label>Formateur</label>
+      {{ form.trainer }}
+      {% for e in form.trainer.errors %}<div style="color:#f87171;">{{ e }}</div>{% endfor %}
+    </div>
+    <div>
+      <label>Formation (optionnel)</label>
+      {{ form.training }}
+      {% for e in form.training.errors %}<div style="color:#f87171;">{{ e }}</div>{% endfor %}
+    </div>
+
+    <div>
+      <label>Date</label>
+      {{ form.evaluated_on }}
+      {% for e in form.evaluated_on.errors %}<div style="color:#f87171;">{{ e }}</div>{% endfor %}
+    </div>
+    <div>
+      <label>Décision</label>
+      {{ form.decision }}
+    </div>
+
+    <div>
+      <label>Note socle (/20)</label>
+      {{ form.core_score_20 }}
+      {% for e in form.core_score_20.errors %}<div style="color:#f87171;">{{ e }}</div>{% endfor %}
+    </div>
+    <div>
+      <label>Note spécifique (/10)</label>
+      {{ form.specific_score_10 }}
+      {% for e in form.specific_score_10.errors %}<div style="color:#f87171;">{{ e }}</div>{% endfor %}
+    </div>
+  </div>
+
+  <div style="margin-top:12px;">
+    <label>Points forts</label>
+    {{ form.strengths }}
+  </div>
+
+  <div style="margin-top:12px;">
+    <label>Axes d’amélioration</label>
+    {{ form.improvements }}
+  </div>
+
+  <div style="margin-top:12px;">
+    <label>Note privée (confidentiel)</label>
+    {{ form.private_note }}
+  </div>
+
+  <div style="display:flex; gap:10px; margin-top:14px;">
+    <button class="btn" type="submit">Enregistrer</button>
+    <a class="btn" href="{% url 'trainer_eval:internal_eval_list' %}" style="opacity:0.85;">Retour</a>
+  </div>
+</form>
+{% endblock %}

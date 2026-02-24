@@ -1,0 +1,26 @@
+{% extends "trainings/base.html" %}
+{% block title %}Modifier satisfaction{% endblock %}
+
+{% block content %}
+<h1 style="margin:0 0 8px;">Modifier satisfaction</h1>
+<div style="color:#64748b; margin-bottom:16px;">
+  {{ session.training }} — {{ session.start_date|date:"d/m/Y" }} — Formateur : {{ session.trainer }}
+</div>
+
+<form method="post" style="max-width:520px;">
+  {% csrf_token %}
+
+  <div style="padding:14px; border-radius:12px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08);">
+    <label style="display:block; margin-bottom:6px;">Satisfaction client (/20)</label>
+    {{ form.client_satisfaction }}
+    {% for e in form.client_satisfaction.errors %}
+      <div style="color:#f87171; margin-top:6px;">{{ e }}</div>
+    {% endfor %}
+  </div>
+
+  <div style="display:flex; gap:10px; margin-top:14px;">
+    <button class="btn" type="submit">Enregistrer</button>
+    <a class="btn" href="{% url 'trainer_eval:session_satisfaction_list' %}" style="opacity:0.85;">Retour</a>
+  </div>
+</form>
+{% endblock %}

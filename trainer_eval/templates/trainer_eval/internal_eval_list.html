@@ -1,0 +1,76 @@
+{% extends "trainings/base.html" %}
+{% block title %}Évaluations internes{% endblock %}
+
+{% block content %}
+<div style="max-width:95vw; margin:0 auto; padding:18px 16px;">
+  <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+    <div>
+      <h1 style="margin:0 0 6px;">Évaluations internes</h1>
+      <div style="color:#64748b;">Par formation (si renseignée) ou globale (si vide). Visible staff uniquement.</div>
+    </div>
+
+    <a href="{% url 'trainer_eval:internal_eval_create' %}"
+       style="
+         display:inline-flex;
+         align-items:center;
+         gap:8px;
+         padding:10px 14px;
+         border-radius:12px;
+         border:1px solid rgba(255,255,255,0.14);
+         background:rgba(255,255,255,0.08);
+         color:rgba(255,255,255,0.95);
+         text-decoration:none;
+         font-weight:650;
+       "
+       onmouseover="this.style.background='rgba(255,255,255,0.15)'"
+       onmouseout="this.style.background='rgba(255,255,255,0.08)'">
+      ➕ Nouvelle évaluation
+    </a>
+  </div>
+
+  <div style="margin-top:16px; overflow:auto; border:1px solid rgba(255,255,255,0.08); border-radius:12px;">
+    <table style="width:100%; min-width:1200px; border-collapse:collapse;">
+      <thead>
+        <tr style="text-align:left; background:rgba(255,255,255,0.04);">
+          <th style="padding:10px;">Date</th>
+          <th style="padding:10px;">Formateur</th>
+          <th style="padding:10px;">Formation</th>
+          <th style="padding:10px;">Socle</th>
+          <th style="padding:10px;">Spécifique</th>
+          <th style="padding:10px;">Total</th>
+          <th style="padding:10px;">Décision</th>
+          <th style="padding:10px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for it in items %}
+          <tr style="border-top:1px solid rgba(255,255,255,0.06);">
+            <td style="padding:10px;">{{ it.evaluated_on|date:"d/m/Y" }}</td>
+            <td style="padding:10px;">{{ it.trainer }}</td>
+            <td style="padding:10px;">
+              {% if it.training %}{{ it.training }}{% else %}
+                <span style="opacity:0.8;">(Globale)</span>
+              {% endif %}
+            </td>
+            <td style="padding:10px;">{{ it.core_score_20 }}/20</td>
+            <td style="padding:10px;">{{ it.specific_score_10 }}/10</td>
+            <td style="padding:10px;">
+              <span style="padding:4px 8px; border-radius:999px; background:rgba(59,130,246,0.15); border:1px solid rgba(59,130,246,0.25);">
+                {{ it.total_score_30 }}/30
+              </span>
+            </td>
+            <td style="padding:10px;">{{ it.get_decision_display }}</td>
+            <td style="padding:10px;">
+              <a class="btn" href="{% url 'trainer_eval:internal_eval_edit' it.id %}">Modifier</a>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="8" style="padding:14px; color:#64748b;">Aucune évaluation pour l’instant.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -42,6 +42,13 @@ class Trainer(models.Model):
     PRODUCT_MERCURE = "MERCURE"
     PRODUCT_ARGONOS = "ARGONOS"
 
+    PLATFORMS = (
+    ("ARGONOS", "ArgonOS"),
+    ("MERCURE", "Mercure"),
+    )
+
+    platform = models.CharField(max_length=16, choices=PLATFORMS, default="ARGONOS")
+
     PRODUCT_CHOICES = [
         (PRODUCT_MERCURE, "Mercure"),
         (PRODUCT_ARGONOS, "ArgonOS"),
