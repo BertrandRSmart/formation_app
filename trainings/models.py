@@ -166,6 +166,16 @@ class Session(models.Model):
         editable=False,
     )
 
+    from django.core.validators import MinValueValidator
+
+    # dans class Session(models.Model):
+    price_ht = models.DecimalField(
+        "Prix formation HT",
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        validators=[MinValueValidator(0)],
+    )
     def outlook_compose_link(self) -> str:
         """
         Ouvre Outlook Web avec un évènement pré-rempli.

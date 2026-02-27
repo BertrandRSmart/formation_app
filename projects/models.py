@@ -2,8 +2,30 @@ from django.conf import settings
 from django.db import models
 
 
+class ProjectCategory(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    color = models.CharField(max_length=20, blank=True, default="")  # optionnel (#FF89E9)
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name = "Catégorie de projet"
+        verbose_name_plural = "Catégories de projet"
+
+    def __str__(self):
+        return self.name
+
+
+
+
 class Project(models.Model):
     name = models.CharField(max_length=160)
+    category = models.ForeignKey(
+        ProjectCategory,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="projects"
+    )
     is_active = models.BooleanField(default=True)
 
     def __str__(self):

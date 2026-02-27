@@ -2,10 +2,13 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
 from django.db.models import Count, Q
 
-from .models import Project, Task
+from .models import Project, Task, ProjectCategory
 from .forms import TaskForm
 from django.urls import reverse
 from django.views.decorators.http import require_POST
+
+from django.http import JsonResponse
+from django.views.decorators.http import require_GET
 
 
 # =========================================================
@@ -32,13 +35,20 @@ def _task_accessor_name() -> str:
 
 @login_required
 def projects_home(request):
-    # filtres
     q = (request.GET.get("q") or "").strip()
     priority = (request.GET.get("priority") or "").strip()
     project_id = (request.GET.get("project") or "").strip()
+    cat_id = (request.GET.get("cat") or "").strip()
+
+    categories = ProjectCategory.objects.all().order_by("name")
 
     projects_qs = Project.objects.all()
     tasks_qs = Task.objects.select_related("project").all()
+
+    # ✅ filtre catégorie (PROJETS + TÂCHES)
+    if cat_id:
+        projects_qs = projects_qs.filter(category_id=cat_id)
+        tasks_qs = tasks_qs.filter(project__category_id=cat_id)
 
     if project_id:
         tasks_qs = tasks_qs.filter(project_id=project_id)
@@ -46,26 +56,17 @@ def projects_home(request):
     if q:
         tasks_qs = tasks_qs.filter(title__icontains=q)
 
-    # priorité si ton modèle l’a
     if priority:
         try:
             tasks_qs = tasks_qs.filter(priority=priority)
         except Exception:
             pass
 
-    # Colonnes kanban (listes)
     columns = {key: [] for key, _ in KANBAN_STATUSES}
     for t in tasks_qs.order_by("project__name", "id"):
-        if t.status in columns:
-            columns[t.status].append(t)
-        else:
-            columns["TODO"].append(t)
+        columns.get(t.status, columns["todo"]).append(t)
 
-    # ✅ Structure template-friendly : (key, label, col)
     kanban_cols = [(key, label, columns.get(key, [])) for key, label in KANBAN_STATUSES]
-
-    # ✅ Compteurs par projet (robuste)
-    rel = _task_accessor_name()  # "tasks" ou "task_set" ou autre
 
     projects = projects_qs.annotate(
         todo_count=Count("tasks", filter=Q(tasks__status="todo")),
@@ -77,20 +78,16 @@ def projects_home(request):
 
     selected_project = projects_qs.filter(id=project_id).first() if project_id else None
 
-    return render(
-        request,
-        "projects/projects_home.html",
-        {
-            "projects": projects,
-            "selected_project": selected_project,
-            "project_id": project_id,
-            "q": q,
-            "priority": priority,
-            "columns": columns,
-            "kanban_statuses": KANBAN_STATUSES,
-            "kanban_cols": kanban_cols,
-        },
-    )
+    return render(request, "projects/projects_home.html", {
+        "projects": projects,
+        "selected_project": selected_project,
+        "project_id": project_id,
+        "q": q,
+        "priority": priority,
+        "kanban_cols": kanban_cols,
+        "categories": categories,
+        "cat_id": cat_id,
+    })
 
 
 # =========================================================
@@ -213,3 +210,22 @@ def task_delete(request, task_id):
     if project_id:
         url += f"?project={project_id}"
     return redirect(url)
+
+
+@require_GET
+def task_quick(request, task_id: int):
+    t = get_object_or_404(
+        Task.objects.select_related("project", "assignee"),
+        id=task_id
+    )
+
+    return JsonResponse({
+        "id": t.id,
+        "title": t.title,
+        "project": t.project.name,
+        "status": t.get_status_display(),
+        "priority": t.priority,
+        "assignee": t.assignee.username if t.assignee else None,
+        "due_date": t.due_date.strftime("%d/%m/%Y") if t.due_date else None,
+        "description": t.description or "",
+    })

@@ -12,6 +12,9 @@
     html, body { margin: 0; padding: 0; height: 100%; }
     *, *::before, *::after { box-sizing: border-box; }
 
+    body.no-scroll { overflow: hidden; }
+    main { overflow: hidden; }  
+    
     :root{
       /* THEME */
       --bg: #0B0F14;
@@ -31,6 +34,9 @@
     }
 
     body{
+
+      /* ✅ Empêche le scroll global (utilisé par body_class="no-scroll" ou openDrawer()) */
+      body.no-scroll { overflow: hidden; }
       color: var(--text);
       background:
         radial-gradient(1100px 420px at 12% -8%, rgba(59,130,246,.14), transparent 62%),

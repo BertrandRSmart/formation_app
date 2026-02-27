@@ -116,4 +116,9 @@ urlpatterns = [
     # Export CSV
     # =========================================================
     path("formations/<int:session_id>/export-csv/", views_manage.export_participants_csv, name="export_participants_csv"),
+
+    #==========================================================
+    # Dashboard CA
+    # =========================================================
+    path("dashboard/ca/", views.dashboard_ca_view, name="dashboard_ca"),
 ]

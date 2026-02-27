@@ -414,6 +414,28 @@
               </a>
             </div>
           </div>
+                  <!-- LIGNE 5 (PILOTAGE FINANCIER) -->
+          <div style="grid-column: 1 / -1; margin-top:14px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px;">
+              <h3 style="margin:0;">Pilotage financier</h3>
+              <div style="opacity:0.75; font-size:12px;">Zone interne</div>
+            </div>
+
+            <div class="quick-grid quick-grid--pilotage">
+              <a class="quick-card quick-card--pilotage" href="{% url 'trainings:dashboard_ca' %}">
+                <div class="qc-title">💰 Dashboard chiffre d&apos;affaire</div>
+                <div class="qc-sub">CA par mois / trimestre, ArgonOS vs Mercure</div>
+              </a>
+
+              {# 🕒 bloc futur #}
+              <a class="quick-card quick-card--pilotage" href="#"
+                 style="opacity:0.55; cursor:not-allowed;"
+                 onclick="return false;">
+                <div class="qc-title">💳 Suivi paiements prestations Mercure</div>
+                <div class="qc-sub">Facturation, encaissement (bientôt)</div>
+              </a>
+            </div>
+          </div>
         {% endif %}
 
       </div>

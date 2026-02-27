@@ -1,24 +1,29 @@
-from datetime import timedelta, date
+from __future__ import annotations
 
+from datetime import date, timedelta
+
+from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
-from django.db.models import Count
+from django.db.models import Count, Max, Q
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, render, redirect
-from django.views.decorators.http import require_POST
-from django.db.models import Q
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from django.shortcuts import redirect, get_object_or_404
 from django.utils import timezone
-from datetime import timedelta
-from django.contrib import messages
-from argonteam.models import (
-    OneToOneMeeting,
-    OneToOneObjective,
-    ObjectiveCategory,
-    ObjectiveStatus,
-)
+from django.views.decorators.http import require_POST
+from django.db.models import Sum, Count, Value, DecimalField, Q
+from django.db.models.functions import Coalesce, TruncMonth
+
+from django.db.models.functions import Coalesce
+
+from .models import Session
+from .models import TrainingType  # si ton modèle existe bien
+
+from decimal import Decimal
+
+
+
 from .forms import BulkRegistrationForm, NewParticipantFormSet
 from .models import (
     Client,
@@ -29,8 +34,16 @@ from .models import (
     Registration,
     RegistrationStatus,
 )
-# trainings/views.py
-from django.db.models import Max
+
+from argonteam.models import (
+    OneToOneMeeting,
+    OneToOneObjective,
+    ObjectiveCategory,
+    ObjectiveStatus,
+    OneToOneStatus,  # si utilisé ailleurs
+    ArgonosModule,
+    TrainerModuleMastery,
+)
 
 try:
     from projects.models import Project, Task
@@ -38,93 +51,6 @@ except Exception:
     Project = None
     Task = None
 
-
-def _get_or_create_argonos_project() -> "Project | None":
-    """
-    Projet unique qui centralise les tâches issues des objectifs ArgonOS.
-    """
-    if Project is None:
-        return None
-
-    proj, _ = Project.objects.get_or_create(
-        name="ArgonOS — 1 to 1",
-        defaults={"is_active": True},
-    )
-    if not proj.is_active:
-        proj.is_active = True
-        proj.save(update_fields=["is_active"])
-    return proj
-
-
-def _map_objective_status_to_task_status(obj_status: str) -> str:
-    """
-    Mappe ObjectiveStatus -> Task.Status
-    """
-    if Task is None:
-        return "todo"
-
-    mapping = {
-        "TODO": Task.Status.TODO,
-        "IN_PROGRESS": Task.Status.DOING,
-        "BLOCKED": Task.Status.BLOCKED,
-        "DONE": Task.Status.DONE,
-    }
-    return mapping.get(obj_status, Task.Status.TODO)
-
-
-def _create_task_for_objective(objective) -> None:
-    """
-    Crée la Task si objective.actionable=True et objective.created_task_id vide.
-    Remplit objective.created_task_id.
-    """
-    if Task is None or Project is None:
-        return
-
-    if not objective.actionable or objective.created_task_id:
-        return
-
-    project = _get_or_create_argonos_project()
-    if not project:
-        return
-
-    max_order = (
-        Task.objects.filter(project=project)
-        .aggregate(m=Max("order"))
-        .get("m")
-    )
-    next_order = (max_order or 0) + 1
-
-    task = Task.objects.create(
-        project=project,
-        title=objective.title,
-        description=(objective.description or "").strip(),
-        status=_map_objective_status_to_task_status(objective.status),
-        order=next_order,
-        priority=2,
-        due_date=objective.due_date,
-        # assignee: optionnel (tu peux mettre request.user dans la vue si tu veux)
-    )
-
-    objective.created_task_id = task.id
-    objective.save(update_fields=["created_task_id"])
-
-
-def _sync_task_from_objective(objective) -> None:
-    """
-    Met à jour la task liée (si existe) : title/description/due_date/status.
-    """
-    if Task is None or not objective.created_task_id:
-        return
-
-    task = Task.objects.filter(id=objective.created_task_id).first()
-    if not task:
-        return
-
-    task.title = objective.title
-    task.description = (objective.description or "").strip()
-    task.due_date = objective.due_date
-    task.status = _map_objective_status_to_task_status(objective.status)
-    task.save(update_fields=["title", "description", "due_date", "status", "updated_at"])
 
 # =========================================================
 # Rôles / droits
@@ -145,8 +71,12 @@ def manager_required(view_func):
 
 
 # =========================================================
-# Helpers (couleur)
+# Helpers
 # =========================================================
+
+def _monday_of_week(d: date) -> date:
+    return d - timedelta(days=d.weekday())
+
 
 def _color_for_training(training_id: int) -> str:
     palette = [
@@ -157,7 +87,88 @@ def _color_for_training(training_id: int) -> str:
 
 
 # =========================================================
-# Pages
+# Sync objectifs -> Tasks (projects app)
+# =========================================================
+
+def _get_or_create_argonos_project() -> "Project | None":
+    """Projet unique qui centralise les tâches issues des objectifs ArgonOS."""
+    if Project is None:
+        return None
+
+    proj, _ = Project.objects.get_or_create(
+        name="ArgonOS — 1 to 1",
+        defaults={"is_active": True},
+    )
+    if not proj.is_active:
+        proj.is_active = True
+        proj.save(update_fields=["is_active"])
+    return proj
+
+
+def _map_objective_status_to_task_status(obj_status: str) -> str:
+    """Mappe ObjectiveStatus -> Task.Status"""
+    if Task is None:
+        return "todo"
+
+    mapping = {
+        "TODO": Task.Status.TODO,
+        "IN_PROGRESS": Task.Status.DOING,
+        "BLOCKED": Task.Status.BLOCKED,
+        "DONE": Task.Status.DONE,
+    }
+    return mapping.get(obj_status, Task.Status.TODO)
+
+
+def _create_task_for_objective(objective: OneToOneObjective) -> None:
+    """
+    Crée la Task si objective.actionable=True et objective.created_task_id vide.
+    Remplit objective.created_task_id.
+    """
+    if Task is None or Project is None:
+        return
+
+    if not getattr(objective, "actionable", False) or getattr(objective, "created_task_id", None):
+        return
+
+    project = _get_or_create_argonos_project()
+    if not project:
+        return
+
+    max_order = Task.objects.filter(project=project).aggregate(m=Max("order")).get("m")
+    next_order = (max_order or 0) + 1
+
+    task = Task.objects.create(
+        project=project,
+        title=objective.title,
+        description=(objective.description or "").strip(),
+        status=_map_objective_status_to_task_status(objective.status),
+        order=next_order,
+        priority=2,
+        due_date=objective.due_date,
+    )
+
+    objective.created_task_id = task.id
+    objective.save(update_fields=["created_task_id"])
+
+
+def _sync_task_from_objective(objective: OneToOneObjective) -> None:
+    """Met à jour la task liée (si existe)."""
+    if Task is None or not getattr(objective, "created_task_id", None):
+        return
+
+    task = Task.objects.filter(id=objective.created_task_id).first()
+    if not task:
+        return
+
+    task.title = objective.title
+    task.description = (objective.description or "").strip()
+    task.due_date = objective.due_date
+    task.status = _map_objective_status_to_task_status(objective.status)
+    task.save(update_fields=["title", "description", "due_date", "status", "updated_at"])
+
+
+# =========================================================
+# Pages principales
 # =========================================================
 
 @login_required
@@ -191,7 +202,6 @@ def home_view(request):
 
 @login_required
 def team_home(request):
-    """Nouvelle page Équipe (placeholder)."""
     return render(request, "trainings/team_home.html")
 
 
@@ -224,11 +234,8 @@ def bulk_registrations(request):
 
         if form.is_valid() and formset.is_valid():
             session = form.cleaned_data["session"]
-
-            # 1) participants existants sélectionnés
             selected = list(form.cleaned_data["existing_participants"])
 
-            # 2) nouveaux participants (créés et auto-liés au client de la session)
             for f in formset:
                 cd = f.cleaned_data
                 if not cd or not any([
@@ -249,14 +256,12 @@ def bulk_registrations(request):
                     },
                 )
 
-                # si existait déjà, on peut éventuellement mettre à jour le client si vide
                 if p.client_id is None:
                     p.client = session.client
                     p.save(update_fields=["client"])
 
                 selected.append(p)
 
-            # 3) créer les registrations
             for p in selected:
                 Registration.objects.get_or_create(
                     session=session,
@@ -277,10 +282,7 @@ def bulk_registrations(request):
     selected_session = None
     sid = request.POST.get("session") or request.GET.get("session_id")
     if sid:
-        try:
-            selected_session = Session.objects.select_related("training", "client").get(pk=sid)
-        except Session.DoesNotExist:
-            selected_session = None
+        selected_session = Session.objects.select_related("training", "client").filter(pk=sid).first()
 
     return render(request, "trainings/bulk_registrations.html", {
         "form": form,
@@ -310,14 +312,11 @@ def sessions_json(request):
 
     events = []
     for s in qs:
-        # Lieu : salle OU adresse client
         if getattr(s, "on_client_site", False):
             location = getattr(s, "client_address", "") or ""
         else:
             location = s.room.name if getattr(s, "room", None) else ""
 
-        # FullCalendar: end exclusive pour allDay
-        # (si end_date manquait, on retombe sur start_date)
         end_date = getattr(s, "end_date", None) or s.start_date
         end_exclusive = end_date + timedelta(days=1)
 
@@ -407,13 +406,12 @@ def dismiss_convocation_alert(request, session_id: int):
         s.convocation_alert_closed = True
         s.save(update_fields=["convocation_alert_closed"])
     except Exception:
-        # si le champ n'existe pas, on évite de planter
         pass
     return redirect("trainings:home")
 
 
 # =========================================================
-# Dashboard (manager only)
+# Dashboard (manager only) - existant
 # =========================================================
 
 @login_required
@@ -434,8 +432,10 @@ def dashboard_view(request):
         "values_type": values_type,
     })
 
+
+
 # =========================================================
-# Team Argonos et Mercure
+# Team (liste)
 # =========================================================
 
 @login_required
@@ -445,94 +445,48 @@ def team(request):
     if product not in (Trainer.PRODUCT_ARGONOS, Trainer.PRODUCT_MERCURE):
         product = Trainer.PRODUCT_ARGONOS
 
-    trainers = (
-        Trainer.objects
-        .filter(product=product)
-        .order_by("last_name", "first_name")
-    )
-
+    trainers = Trainer.objects.filter(product=product).order_by("last_name", "first_name")
     label = "ArgonOS" if product == Trainer.PRODUCT_ARGONOS else "Mercure"
 
-    return render(
-        request,
-        "trainings/team.html",
-        {"trainers": trainers, "product": product, "product_label": label},
-    )
-
-from datetime import timedelta
-from django.contrib.auth.decorators import login_required
-from django.shortcuts import render, redirect
-from django.utils import timezone
-
-from .models import Trainer, Session
-from argonteam.models import OneToOneMeeting, OneToOneObjective, OneToOneStatus
+    return render(request, "trainings/team.html", {
+        "trainers": trainers,
+        "product": product,
+        "product_label": label,
+    })
 
 
-from datetime import timedelta
-from django.utils import timezone
-from argonteam.models import OneToOneMeeting, OneToOneObjective
-
-
-from datetime import timedelta
-from django.contrib.auth.decorators import login_required
-from django.shortcuts import render
-from django.utils import timezone
-
-from .models import Trainer, Session
-
-from argonteam.models import (
-    OneToOneMeeting,
-    OneToOneObjective,
-    OneToOneStatus,
-    ArgonosModule,
-    TrainerModuleMastery,
-)
-
-def _monday_of_week(d):
-    return d - timedelta(days=d.weekday())
-
+# =========================================================
+# Team ArgonOS
+# =========================================================
 
 @login_required
 def team_argonos(request):
-    # ✅ liste formateurs ArgonOS
     trainers = Trainer.objects.filter(product="ARGONOS").order_by("last_name", "first_name")
 
-    # ✅ formateur sélectionné
     trainer_id = request.GET.get("trainer")
-    selected = None
-    if trainer_id:
-        selected = trainers.filter(id=trainer_id).first()
+    selected = trainers.filter(id=trainer_id).first() if trainer_id else None
     if not selected and trainers.exists():
         selected = trainers.first()
 
-    # ✅ onglet
     tab = (request.GET.get("tab") or "detail").strip().lower()
     if tab not in ("detail", "1to1"):
         tab = "detail"
 
-    # ✅ données 1to1
     meetings = OneToOneMeeting.objects.none()
     objectives_open = OneToOneObjective.objects.none()
     objectives_done = OneToOneObjective.objects.none()
     recent_sessions = Session.objects.none()
 
-    # ✅ semaine en cours (pour le bloc 1to1)
     today = timezone.localdate()
     this_week_start = _monday_of_week(today)
     this_week_meeting = None
     this_week_objectives = OneToOneObjective.objects.none()
-    if this_week_meeting:
-        this_week_objectives = (
-            this_week_meeting.objectives.all().order_by("-created_at")
-        )
     can_create_this_week = False
 
-    # ✅ progression modules (pour l’onglet Détail)
     module_rows = []
     modules_count = 0
 
     if selected:
-        # ---- 1to1 ----
         meetings = OneToOneMeeting.objects.filter(trainer=selected).order_by("-week_start")
 
         objectives_open = (
@@ -560,76 +514,53 @@ def team_argonos(request):
         if this_week_meeting:
             this_week_objectives = this_week_meeting.objectives.all().order_by("-created_at")
 
-        # ---- Modules / mastery ----
         modules = ArgonosModule.objects.filter(is_active=True).order_by("kind", "level", "name")
         modules_count = modules.count()
 
         existing = TrainerModuleMastery.objects.filter(trainer=selected, module__in=modules)
         existing_by_module_id = {m.module_id: m for m in existing}
 
-        # ✅ option pratique : créer automatiquement les lignes manquantes (idempotent)
         missing = []
         for mod in modules:
             if mod.id not in existing_by_module_id:
                 missing.append(TrainerModuleMastery(trainer=selected, module=mod))
         if missing:
             TrainerModuleMastery.objects.bulk_create(missing, ignore_conflicts=True)
-            # recharge
             existing = TrainerModuleMastery.objects.filter(trainer=selected, module__in=modules)
             existing_by_module_id = {m.module_id: m for m in existing}
 
-        # construire les lignes affichées
         for mod in modules:
             mastery = existing_by_module_id.get(mod.id)
-            module_rows.append({
-                "module": mod,
-                "mastery": mastery,
-            })
+            module_rows.append({"module": mod, "mastery": mastery})
 
     return render(request, "trainings/team_argonos.html", {
         "trainers": trainers,
         "selected": selected,
         "tab": tab,
 
-        # 1to1
         "meetings": meetings,
         "objectives_open": objectives_open,
         "objectives_done": objectives_done,
         "recent_sessions": recent_sessions,
+
         "this_week_start": this_week_start,
         "this_week_meeting": this_week_meeting,
         "this_week_objectives": this_week_objectives,
         "can_create_this_week": can_create_this_week,
 
-        # modules
         "module_rows": module_rows,
         "modules_count": modules_count,
     })
 
-    this_week_meeting = (
-    OneToOneMeeting.objects
-    .filter(trainer=selected, week_start=this_week_start)
-    .first()
-    )
-    can_create_this_week = (this_week_meeting is None)
-
-    this_week_objectives = OneToOneObjective.objects.none()
-    if this_week_meeting:
-        this_week_objectives = this_week_meeting.objectives.all().order_by("-created_at")
-
-from django.shortcuts import get_object_or_404
-from argonteam.models import OneToOneMeeting
 
 @login_required
 def create_one_to_one_argonos(request):
     trainer_id = request.GET.get("trainer")
     trainer = get_object_or_404(Trainer, id=trainer_id, product="ARGONOS")
 
-    # lundi de la semaine courante
     today = timezone.localdate()
-    week_start = today - timedelta(days=today.weekday())
+    week_start = _monday_of_week(today)
 
-    # créer si pas existant
     OneToOneMeeting.objects.get_or_create(
         trainer=trainer,
         week_start=week_start,
@@ -639,54 +570,8 @@ def create_one_to_one_argonos(request):
     return redirect(f"{reverse('trainings:team_argonos')}?trainer={trainer.id}&tab=1to1")
 
 
-
-def _monday_of_week(d):
-    return d - timedelta(days=d.weekday())
-
-
-# trainings/views.py
-
-from datetime import timedelta
-from django.contrib import messages
-from django.contrib.auth.decorators import login_required
-from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse
-from django.utils import timezone
-
-from argonteam.models import (
-    OneToOneMeeting,
-    OneToOneObjective,
-    ObjectiveCategory,
-    ObjectiveStatus,
-)
-from .models import Trainer
-
-
-def _monday_of_week(d):
-    return d - timedelta(days=d.weekday())
-
-
-from datetime import timedelta
-from django.contrib import messages
-from django.contrib.auth.decorators import login_required
-from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse
-from django.utils import timezone
-
-from argonteam.models import OneToOneMeeting, OneToOneObjective, ObjectiveCategory, ObjectiveStatus
-from .models import Trainer
-
-
-def _monday_of_week(d):
-    return d - timedelta(days=d.weekday())
-
-
 @login_required
 def add_objective_this_week_argonos(request):
-    """
-    GET  -> affiche la page dédiée (argon_add_objective.html)
-    POST -> crée l'objectif puis redirige vers team_argonos onglet 1to1
-    """
     trainer_id = request.GET.get("trainer") or request.POST.get("trainer")
     if not trainer_id:
         messages.error(request, "Formateur manquant.")
@@ -711,7 +596,6 @@ def add_objective_this_week_argonos(request):
             "category_choices": ObjectiveCategory.choices,
         })
 
-    # POST
     title = (request.POST.get("title") or "").strip()
     if not title:
         messages.error(request, "Titre obligatoire.")
@@ -726,7 +610,7 @@ def add_objective_this_week_argonos(request):
     description = (request.POST.get("description") or "").strip()
     actionable = (request.POST.get("actionable") == "on")
 
-    OneToOneObjective.objects.create(
+    objective = OneToOneObjective.objects.create(
         trainer=trainer,
         meeting=meeting,
         title=title,
@@ -737,160 +621,26 @@ def add_objective_this_week_argonos(request):
         due_date=due_date,
     )
 
-    _create_task_for_objective(obj)
+    # ✅ correction du bug : obj -> objective
+    _create_task_for_objective(objective)
+
     messages.success(request, "Objectif ajouté ✅")
     return redirect(f"{reverse('trainings:team_argonos')}?trainer={trainer.id}&tab=1to1")
-from django.urls import path
-from . import views
-from .views import bulk_registrations
-from . import views_manage
 
-app_name = "trainings"
 
-urlpatterns = [
-    # Home / pages principales
-    path("", views.home_view, name="home"),
-    path("agenda/", views.agenda_view, name="agenda"),
-    path("dashboard/", views.dashboard_view, name="dashboard"),
-
-    # ✅ Pages Équipe
-    
-    # ✅ Pages Équipe
-    # ✅ Pages Équipe
-    path("team/", views.team, name="team"),
-    path("team/argonos/", views.team_argonos, name="team_argonos"),
-    path("team/argonos/create-1to1/", views.create_one_to_one_argonos, name="create_one_to_one_argonos"),
-    path("team/argonos/add-objective/", views.add_objective_this_week_argonos, name="add_objective_this_week_argonos"),
-    
-    path("team/home/", views.team_home, name="team_home"),
-
-    # Alertes convocations
-    path("alerts/convocations/<int:session_id>/dismiss/", views.dismiss_convocation_alert, name="dismiss_convocation_alert"),
-
-    # API
-    path("api/sessions/", views.sessions_json, name="sessions_json"),
-    path("api/trainings/", views.trainings_by_type_json, name="trainings_by_type_json"),
-    path("api/clients/", views.clients_list_json, name="clients_list_json"),
-    path("api/trainers/", views.trainers_list_json, name="trainers_list_json"),
-    path("api/trainings-legend/", views.trainings_legend_json, name="trainings_legend_json"),
-
-    # Détail session existant
-    path("sessions/<int:session_id>/", views.session_detail_view, name="session_detail"),
-
-    # Inscriptions en masse
-    path("inscriptions/", bulk_registrations, name="bulk_registrations"),
-
-    # Gestion formations (board)
-    path("formations/", views_manage.training_manage_home, name="training_manage_home"),
-
-    # Gestion participants (add/edit/delete)
-    path("formations/<int:session_id>/participants/add/", views_manage.session_participant_add, name="session_participant_add"),
-    path("formations/<int:session_id>/participants/<int:registration_id>/edit/", views_manage.session_participant_edit, name="session_participant_edit"),
-    path("formations/<int:session_id>/participants/<int:registration_id>/delete/", views_manage.session_participant_delete, name="session_participant_delete"),
-
-    # Export CSV
-    path("formations/<int:session_id>/export-csv/", views_manage.export_participants_csv, name="export_participants_csv"),
-]
-
-from django.views.decorators.http import require_POST
-from django.contrib import messages
-from django.utils import timezone
-from datetime import timedelta
-
-from argonteam.models import (
-    OneToOneMeeting,
-    OneToOneObjective,
-    ObjectiveCategory,
-    ObjectiveStatus,
-)
-
-from django.views.decorators.http import require_POST
-
-def _objective_valid_categories():
-    return {c[0] for c in ObjectiveCategory.choices}
-
-def _objective_valid_statuses():
-    return {s[0] for s in ObjectiveStatus.choices}
-
-from django.views.decorators.http import require_POST
-from django.contrib import messages
-from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse
-
-from argonteam.models import OneToOneObjective, ObjectiveStatus
-
+# =========================================================
+# Objectifs ArgonOS : toggle / edit / delete
+# =========================================================
 
 @require_POST
 @login_required
-def argonos_objective_toggle(request, objective_id: int):
-    obj = get_object_or_404(OneToOneObjective, pk=objective_id)
-
-    # petit garde-fou si tu veux limiter à ArgonOS
-    if getattr(obj.trainer, "product", "") != "ARGONOS":
-        messages.error(request, "Objectif non ArgonOS.")
-        return redirect("trainings:team_argonos")
-
-    obj.status = ObjectiveStatus.TODO if obj.status == ObjectiveStatus.DONE else ObjectiveStatus.DONE
-    obj.save(update_fields=["status"])
-
-    messages.success(request, "Statut mis à jour ✅")
-    return redirect(f"{reverse('trainings:team_argonos')}?trainer={obj.trainer_id}&tab=1to1")
-
-
-@require_POST
-@login_required
-def argonos_objective_delete(request, objective_id: int):
-    obj = get_object_or_404(OneToOneObjective, pk=objective_id)
-
-    if getattr(obj.trainer, "product", "") != "ARGONOS":
-        messages.error(request, "Objectif non ArgonOS.")
-        return redirect("trainings:team_argonos")
-
-    trainer_id = obj.trainer_id
-    obj.delete()
-
-    messages.success(request, "Objectif supprimé 🗑️")
-    return redirect(f"{reverse('trainings:team_argonos')}?trainer={trainer_id}&tab=1to1")
-
-
-@login_required
-def argonos_objective_edit(request, objective_id: int):
-    obj = get_object_or_404(OneToOneObjective, pk=objective_id)
-
-    if getattr(obj.trainer, "product", "") != "ARGONOS":
-        messages.error(request, "Objectif non ArgonOS.")
-        return redirect("trainings:team_argonos")
-
-    if request.method == "POST":
-        title = (request.POST.get("title") or "").strip()
-        description = (request.POST.get("description") or "").strip()
-        due_date = request.POST.get("due_date") or None
-        actionable = request.POST.get("actionable") == "on"
-
-        if not title:
-            messages.error(request, "Titre obligatoire.")
-            return redirect(reverse("trainings:argonos_objective_edit", args=[obj.id]))
-
-        obj.title = title
-        obj.description = description
-        obj.due_date = due_date
-        obj.actionable = actionable
-        obj.save(update_fields=["title", "description", "due_date", "actionable"])
-
-        messages.success(request, "Objectif modifié ✏️")
-        return redirect(f"{reverse('trainings:team_argonos')}?trainer={obj.trainer_id}&tab=1to1")
-
-    # GET
-    return render(request, "trainings/argon_edit_objective.html", {"o": obj})
-
-from django.views.decorators.http import require_POST
-
-@login_required
-@require_POST
 def argonos_objective_toggle(request, objective_id: int):
     o = get_object_or_404(OneToOneObjective, pk=objective_id)
 
-    # toggle simple TODO <-> DONE (adapte si tes enums diffèrent)
+    if getattr(o.trainer, "product", "") != "ARGONOS":
+        messages.error(request, "Objectif non ArgonOS.")
+        return redirect("trainings:team_argonos")
+
     if o.status == ObjectiveStatus.DONE:
         o.status = ObjectiveStatus.TODO
         messages.info(request, "Objectif rouvert ↩️")
@@ -899,23 +649,33 @@ def argonos_objective_toggle(request, objective_id: int):
         messages.success(request, "Objectif terminé ✅")
 
     o.save(update_fields=["status"])
+    _sync_task_from_objective(o)
     return redirect(f"{reverse('trainings:team_argonos')}?trainer={o.trainer_id}&tab=1to1")
 
 
-@login_required
 @require_POST
+@login_required
 def argonos_objective_delete(request, objective_id: int):
     o = get_object_or_404(OneToOneObjective, pk=objective_id)
+
+    if getattr(o.trainer, "product", "") != "ARGONOS":
+        messages.error(request, "Objectif non ArgonOS.")
+        return redirect("trainings:team_argonos")
+
     trainer_id = o.trainer_id
-    title = o.title
     o.delete()
-    messages.success(request, f"Objectif supprimé : {title}")
+
+    messages.success(request, "Objectif supprimé 🗑️")
     return redirect(f"{reverse('trainings:team_argonos')}?trainer={trainer_id}&tab=1to1")
 
 
 @login_required
 def argonos_objective_edit(request, objective_id: int):
     o = get_object_or_404(OneToOneObjective, pk=objective_id)
+
+    if getattr(o.trainer, "product", "") != "ARGONOS":
+        messages.error(request, "Objectif non ArgonOS.")
+        return redirect("trainings:team_argonos")
 
     if request.method == "POST":
         title = (request.POST.get("title") or "").strip()
@@ -940,28 +700,27 @@ def argonos_objective_edit(request, objective_id: int):
         o.save()
 
         messages.success(request, "Objectif modifié ✏️")
+        _sync_task_from_objective(o)
         return redirect(f"{reverse('trainings:team_argonos')}?trainer={o.trainer_id}&tab=1to1")
 
-    # GET
     return render(request, "trainings/argon_edit_objective.html", {
         "o": o,
         "category_choices": ObjectiveCategory.choices,
     })
 
 
+# =========================================================
+# Kanban objectifs ArgonOS
+# =========================================================
+
 @login_required
 def argonos_objectives_kanban(request):
-    """
-    Kanban simple pour les objectifs ArgonOS "actionable".
-    Filtre possible par trainer via ?trainer=<id>
-    """
     trainer_id = request.GET.get("trainer")
 
     qs = OneToOneObjective.objects.filter(actionable=True).select_related("trainer", "meeting")
     if trainer_id:
         qs = qs.filter(trainer_id=trainer_id)
 
-    # adapte ici si tes statuts sont TODO/DOING/DONE (ou TODO/DONE seulement)
     col_todo = qs.filter(status=ObjectiveStatus.TODO).order_by("-created_at")
     col_doing = qs.filter(status=getattr(ObjectiveStatus, "DOING", ObjectiveStatus.TODO)).order_by("-created_at")
     col_done = qs.filter(status=ObjectiveStatus.DONE).order_by("-created_at")
@@ -982,7 +741,6 @@ def argonos_objective_set_status(request, objective_id: int, status: str):
     status = (status or "").upper().strip()
 
     valid = {ObjectiveStatus.TODO, ObjectiveStatus.DONE}
-    # si tu as DOING, on l'accepte
     if hasattr(ObjectiveStatus, "DOING"):
         valid.add(ObjectiveStatus.DOING)
 
@@ -992,22 +750,22 @@ def argonos_objective_set_status(request, objective_id: int, status: str):
 
     obj.status = status
     obj.save(update_fields=["status"])
+    _sync_task_from_objective(obj)
 
     messages.success(request, "Statut mis à jour ✅")
 
-    # on revient au kanban en conservant le filtre trainer si présent
     trainer_id = request.POST.get("trainer_id") or ""
     suffix = f"?trainer={trainer_id}" if trainer_id else ""
     return redirect(f"{reverse('trainings:argonos_objectives_kanban')}{suffix}")
 
+
+# =========================================================
+# Dashboard manager ArgonOS
+# =========================================================
+
 @login_required
+@manager_required
 def argonos_manager_dashboard(request):
-    """
-    Dashboard manager ArgonOS
-    - KPIs globaux
-    - tableau par formateur (open/blocked/overdue/due soon/done)
-    - modules: ratio validés vs actifs
-    """
     today = timezone.localdate()
     soon_limit = today + timedelta(days=7)
 
@@ -1018,106 +776,59 @@ def argonos_manager_dashboard(request):
         base_qs = OneToOneObjective.objects.filter(trainer__product="ARGONOS")
 
         if filter_type == "overdue":
-            filtered_objectives = base_qs.filter(
-                due_date__lt=today
-            ).exclude(status=ObjectiveStatus.DONE)
-
+            filtered_objectives = base_qs.filter(due_date__lt=today).exclude(status=ObjectiveStatus.DONE)
         elif filter_type == "due_soon":
-            filtered_objectives = base_qs.filter(
-                due_date__gte=today,
-                due_date__lte=soon_limit
-            ).exclude(status=ObjectiveStatus.DONE)
-
+            filtered_objectives = base_qs.filter(due_date__gte=today, due_date__lte=soon_limit).exclude(status=ObjectiveStatus.DONE)
         elif filter_type == "blocked":
             filtered_objectives = base_qs.filter(status=ObjectiveStatus.BLOCKED)
-
         elif filter_type == "open":
             filtered_objectives = base_qs.exclude(status=ObjectiveStatus.DONE)
-
         elif filter_type == "done":
             filtered_objectives = base_qs.filter(status=ObjectiveStatus.DONE)
 
     trainers = Trainer.objects.filter(product="ARGONOS").order_by("last_name", "first_name")
-
-    # Objectifs (scope ArgonOS via trainer__product)
     obj_qs = OneToOneObjective.objects.filter(trainer__product="ARGONOS")
 
-    # KPIs globaux
     kpi_total = obj_qs.count()
     kpi_open = obj_qs.exclude(status=ObjectiveStatus.DONE).count()
     kpi_done = obj_qs.filter(status=ObjectiveStatus.DONE).count()
     kpi_blocked = obj_qs.filter(status=ObjectiveStatus.BLOCKED).count()
-    kpi_overdue = obj_qs.filter(
-        due_date__lt=today
-    ).exclude(status=ObjectiveStatus.DONE).count()
-    kpi_due_soon = obj_qs.filter(
-        due_date__gte=today, due_date__lte=soon_limit
-    ).exclude(status=ObjectiveStatus.DONE).count()
+    kpi_overdue = obj_qs.filter(due_date__lt=today).exclude(status=ObjectiveStatus.DONE).count()
+    kpi_due_soon = obj_qs.filter(due_date__gte=today, due_date__lte=soon_limit).exclude(status=ObjectiveStatus.DONE).count()
 
-    # Table par formateur (agrégations)
     per_trainer = (
         trainers.annotate(
             objectives_total=Count("one_to_one_objectives", distinct=True),
-            objectives_open=Count(
-                "one_to_one_objectives",
-                filter=~Q(one_to_one_objectives__status=ObjectiveStatus.DONE),
-                distinct=True,
-            ),
-            objectives_done=Count(
-                "one_to_one_objectives",
-                filter=Q(one_to_one_objectives__status=ObjectiveStatus.DONE),
-                distinct=True,
-            ),
-            objectives_blocked=Count(
-                "one_to_one_objectives",
-                filter=Q(one_to_one_objectives__status=ObjectiveStatus.BLOCKED),
-                distinct=True,
-            ),
+            objectives_open=Count("one_to_one_objectives", filter=~Q(one_to_one_objectives__status=ObjectiveStatus.DONE), distinct=True),
+            objectives_done=Count("one_to_one_objectives", filter=Q(one_to_one_objectives__status=ObjectiveStatus.DONE), distinct=True),
+            objectives_blocked=Count("one_to_one_objectives", filter=Q(one_to_one_objectives__status=ObjectiveStatus.BLOCKED), distinct=True),
             objectives_overdue=Count(
                 "one_to_one_objectives",
-                filter=Q(one_to_one_objectives__due_date__lt=today)
-                & ~Q(one_to_one_objectives__status=ObjectiveStatus.DONE),
+                filter=Q(one_to_one_objectives__due_date__lt=today) & ~Q(one_to_one_objectives__status=ObjectiveStatus.DONE),
                 distinct=True,
             ),
             objectives_due_soon=Count(
                 "one_to_one_objectives",
-                filter=Q(one_to_one_objectives__due_date__gte=today)
-                & Q(one_to_one_objectives__due_date__lte=soon_limit)
-                & ~Q(one_to_one_objectives__status=ObjectiveStatus.DONE),
+                filter=Q(one_to_one_objectives__due_date__gte=today) & Q(one_to_one_objectives__due_date__lte=soon_limit) & ~Q(one_to_one_objectives__status=ObjectiveStatus.DONE),
                 distinct=True,
             ),
         )
     )
 
-    # Modules (actifs)
     modules_active = ArgonosModule.objects.filter(is_active=True)
     modules_active_count = modules_active.count()
 
-    # Pour chaque trainer: combien de modules validés (status manager OK ou cert OK, ou version validée non nulle)
-    # => tu peux ajuster la définition “validé” selon ta logique.
-    mastery_qs = TrainerModuleMastery.objects.filter(
-        trainer__product="ARGONOS",
-        module__is_active=True,
-    )
-
+    mastery_qs = TrainerModuleMastery.objects.filter(trainer__product="ARGONOS", module__is_active=True)
     validated_by_trainer = (
         mastery_qs.values("trainer_id")
-        .annotate(
-            validated=Count(
-                "id",
-                filter=Q(manager_status="OK") | Q(cert_status="OK") | Q(validated_major__isnull=False),
-            )
-        )
+        .annotate(validated=Count("id", filter=Q(manager_status="OK") | Q(cert_status="OK") | Q(validated_major__isnull=False)))
     )
     validated_map = {row["trainer_id"]: row["validated"] for row in validated_by_trainer}
 
     rows = []
     for t in per_trainer:
         validated = validated_map.get(t.id, 0)
-        ratio = None
-        if modules_active_count:
-            ratio = round((validated / modules_active_count) * 100)
-
+        ratio = round((validated / modules_active_count) * 100) if modules_active_count else None
         rows.append({
             "trainer": t,
             "modules_validated": validated,
@@ -1130,6 +841,7 @@ def argonos_manager_dashboard(request):
         "soon_limit": soon_limit,
         "filter_type": filter_type,
         "filtered_objectives": filtered_objectives,
+
         "kpi_total": kpi_total,
         "kpi_open": kpi_open,
         "kpi_done": kpi_done,
@@ -1139,3 +851,170 @@ def argonos_manager_dashboard(request):
 
         "rows": rows,
     })
+
+# ==============================================================
+# Dashboard_ca
+# ==============================================================
+
+# ==============================================================
+# Dashboard CA (filtres + clic histogramme)
+# ==============================================================
+
+@login_required
+@manager_required
+def dashboard_ca_view(request):
+    today = timezone.localdate()
+
+    # ----------------------------
+    # 1) Lire les filtres (GET)
+    # ----------------------------
+    training_type_id = (request.GET.get("training_type") or "").strip()  # ex: "3"
+    period = (request.GET.get("period") or "all").strip()               # all|year|quarter|month
+    view_mode = (request.GET.get("view") or "all").strip()              # all|realise|previsionnel
+
+    # ✅ clic histogramme : month=YYYY-MM
+    month_str = (request.GET.get("month") or "").strip()
+
+    # ----------------------------
+    # 2) Base queryset + ca_date (end_date sinon start_date)
+    # ----------------------------
+    qs = (
+        Session.objects
+        .select_related("training", "training_type", "client")
+        .annotate(ca_date=Coalesce("end_date", "start_date"))
+    )
+
+    # ----------------------------
+    # 3) Filtre: produit (TrainingType)
+    # ----------------------------
+    if training_type_id.isdigit():
+        qs = qs.filter(training_type_id=int(training_type_id))
+
+    # ----------------------------
+    # 4) Filtre: période (bornes sur ca_date)
+    # ----------------------------
+    start_bound = None
+    end_bound = None
+
+    if period == "year":
+        start_bound = date(today.year, 1, 1)
+        end_bound = date(today.year + 1, 1, 1)
+
+    elif period == "quarter":
+        q = (today.month - 1) // 3 + 1
+        start_month = 3 * (q - 1) + 1
+        start_bound = date(today.year, start_month, 1)
+
+        end_month = start_month + 3
+        if end_month <= 12:
+            end_bound = date(today.year, end_month, 1)
+        else:
+            end_bound = date(today.year + 1, end_month - 12, 1)
+
+    elif period == "month":
+        start_bound = date(today.year, today.month, 1)
+        if today.month == 12:
+            end_bound = date(today.year + 1, 1, 1)
+        else:
+            end_bound = date(today.year, today.month + 1, 1)
+
+    if start_bound and end_bound:
+        qs = qs.filter(ca_date__gte=start_bound, ca_date__lt=end_bound)
+
+    # ----------------------------
+    # 5) Filtre: vue (réalisé / prévisionnel)
+    # ----------------------------
+    if view_mode == "realise":
+        qs = qs.filter(ca_date__lte=today)
+    elif view_mode == "previsionnel":
+        qs = qs.filter(ca_date__gt=today)
+
+    # ----------------------------
+    # 6) Filtre: clic histogramme (mois exact)
+    # ----------------------------
+    # Exemple: month=2026-03 => ca_date__year=2026, ca_date__month=3
+    if month_str:
+        try:
+            y_str, m_str = month_str.split("-")
+            y = int(y_str)
+            m = int(m_str)
+            if 1 <= m <= 12:
+                qs = qs.filter(ca_date__year=y, ca_date__month=m)
+        except Exception:
+            pass
+
+    # ----------------------------
+    # 7) KPI CA
+    # ----------------------------
+    ZERO_DEC = Value(Decimal("0.00"), output_field=DecimalField(max_digits=12, decimal_places=2))
+
+    ca_total = qs.aggregate(v=Coalesce(Sum("price_ht"), ZERO_DEC))["v"]
+    ca_realise = qs.filter(ca_date__lte=today).aggregate(v=Coalesce(Sum("price_ht"), ZERO_DEC))["v"]
+    ca_previsionnel = qs.filter(ca_date__gt=today).aggregate(v=Coalesce(Sum("price_ht"), ZERO_DEC))["v"]
+
+    # ----------------------------
+    # 8) Graphe 1 : CA par mois (sur le qs filtré)
+    # ----------------------------
+    month_map: dict[str, Decimal] = {}
+    for s in qs.exclude(ca_date__isnull=True):
+        d = getattr(s, "ca_date", None)
+        if not d:
+            continue
+        key = d.strftime("%Y-%m")
+        month_map[key] = month_map.get(key, Decimal("0.00")) + (s.price_ht or Decimal("0.00"))
+
+    labels_month = []
+    values_month = []
+    for k in sorted(month_map.keys()):
+        labels_month.append(k)
+        values_month.append(float(month_map[k]))
+
+    # ----------------------------
+    # 9) Graphe 2 : répartition produit (sur le qs filtré)
+    # ----------------------------
+    by_type = (
+        qs.values("training_type__name")
+        .annotate(total=Coalesce(Sum("price_ht"), ZERO_DEC))
+        .order_by("-total")
+    )
+    labels_type = [row["training_type__name"] or "Sans type" for row in by_type]
+    values_type = [float(row["total"] or 0) for row in by_type]
+
+    # ----------------------------
+    # 10) KPI Sessions + table
+    # ----------------------------
+    total_sessions = qs.count()
+    status_rows = qs.values("status").annotate(c=Count("id")).order_by("-c")
+
+    status_counts = []
+    for r in status_rows:
+        raw = (r["status"] or "").strip()
+        status_counts.append({"label": raw if raw else "—", "count": r["c"]})
+
+    sessions = qs.order_by("-ca_date", "-start_date")
+
+    return render(request, "trainings/dashboard_ca.html", {
+        "today": today,
+        "sessions": sessions,
+
+        "ca_total": ca_total,
+        "ca_realise": ca_realise,
+        "ca_previsionnel": ca_previsionnel,
+
+        "labels_month": labels_month,
+        "values_month": values_month,
+        "labels_type": labels_type,
+        "values_type": values_type,
+
+        "total_sessions": total_sessions,
+        "status_counts": status_counts,
+
+        # état filtres (utile pour l’UI + bouton reset)
+        "f_training_type": training_type_id,
+        "f_period": period,
+        "f_view": view_mode,
+        "f_month": month_str,
+    })
+
+
+

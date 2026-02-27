@@ -111,6 +111,13 @@
             <div style="color:#94a3b8; font-size:12px;">
               {{ reg.participant.email }}
             </div>
+            <div style="margin-top:6px; display:inline-flex; align-items:center; gap:8px;
+            padding:4px 10px; border-radius:999px;
+            border:1px solid rgba(255,255,255,0.12);
+            background:rgba(255,255,255,0.06);
+            font-size:12px; font-weight:900; color:rgba(255,255,255,0.88);">
+              🏢 {{ reg.participant.company_service|default:"Non renseigné" }}
+            </div>
           </div>
         {% empty %}
           <div style="color:#94a3b8;">Aucun participant.</div>

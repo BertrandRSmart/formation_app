@@ -1,0 +1,643 @@
+{% extends "trainings/base.html" %}
+{% block title %}Dashboard CA{% endblock %}
+{% block body_class %}home-gradient no-scroll{% endblock %}
+
+{% block content %}
+<div class="ca-shell">
+  <div class="ca-layout">
+
+    <!-- ============ COLONNE GAUCHE ============ -->
+    <aside class="ca-left">
+
+      <!-- Titre + actions -->
+      <div class="ca-left-head ca-card">
+        <h1 class="ca-title">💰 Dashboard Chiffre d&apos;Affaire</h1>
+        <div class="ca-sub">Pilotage financier — CA rattaché à la date de fin (end_date)</div>
+
+        <div class="ca-left-actions">
+          <a class="ca-pill" href="{% url 'trainings:home' %}">⬅ Accueil</a>
+          <div class="ca-pill ca-pill--muted">Aujourd&apos;hui : {{ today|date:"d/m/Y" }}</div>
+        </div>
+      </div>
+
+      <!-- ✅ Filtres (branchés GET) -->
+      <!-- Filtres -->
+      <div class="ca-card ca-filters">
+        <div class="phead">
+          <div style="font-weight:950;">🎛 Filtres</div>
+          <div class="pmuted">appliquer pour recalcul</div>
+        </div>
+
+        <form method="get" class="pbody ca-filters-body">
+
+          <div class="fbox">
+            <div class="flabel">Produit (TrainingType)</div>
+            <select name="training_type" class="ca-select">
+              <option value="" {% if not f_training_type %}selected{% endif %}>Tous</option>
+              {% for tt in training_types %}
+                <option value="{{ tt.id }}" {% if f_training_type|stringformat:"s" == tt.id|stringformat:"s" %}selected{% endif %}>
+                  {{ tt.name }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="fbox">
+            <div class="flabel">Période</div>
+            <select name="period" class="ca-select">
+              <option value="all" {% if f_period == "all" %}selected{% endif %}>Tout</option>
+              <option value="year" {% if f_period == "year" %}selected{% endif %}>Année</option>
+              <option value="quarter" {% if f_period == "quarter" %}selected{% endif %}>Trimestre</option>
+              <option value="month" {% if f_period == "month" %}selected{% endif %}>Mois</option>
+            </select>
+          </div>
+
+          <div class="fbox">
+            <div class="flabel">Vue</div>
+            <select name="view" class="ca-select">
+              <option value="all" {% if f_view == "all" %}selected{% endif %}>Tous</option>
+              <option value="realise" {% if f_view == "realise" %}selected{% endif %}>Réalisé</option>
+              <option value="previsionnel" {% if f_view == "previsionnel" %}selected{% endif %}>Prévisionnel</option>
+            </select>
+          </div>
+
+          <div class="fbox">
+            <div class="flabel">Règle</div>
+            <div class="fvalue">CA comptabilisé à la date de fin</div>
+          </div>
+
+          <div class="ca-filters-actions">
+            <button class="ca-pill ca-pill--sm" type="submit">✅ Appliquer</button>
+            <a class="ca-pill ca-pill--muted ca-pill--sm" href="{% url 'trainings:dashboard_ca' %}">↩ Reset</a>
+          </div>
+
+        </form>
+      </div>
+
+      <!-- Sessions KPI (alignée en bas avec la table) -->
+      <div class="ca-card ca-sessions-kpi">
+        <div class="phead">
+          <div style="font-weight:950;">📌 Sessions</div>
+          <div class="pmuted">dans la base</div>
+        </div>
+
+        <div class="pbody ca-sessions-kpi-body">
+          <div class="skpi-top">
+            <div class="skpi-n">{{ total_sessions }}</div>
+            <div class="skpi-l">sessions</div>
+          </div>
+
+          {% if status_counts %}
+            <div class="skpi-list">
+              {% for row in status_counts %}
+                <div class="skpi-row">
+                  <span class="skpi-label">{{ row.label }}</span>
+                  <span class="skpi-count">{{ row.count }}</span>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="pmuted" style="padding-top:6px;">Aucun statut.</div>
+          {% endif %}
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- ============ COLONNE DROITE ============ -->
+    <div class="ca-right">
+
+      <!-- HAUT -->
+      <section class="ca-card ca-top">
+        <div class="phead">
+          <div style="font-weight:950;">📌 Vue d’ensemble</div>
+          <div class="pmuted">KPI + graphiques</div>
+        </div>
+
+        <div class="pbody ca-top-body">
+
+          <!-- KPI compacts (sur une ligne) -->
+          <div class="kpi-row-compact">
+            <div class="kpi-compact">
+              <div class="kpi-ct">CA total</div>
+              <div class="kpi-cv">{{ ca_total|floatformat:2 }} €</div>
+            </div>
+
+            <div class="kpi-compact">
+              <div class="kpi-ct">CA réalisé</div>
+              <div class="kpi-cv">{{ ca_realise|floatformat:2 }} €</div>
+            </div>
+
+            <div class="kpi-compact">
+              <div class="kpi-ct">CA prévisionnel</div>
+              <div class="kpi-cv">{{ ca_previsionnel|floatformat:2 }} €</div>
+            </div>
+          </div>
+
+          <!-- Graphes -->
+          <div class="charts-grid">
+
+            <!-- Bar (évolution CA) -->
+            <div class="panelbox">
+              <div class="phead">
+                <div style="font-weight:950;">📊 Évolution du CA</div>
+                <div class="pmuted">mois</div>
+              </div>
+              <div class="pbody chart-pad">
+                <div class="chart-wrap chart-wrap--bar">
+                  <canvas id="caEvolutionChart"></canvas>
+                </div>
+              </div>
+            </div>
+
+            <!-- Donut (répartition produit) -->
+            <div class="panelbox">
+              <div class="phead">
+                <div style="font-weight:950;">🍰 Répartition produit</div>
+                <div class="pmuted">ArgonOS vs Mercure</div>
+              </div>
+              <div class="pbody chart-pad">
+                <div class="chart-wrap chart-wrap--donut">
+                  <canvas id="caSplitChart"></canvas>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="ca-top-spacer"></div>
+        </div>
+      </section>
+
+      <!-- BAS : TABLE -->
+      <section class="ca-card ca-bottom">
+        <div class="phead ca-sessions-head">
+          <div>
+            <div style="font-weight:950;">📋 Sessions</div>
+            <div class="pmuted">CA rattaché à end_date</div>
+          </div>
+          <a class="ca-pill" href="/admin/trainings/session/">Ouvrir Admin</a>
+        </div>
+
+        <div class="ca-sessions-scroll">
+          <table class="ca-table">
+            <thead>
+              <tr>
+                <th>Fin</th>
+                <th>Référence</th>
+                <th>Client</th>
+                <th>Formation</th>
+                <th>Type</th>
+                <th>Prix HT</th>
+                <th>Status</th>
+                <th>Réalisation</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for s in sessions %}
+                {% with end=s.end_date|default:s.start_date %}
+                <tr>
+                  <td style="white-space:nowrap;">{{ end|date:"d/m/Y" }}</td>
+                  <td>
+                    <a href="/admin/trainings/session/{{ s.id }}/change/" class="ca-link">
+                      {{ s.reference|default:"Session" }}
+                    </a>
+                  </td>
+                  <td>{{ s.client }}</td>
+                  <td>{{ s.training }}</td>
+                  <td>{% if s.training_type %}{{ s.training_type }}{% else %}—{% endif %}</td>
+                  <td style="white-space:nowrap;">{{ s.price_ht|floatformat:2 }} €</td>
+                  <td style="white-space:nowrap;">{{ s.status|default:"—" }}</td>
+                  <td style="white-space:nowrap;">
+                    {% if end <= today %}✅ Réalisée{% else %}🕒 Prévisionnel{% endif %}
+                  </td>
+                </tr>
+                {% endwith %}
+              {% empty %}
+                <tr>
+                  <td colspan="8" style="padding:14px; opacity:.75;">Aucune session.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+{{ labels_month|json_script:"labels-month" }}
+{{ values_month|json_script:"values-month" }}
+{{ labels_type|json_script:"labels-type" }}
+{{ values_type|json_script:"values-type" }}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  const labelsMonth = JSON.parse(document.getElementById("labels-month").textContent);
+  const valuesMonth = JSON.parse(document.getElementById("values-month").textContent);
+  const labelsType = JSON.parse(document.getElementById("labels-type").textContent);
+  const valuesType = JSON.parse(document.getElementById("values-type").textContent);
+
+  // Bar
+  new Chart(document.getElementById("caEvolutionChart"), {
+    type: "bar",
+    data: { labels: labelsMonth, datasets: [{ label: "CA (€)", data: valuesMonth, borderWidth: 1 }] },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: "rgba(255,255,255,0.75)" }, grid: { color: "rgba(255,255,255,0.08)" } },
+        y: { ticks: { color: "rgba(255,255,255,0.75)" }, grid: { color: "rgba(255,255,255,0.08)" } }
+      }
+    }
+  });
+
+  // Donut (✅ légende à gauche + donut réduit + centré)
+  new Chart(document.getElementById("caSplitChart"), {
+    type: "doughnut",
+    data: {
+      labels: labelsType,
+      datasets: [{
+        label: "CA (€)",
+        data: valuesType,
+        borderWidth: 1,
+        radius: "62%"      // ✅ réduit (la légende prend de la place)
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: "70%",
+      layout: { padding: 6 },
+      plugins: {
+        legend: {
+          position: "left",     // ✅ sur le côté
+          align: "center",
+          labels: {
+            color: "rgba(255,255,255,0.82)",
+            boxWidth: 10,
+            boxHeight: 10,
+            padding: 6,
+            font: { size: 10, weight: "700" }
+          }
+        }
+      }
+    }
+  });
+</script>
+
+<style>
+  html, body { height: 100%; }
+  body { overflow: hidden; }
+
+  .ca-shell{ height: calc(100vh - 0px); box-sizing: border-box; }
+
+  .ca-layout{
+    height: calc(100vh - 140px);
+    display: grid;
+    grid-template-columns: 400px minmax(0, 1fr);
+    grid-template-rows: 1fr 1fr;
+    gap: 12px;
+    padding: 0 12px 12px;
+    box-sizing: border-box;
+    min-height: 0;
+    align-items: stretch;
+  }
+
+  .ca-left{
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 0;
+  }
+
+  .ca-right{
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    display: grid;
+    grid-template-rows: 1fr 1fr;
+    gap: 12px;
+    min-height: 0;
+  }
+
+  .ca-card{
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,0.10);
+    background: rgba(255,255,255,0.05);
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  .ca-left-head{ padding: 14px; }
+  .ca-title{ margin:0; font-size:22px; font-weight:950; }
+  .ca-sub{ opacity:.72; margin-top:6px; font-size:13px; }
+
+  .ca-left-actions{
+    display:flex;
+    gap:10px;
+    align-items:center;
+    flex-wrap:wrap;
+    margin-top: 12px;
+  }
+
+  .ca-pill{
+    text-decoration:none;
+    padding:10px 14px;
+    border-radius:999px;
+    border:1px solid rgba(255,255,255,0.14);
+    background: rgba(0,0,0,0.22);
+    color: rgba(255,255,255,0.92);
+    font-weight:950;
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .ca-pill--muted{
+    border:1px solid rgba(255,255,255,0.10);
+    background: rgba(255,255,255,0.04);
+    font-size:13px;
+    opacity:.85;
+    font-weight:900;
+  }
+
+  .phead{
+    padding:12px 14px;
+    border-bottom:1px solid rgba(255,255,255,0.08);
+    background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01));
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    gap:12px;
+  }
+  .pmuted{ font-size:12px; opacity:.70; }
+  .pbody{ padding:12px 14px; }
+
+  .ca-filters-body{ display:flex; flex-direction:column; gap:10px; }
+
+  .fbox{
+    padding:12px;
+    border-radius:14px;
+    border:1px solid rgba(255,255,255,0.10);
+    background: rgba(0,0,0,0.18);
+  }
+  .flabel{ font-size:12px; opacity:.70; margin-bottom:6px; }
+  .fvalue{ font-weight:900; opacity:.92; }
+
+  .fselect{
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.12);
+    background: rgba(0,0,0,0.22);
+    color: rgba(255,255,255,0.92);
+    font-weight: 900;
+    outline: none;
+  }
+  .fselect:focus{
+    border-color: rgba(59,130,246,0.55);
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.18);
+  }
+
+  .factions{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    margin-top: 2px;
+  }
+
+  .ca-sessions-kpi{
+    flex: 1 1 auto;
+    display:flex;
+    flex-direction:column;
+    min-height: 0;
+  }
+  .ca-sessions-kpi-body{
+    flex: 1 1 auto;
+    min-height: 0;
+    display:flex;
+    flex-direction:column;
+  }
+
+  .skpi-top{ display:flex; align-items:baseline; gap:10px; margin-bottom: 10px; }
+  .skpi-n{ font-size: 28px; font-weight: 950; line-height: 1; }
+  .skpi-l{ opacity:.75; font-weight:900; }
+
+  .skpi-list{
+    margin-top: auto;
+    border-top:1px solid rgba(255,255,255,0.08);
+    padding-top:10px;
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    font-size:12px;
+  }
+  .skpi-row{ display:flex; justify-content:space-between; gap:10px; }
+  .skpi-label{ opacity:.80; font-weight:900; }
+  .skpi-count{ font-weight:950; }
+
+  .ca-top{ display:flex; flex-direction:column; min-height:0; }
+  .ca-top-body{
+    flex: 1 1 auto;
+    min-height: 0;
+    display:flex;
+    flex-direction:column;
+    padding: 10px 14px 0;
+  }
+
+  .kpi-row-compact{
+    display:grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .kpi-compact{
+    border-radius: 14px;
+    border:1px solid rgba(255,255,255,0.10);
+    background: rgba(0,0,0,0.18);
+    padding: 8px 12px;
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    gap: 12px;
+    min-width:0;
+  }
+  .kpi-ct{
+    font-size: 11px;
+    opacity:.75;
+    font-weight: 950;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    white-space: nowrap;
+  }
+  .kpi-cv{ font-size: 16px; font-weight: 950; white-space: nowrap; }
+
+  .charts-grid{
+    flex: 1 1 auto;
+    min-height: 0;
+    display:grid;
+    grid-template-columns: 1.25fr 0.75fr;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .panelbox{
+    border-radius:18px;
+    border:1px solid rgba(255,255,255,0.10);
+    background: rgba(255,255,255,0.05);
+    overflow:hidden;
+    min-width: 0;
+    min-height: 0;
+    display:flex;
+    flex-direction:column;
+  }
+
+  .chart-pad{ padding: 6px 12px 10px !important; }
+
+  .chart-wrap{
+    width: 100%;
+    position: relative;
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
+  .chart-wrap--bar{ height: 100%; min-height: 180px; }
+
+  /* ✅ Donut: hauteur fixe + le canvas prend toute la place (Chart.js gère la légende à gauche) */
+  .chart-wrap--donut{
+    height: 220px;
+  }
+  .chart-wrap--donut canvas{
+    width: 100% !important;
+    height: 100% !important;
+    display:block;
+  }
+
+  .ca-top-spacer{ height: 10px; flex: 0 0 auto; }
+
+  .ca-bottom{ display:flex; flex-direction:column; min-height: 0; }
+
+  .ca-sessions-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:12px;
+    flex-wrap:wrap;
+  }
+
+  .ca-sessions-scroll{
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    padding: 12px 14px;
+  }
+
+  .ca-table{
+    width:100%;
+    border-collapse: collapse;
+    min-width: 980px;
+  }
+
+  .ca-table thead th{
+    text-align:left;
+    font-size:12px;
+    opacity:.8;
+    padding:10px;
+    border-bottom:1px solid rgba(255,255,255,0.10);
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: rgba(10,14,20,0.98);
+    backdrop-filter: blur(10px);
+  }
+
+  .ca-table tbody td{
+    padding:10px;
+    border-bottom:1px solid rgba(255,255,255,0.06);
+    vertical-align: top;
+  }
+
+  .ca-link{
+    color: rgba(255,255,255,0.92);
+    font-weight:900;
+    text-decoration:none;
+  }
+  .ca-link:hover{ text-decoration: underline; }
+
+  @media (max-width: 1180px){
+    body{ overflow:auto; }
+    .ca-layout{
+      height: auto;
+      grid-template-columns: 1fr;
+      grid-template-rows: auto;
+    }
+    .ca-left{ grid-row: auto; }
+    .ca-right{ grid-row: auto; grid-template-rows: auto; }
+    .charts-grid{ grid-template-columns: 1fr; }
+    .chart-wrap--donut{ height: 240px; }
+  }
+
+  /* =========================================================
+   FILTRES : 0 scroll + tout visible
+   ========================================================= */
+
+/* ✅ aucun scroll dans la carte filtres */
+.ca-filters{
+  overflow: hidden;       /* bloque tout scroll interne */
+  min-height: 0;
+}
+
+/* ✅ le body des filtres reste compact */
+.ca-filters-body{
+  padding: 10px 12px;     /* un peu plus compact que 12/14 */
+  gap: 8px;               /* réduit l’espace entre blocs */
+}
+
+/* ✅ boîtes (fbox) plus compactes */
+.ca-filters .fbox{
+  padding: 10px;          /* au lieu de 12px */
+}
+
+/* ✅ labels un poil plus petits */
+.ca-filters .flabel{
+  font-size: 11px;
+  margin-bottom: 6px;
+}
+
+/* ✅ valeurs/texte un poil plus petits */
+.ca-filters .fvalue{
+  font-size: 12px;
+}
+
+/* ✅ select compact et stable (hauteur fixe) */
+.ca-filters .fselect{
+  height: 38px;           /* clé pour gagner de la place */
+  padding: 0 12px;        /* padding vertical supprimé */
+  line-height: 38px;
+  font-size: 13px;
+}
+
+/* ✅ actions sur une seule ligne + compact */
+.ca-filters .factions{
+  margin-top: 2px;
+  gap: 10px;
+  align-items: center;
+}
+
+/* ✅ optionnel : pills compactes UNIQUEMENT dans les filtres */
+.ca-filters .ca-pill{
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+/* ✅ si jamais un navigateur impose un scroll à cause de focus/box-shadow */
+.ca-filters *{
+  max-height: 999999px;
+}
+</style>
+{% endblock %}

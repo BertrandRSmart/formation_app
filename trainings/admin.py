@@ -172,6 +172,7 @@ class SessionAdmin(admin.ModelAdmin):
         "presence_gauge",
         "client_satisfaction",
         "bulk_registrations_link",
+        "price_ht",
     )
 
     list_filter = (
@@ -268,6 +269,7 @@ class SessionAdmin(admin.ModelAdmin):
                 "days_count",
                 "trainer",
                 "backup_trainer",
+                "price_ht",
             )
         }),
         ("Lieu", {

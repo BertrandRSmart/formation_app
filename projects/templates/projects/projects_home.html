@@ -5,13 +5,6 @@
 
 {% block content %}
 
-{# ✅ Debug: décommente si tu veux vérifier le template chargé #}
-{# 
-<div style="position:fixed; bottom:12px; left:12px; z-index:9999; background:#000; padding:6px 10px; border-radius:10px; font-weight:900;">
-  TEMPLATE: projects_home.html ✅
-</div>
-#}
-
 <div style="
   position: fixed;
   top: 90px;
@@ -30,19 +23,9 @@
 ">
 
   <style>
-    .kb-wrap{
-      height: 100%;
-      display:flex;
-      flex-direction:column;
-      gap:10px;
-      min-height:0;
-    }
+    .kb-wrap{ height:100%; display:flex; flex-direction:column; gap:10px; min-height:0; }
 
-    .kb-head{
-      display:flex; justify-content:space-between; align-items:flex-end;
-      gap:12px;
-      flex:0 0 auto;
-    }
+    .kb-head{ display:flex; justify-content:space-between; align-items:flex-end; gap:12px; flex:0 0 auto; }
     .kb-title{ font-size:21px; font-weight:950; margin:0; }
     .kb-sub{ opacity:.7; font-size:12px; margin-top:4px; }
 
@@ -55,10 +38,7 @@
       white-space:nowrap;
     }
 
-    .kb-filters{
-      display:flex; gap:10px; flex-wrap:wrap;
-      flex:0 0 auto;
-    }
+    .kb-filters{ display:flex; gap:10px; flex-wrap:wrap; flex:0 0 auto; }
     .kb-input, .kb-select, .kb-filterbtn{
       padding:9px 10px; border-radius:12px;
       background:rgba(0,0,0,0.25);
@@ -68,11 +48,7 @@
       font-size:13px;
     }
     .kb-input{ flex:1; min-width:240px; }
-    .kb-filterbtn{
-      background: rgba(255,255,255,0.06);
-      font-weight:900;
-      cursor:pointer;
-    }
+    .kb-filterbtn{ background: rgba(255,255,255,0.06); font-weight:900; cursor:pointer; }
 
     .kb-board{
       flex: 1 1 auto;
@@ -81,18 +57,9 @@
       grid-template-columns: 320px repeat(4, minmax(0, 1fr));
       gap:12px;
     }
-
-    @media(max-width: 1300px){
-      .kb-board{ grid-template-columns: 280px repeat(4, minmax(0, 1fr)); }
-    }
-    @media(max-width: 1100px){
-      .kb-board{ grid-template-columns: 1fr 1fr; }
-      .kb-input{ min-width: 200px; }
-    }
-    @media(max-width: 720px){
-      .kb-board{ grid-template-columns: 1fr; }
-      .kb-input{ min-width: 180px; }
-    }
+    @media(max-width: 1300px){ .kb-board{ grid-template-columns: 280px repeat(4, minmax(0, 1fr)); } }
+    @media(max-width: 1100px){ .kb-board{ grid-template-columns: 1fr 1fr; } .kb-input{ min-width: 200px; } }
+    @media(max-width: 720px){ .kb-board{ grid-template-columns: 1fr; } .kb-input{ min-width: 180px; } }
 
     .kb-col{
       border-radius:18px;
@@ -146,55 +113,134 @@
       line-height:1;
     }
 
-    /* ✅ Badges ultra-compacts (compteurs uniquement) */
-    .kb-badges{
-      display:flex;
-      gap:6px;
-      flex-wrap:nowrap;
-      margin-top:6px;
-    }
+    /* Badges */
+    .kb-badges{ display:flex; gap:6px; flex-wrap:nowrap; margin-top:6px; }
     .kb-badge{
-      display:inline-flex;
-      align-items:center;
-      gap:6px;
-      padding:3px 7px;
-      border-radius:999px;
-      font-size:11px;
-      line-height:1;
-      font-weight:950;
+      display:inline-flex; align-items:center; gap:6px;
+      padding:3px 7px; border-radius:999px;
+      font-size:11px; line-height:1; font-weight:950;
       background:rgba(255,255,255,0.06);
       border:1px solid rgba(255,255,255,0.10);
       white-space:nowrap;
     }
-    .kb-dot{
-      width:8px;
-      height:8px;
-      border-radius:3px;
-      display:inline-block;
-    }
+    .kb-dot{ width:8px; height:8px; border-radius:3px; display:inline-block; }
     .kb-dot.todo{ background:#3b82f6; }
     .kb-dot.doing{ background:#facc15; }
     .kb-dot.blocked{ background:#ef4444; }
     .kb-dot.done{ background:#22c55e; }
 
-    /* ✅ Légende sticky */
+    /* Légende sticky */
     .kb-legend{
-      position: sticky;
-      top: 0;
-      z-index: 3;
+      position: sticky; top: 0; z-index: 3;
       padding-bottom: 6px;
       background: linear-gradient(180deg, rgba(11,15,20,0.95), rgba(11,15,20,0.60));
       backdrop-filter: blur(6px);
     }
-    .kb-legend-row{
-      display:flex;
-      gap:6px;
-      flex-wrap:nowrap;
+    .kb-legend-row{ display:flex; gap:6px; flex-wrap:nowrap; }
+    .kb-legend-label{ font-size:11px; font-weight:900; opacity:.85; }
+
+    /* Accordéon catégories */
+    .kb-acc{
+      border-radius:16px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.08);
+      overflow:hidden;
+      margin: 6px 0 6px;
     }
-    .kb-legend-label{
-      font-size:11px;
+    .kb-acc-sum{
+      list-style:none;
+      cursor:pointer;
+      padding:10px 12px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      font-weight:950;
+      font-size:12px;
+    }
+    .kb-acc-sum::-webkit-details-marker{ display:none; }
+    .kb-acc-pill{
+      padding:4px 8px; border-radius:999px;
+      border:1px solid rgba(255,255,255,0.10);
+      background: rgba(0,0,0,0.14);
+      font-size:11px; font-weight:950; opacity:.9;
+    }
+    .kb-acc-body{
+      padding: 10px;
+      border-top:1px solid rgba(255,255,255,0.08);
+      display:flex; flex-direction:column; gap:6px;
+    }
+    .kb-acc-link{
+      display:block;
+      padding:8px 10px;
+      border-radius:12px;
+      text-decoration:none;
+      color: rgba(255,255,255,0.90);
       font-weight:900;
-      opacity:.85;
+      font-size:12px;
+      border:1px solid transparent;
+      background: rgba(0,0,0,0.10);
+    }
+
+    /* ✅ Sticky zone en haut de la colonne Projets */
+    .kb-left-sticky{
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      padding-bottom: 8px;
+      background: linear-gradient(180deg, rgba(11,15,20,0.95), rgba(11,15,20,0.50));
+      backdrop-filter: blur(6px);
+    }
+    .kb-acc-link:hover{ background: rgba(255,255,255,0.06); }
+    .kb-acc-link.active{
+      border-color: rgba(124,58,237,0.60);
+      background: rgba(124,58,237,0.16);
+    }
+
+    /* Modal */
+    .kb-modal-backdrop{ display:none; position:fixed; inset:0; background:rgba(0,0,0,0.60); z-index:999; }
+    .kb-modal{
+      display:none;
+      position:fixed;
+      left:50%; top:12%;
+      transform:translateX(-50%);
+      width:min(760px, 92vw);
+      border-radius:16px;
+      border:1px solid rgba(255,255,255,0.12);
+      background: rgba(15,23,42,0.98);
+      box-shadow: 0 25px 70px rgba(0,0,0,0.60);
+      overflow:hidden;
+      z-index:1000;
+    }
+    .kb-modal-top{
+      padding:14px 16px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      border-bottom:1px solid rgba(255,255,255,0.10);
+    }
+    .kb-modal-title{ font-weight:950; }
+    .kb-modal-body{ padding:16px; }
+    .kb-meta{
+      display:flex; gap:8px; flex-wrap:wrap;
+      margin-bottom:12px;
+      color: rgba(255,255,255,0.85);
+      font-size:13px;
+    }
+    .kb-pill{
+      border:1px solid rgba(255,255,255,0.10);
+      background: rgba(255,255,255,0.04);
+      padding:7px 10px;
+      border-radius:999px;
+      font-weight:900;
+      font-size:12px;
+    }
+    .kb-desc{
+      white-space:pre-wrap;
+      color: rgba(255,255,255,0.82);
+      font-size:13px;
+      line-height:1.4;
     }
   </style>
 
@@ -202,9 +248,8 @@
     <div class="kb-head">
       <div>
         <div class="kb-title">🧩 Kanban (Gestion des tâches)</div>
-        <div class="kb-sub">Déplace les tâches avec les boutons ← →</div>
+        <div class="kb-sub">Clique sur une tâche pour voir le détail. Déplace avec ← →</div>
       </div>
-
       <a class="kb-btn" href="{% url 'projects:task_create' %}">➕ Nouvelle tâche</a>
     </div>
 
@@ -225,12 +270,16 @@
         <option value="3" {% if priority == "3" %}selected{% endif %}>Basse</option>
       </select>
 
+      {% if cat_id %}
+        <input type="hidden" name="cat" value="{{ cat_id }}" />
+      {% endif %}
+
       <button class="kb-filterbtn" type="submit">Filtrer</button>
     </form>
 
     <div class="kb-board">
 
-      <!-- ✅ Colonne Projets -->
+      <!-- Colonne Projets -->
       <div class="kb-col">
         <div class="kb-col-h">
           <span>📁 Projets</span>
@@ -239,8 +288,38 @@
 
         <div class="kb-col-body">
 
-          <!-- ✅ carte "Tous les projets" -->
-          <a href="?{% if q %}q={{ q|urlencode }}&{% endif %}{% if priority %}priority={{ priority|urlencode }}&{% endif %}"
+          <!-- ✅ Catégories (accordéon) — STICKY -->
+          <div class="kb-left-sticky">
+            <details class="kb-acc" {% if cat_id %}open{% endif %}>
+              <summary class="kb-acc-sum">
+                <span>🗂️ Catégories</span>
+                <span class="kb-acc-pill">
+                  {% if cat_id %}Filtrée{% else %}Toutes{% endif %}
+                </span>
+              </summary>
+
+              <div class="kb-acc-body">
+                <a class="kb-acc-link {% if not cat_id %}active{% endif %}"
+                  href="?{% if q %}q={{ q|urlencode }}&{% endif %}{% if priority %}priority={{ priority|urlencode }}&{% endif %}{% if project_id %}project={{ project_id|urlencode }}&{% endif %}">
+                  Toutes
+                </a>
+
+                {% for c in categories %}
+                  <a class="kb-acc-link {% if cat_id == c.id|stringformat:'s' %}active{% endif %}"
+                    href="?cat={{ c.id }}{% if q %}&q={{ q|urlencode }}{% endif %}{% if priority %}&priority={{ priority|urlencode }}{% endif %}{% if project_id %}&project={{ project_id|urlencode }}{% endif %}">
+                    {{ c.name }}
+                  </a>
+                {% empty %}
+                  <div style="opacity:.75; font-size:12px; padding:4px 2px;">
+                    Aucune catégorie (crée-en via l’admin).
+                  </div>
+                {% endfor %}
+              </div>
+            </details>
+          </div>
+
+          <!-- Tous les projets -->
+          <a href="?{% if q %}q={{ q|urlencode }}&{% endif %}{% if priority %}priority={{ priority|urlencode }}&{% endif %}{% if cat_id %}cat={{ cat_id|urlencode }}&{% endif %}"
              style="text-decoration:none; color:inherit;">
             <div class="kb-card" style="{% if not project_id %}border-color: rgba(124,58,237,0.60); background: rgba(124,58,237,0.16);{% endif %}">
               <div class="kb-card-title">✨ Tous les projets</div>
@@ -248,7 +327,7 @@
             </div>
           </a>
 
-          <!-- ✅ Légende -->
+          <!-- Légende -->
           <div class="kb-legend">
             <div class="kb-legend-row">
               <span class="kb-badge"><span class="kb-dot todo"></span><span class="kb-legend-label">TODO</span></span>
@@ -259,7 +338,7 @@
           </div>
 
           {% for p in projects %}
-            <a href="?{% if q %}q={{ q|urlencode }}&{% endif %}{% if priority %}priority={{ priority|urlencode }}&{% endif %}project={{ p.id }}"
+            <a href="?{% if cat_id %}cat={{ cat_id|urlencode }}&{% endif %}{% if q %}q={{ q|urlencode }}&{% endif %}{% if priority %}priority={{ priority|urlencode }}&{% endif %}project={{ p.id }}"
                style="text-decoration:none; color:inherit;">
               <div class="kb-card" style="{% if project_id == p.id|stringformat:'s' %}border-color: rgba(124,58,237,0.60); background: rgba(124,58,237,0.16);{% endif %}">
                 <div class="kb-card-title">{{ p.name }}</div>
@@ -278,33 +357,27 @@
         </div>
       </div>
 
-      <!-- ✅ Colonnes Tâches (FIX: plus de columns[key]) -->
+      <!-- Colonnes tâches -->
       {% for key, label, col in kanban_cols %}
         <div class="kb-col">
           <div class="kb-col-h">
-            {% if key == "TODO" %}
-              <span>🟦 {{ label }}</span>
-            {% elif key == "IN_PROGRESS" %}
-              <span>🟨 {{ label }}</span>
-            {% elif key == "BLOCKED" %}
-              <span>🟥 {{ label }}</span>
-            {% elif key == "DONE" %}
-              <span>🟩 {{ label }}</span>
-            {% else %}
-              <span>{{ label }}</span>
-            {% endif %}
+            {% if key == "todo" %}<span>🟦 {{ label }}</span>
+            {% elif key == "doing" %}<span>🟨 {{ label }}</span>
+            {% elif key == "blocked" %}<span>🟥 {{ label }}</span>
+            {% elif key == "done" %}<span>🟩 {{ label }}</span>
+            {% else %}<span>{{ label }}</span>{% endif %}
             <span class="kb-col-count">({{ col|length }})</span>
           </div>
 
           <div class="kb-col-body">
             {% for t in col %}
-              <div class="kb-card">
+              <div class="kb-card" style="cursor:pointer;" onclick="openTaskModal({{ t.id }})">
                 <div class="kb-card-title">{{ t.title }}</div>
                 <div class="kb-card-meta">
                   {{ t.project }}{% if t.assignee %} • @{{ t.assignee.username }}{% endif %}
                 </div>
 
-                <div class="kb-actions">
+                <div class="kb-actions" onclick="event.stopPropagation();">
                   <form method="post" action="{% url 'projects:task_move' t.id %}" style="margin:0;">
                     {% csrf_token %}
                     <input type="hidden" name="direction" value="left" />
@@ -329,6 +402,59 @@
 
     </div>
   </div>
+
+  <!-- Modal task quick view -->
+  <div id="taskModalBackdrop" class="kb-modal-backdrop" onclick="closeTaskModal()"></div>
+
+  <div id="taskModal" class="kb-modal" aria-hidden="true">
+    <div class="kb-modal-top">
+      <div class="kb-modal-title" id="tmTitle">Tâche</div>
+      <button class="kb-mini" onclick="closeTaskModal()">Fermer</button>
+    </div>
+
+    <div class="kb-modal-body">
+      <div class="kb-meta" id="tmMeta"></div>
+      <div class="kb-desc" id="tmDesc"></div>
+
+      <div style="margin-top:14px; display:flex; gap:8px; flex-wrap:wrap;">
+        <a id="tmEdit" class="kb-link" href="#">✏️ Modifier</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    async function openTaskModal(taskId){
+      try{
+        const r = await fetch("{% url 'projects:task_quick' 0 %}".replace("/0/", "/" + taskId + "/"));
+        if(!r.ok){ alert("Impossible de charger la tâche."); return; }
+        const d = await r.json();
+
+        document.getElementById("tmTitle").textContent = d.title || ("Tâche #" + d.id);
+
+        const pills = [];
+        if(d.project) pills.push(`<span class="kb-pill">📁 ${d.project}</span>`);
+        if(d.status) pills.push(`<span class="kb-pill">🏷 ${d.status}</span>`);
+        if(d.priority) pills.push(`<span class="kb-pill">⚡ Priorité ${d.priority}</span>`);
+        if(d.assignee) pills.push(`<span class="kb-pill">👤 ${d.assignee}</span>`);
+        if(d.due_date) pills.push(`<span class="kb-pill">📅 ${d.due_date}</span>`);
+        document.getElementById("tmMeta").innerHTML = pills.join("");
+
+        document.getElementById("tmDesc").textContent = d.description || "—";
+        document.getElementById("tmEdit").href = "{% url 'projects:task_edit' 0 %}".replace("/0/", "/" + d.id + "/");
+
+        document.getElementById("taskModalBackdrop").style.display = "block";
+        document.getElementById("taskModal").style.display = "block";
+      }catch(e){
+        console.error(e);
+        alert("Erreur lors du chargement.");
+      }
+    }
+
+    function closeTaskModal(){
+      document.getElementById("taskModalBackdrop").style.display = "none";
+      document.getElementById("taskModal").style.display = "none";
+    }
+  </script>
 
 </div>
 {% endblock %}
