@@ -27,7 +27,7 @@ DEBUG = True
 
 ALLOWED_HOSTS = ["192.168.1.31", "127.0.0.1", "localhost"]
 
-
+MERCURE_INVOICES_BASE_DIR = r"R:\5_Archives_doc_ formations\2_Mercure"
 
 # Application definition
 
@@ -45,6 +45,8 @@ INSTALLED_APPS = [
     "projects",
     "argonteam.apps.ArgonteamConfig",
     "trainer_eval",
+    "finance.apps.FinanceConfig",
+    
     
     
     

@@ -80,6 +80,17 @@
     border-color: rgba(99,102,241,0.32);
   }
 
+  /* ✅ État disabled pour cartes "pilotage" */
+  .quick-card--disabled{
+    opacity:.55;
+    cursor:not-allowed;
+  }
+  .quick-card--disabled:hover{
+    transform:none;
+    background: rgba(99,102,241,0.10);
+    border-color: rgba(99,102,241,0.22);
+  }
+
   /* ========================================================= */
 
   .dash-grid{
@@ -383,8 +394,11 @@
           <strong>Gestion des équipes</strong>
           <span>Accéder à la gestion Mercure / ArgonOS (onglets).</span>
         </a>
-
-        <!-- LIGNE 4 (PILOTAGE FORMATEURS) -->
+        <!--
+         ======================================================
+           PILOTAGE FORMATEURS (zone interne => staff uniquement)
+           ======================================================
+        -->
         {% if request.user.is_staff %}
           <div style="grid-column: 1 / -1; margin-top:12px;">
             <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px;">
@@ -414,7 +428,14 @@
               </a>
             </div>
           </div>
-                  <!-- LIGNE 5 (PILOTAGE FINANCIER) -->
+        {% endif %}
+        <!--  
+         ======================================================
+           PILOTAGE FINANCIER
+           ✅ visible pour staff OU pour formateurs Mercure (can_access_mercure)
+         ======================================================
+         -->
+        {% if request.user.is_staff or can_access_mercure %}
           <div style="grid-column: 1 / -1; margin-top:14px;">
             <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px;">
               <h3 style="margin:0;">Pilotage financier</h3>
@@ -427,13 +448,18 @@
                 <div class="qc-sub">CA par mois / trimestre, ArgonOS vs Mercure</div>
               </a>
 
-              {# 🕒 bloc futur #}
-              <a class="quick-card quick-card--pilotage" href="#"
-                 style="opacity:0.55; cursor:not-allowed;"
-                 onclick="return false;">
-                <div class="qc-title">💳 Suivi paiements prestations Mercure</div>
-                <div class="qc-sub">Facturation, encaissement (bientôt)</div>
-              </a>
+              {% if can_access_mercure %}
+                <a class="quick-card quick-card--pilotage" href="{% url 'trainings:dashboard_mercure_paiements' %}">
+                  <div class="qc-title">💳 Suivi paiements prestations Mercure</div>
+                  <div class="qc-sub">Facturation, encaissement</div>
+                </a>
+              {% else %}
+                <div class="quick-card quick-card--pilotage quick-card--disabled"
+                     title="Accès réservé aux formateurs Mercure et aux responsables">
+                  <div class="qc-title">💳 Suivi paiements prestations Mercure</div>
+                  <div class="qc-sub">Facturation, encaissement (accès restreint)</div>
+                </div>
+              {% endif %}
             </div>
           </div>
         {% endif %}

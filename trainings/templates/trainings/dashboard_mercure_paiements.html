@@ -1,0 +1,508 @@
+{% extends "trainings/base.html" %}
+{% block title %}Suivi paiements Mercure{% endblock %}
+{% block body_class %}home-gradient no-scroll{% endblock %}
+
+{% block extra_head %}
+<style>
+  :root{
+    --panel: rgba(255,255,255,0.05);
+    --border-soft: rgba(255,255,255,0.07);
+    --text: rgba(255,255,255,0.92);
+    --muted: rgba(255,255,255,0.65);
+    --shadow: 0 18px 45px rgba(0,0,0,0.55);
+    --r: 18px;
+  }
+
+  /* Plein écran comme Dashboard CA */
+  html, body{ height:100%; }
+  main{ height:100%; }
+
+  .dash{
+    position: fixed;
+    inset: 0;
+    box-sizing: border-box;
+    padding: 92px 18px 18px; /* laisse la place à ta topbar */
+    overflow: hidden;
+    color: var(--text);
+    background: transparent;
+  }
+
+  .dash-grid{
+    height: 100%;
+    min-height: 0;
+    min-width: 0;
+    display:grid;
+    gap: 14px;
+    grid-template-columns: clamp(300px, 25vw, 340px) minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .panel{
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    border-radius: var(--r);
+    background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+    border: 1px solid var(--border-soft);
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    display:flex;
+    flex-direction:column;
+  }
+
+  .panel-header{
+    flex: 0 0 auto;
+    padding: 14px 16px;
+    display:flex;
+    justify-content:space-between;
+    gap: 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01));
+    align-items: flex-start;
+  }
+
+  .title{ margin:0; font-size: 18px; font-weight: 950; }
+  .small{ font-size: 12px; color: var(--muted); }
+  .panel-body{
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    padding: 14px 16px;
+    scrollbar-width: thin;
+  }
+
+  /* LEFT — filtres */
+  .filters label{
+    display:block;
+    margin: 10px 0 6px;
+    font-size: 12px;
+    font-weight: 900;
+    opacity: .85;
+  }
+  .filters select, .filters input{
+    width:100%;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,.12);
+    background: rgba(0,0,0,.22);
+    color: rgba(255,255,255,.92);
+    outline: none;
+  }
+  .filters .row{ display:flex; gap:10px; }
+  .filters .row > div{ flex:1; }
+
+  .chk{
+    display:flex;
+    gap:10px;
+    align-items:center;
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,.10);
+    background: rgba(0,0,0,.18);
+  }
+  .chk input{ width:18px; height:18px; margin:0; }
+  .chk span{ font-size:13px; font-weight: 900; opacity:.9; }
+
+  .btn{
+    width:100%;
+    margin-top: 12px;
+    padding: 11px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(124,58,237,0.45);
+    background: rgba(124,58,237,0.14);
+    color: rgba(255,255,255,.92);
+    font-weight: 950;
+    cursor:pointer;
+  }
+  .btn2{
+    width:100%;
+    margin-top: 10px;
+    padding: 11px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,.14);
+    background: rgba(0,0,0,.20);
+    color: rgba(255,255,255,.88);
+    font-weight: 900;
+    cursor:pointer;
+    text-decoration:none;
+    display:inline-block;
+    text-align:center;
+  }
+
+    .left-stack{
+  height: 100%;
+  min-height: 0;
+  display:flex;
+  flex-direction:column;
+  gap: 14px;
+  }
+
+  .left-actions{ flex: 0 0 auto; }
+  .left-filters{ flex: 1 1 auto; min-height: 0; }
+
+  .action-btn{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap: 12px;
+    width:100%;
+    padding: 14px 14px;
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,.10);
+    background: rgba(0,0,0,.20);
+    color: rgba(255,255,255,.92);
+    text-decoration:none;
+    font-weight: 950;
+    cursor:pointer;
+    transition: transform .12s ease, background .12s ease, border-color .12s ease;
+  }
+  .action-btn:hover{
+    transform: translateY(-1px);
+    background: rgba(0,0,0,.26);
+    border-color: rgba(255,255,255,.18);
+  }
+  .action-btn small{
+    font-size:12px;
+    font-weight: 800;
+    opacity:.75;
+  }
+    /* RIGHT — stack KPI / tables */
+    .right-stack{
+      height: 100%;
+      min-height: 0;
+      display:flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+  .hbtn{
+    padding: 8px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,.12);
+    background: rgba(255,255,255,.06);
+    color: rgba(255,255,255,.92);
+    font-weight: 950;
+    font-size: 13px;
+    text-decoration:none;
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    cursor:pointer;
+    white-space: nowrap;
+    transition: transform .12s ease, background .12s ease, border-color .12s ease;
+  }
+  .hbtn:hover{
+    transform: translateY(-1px);
+    background: rgba(255,255,255,.10);
+    border-color: rgba(255,255,255,.18);
+  }  
+  /* KPI panel fixe (pas trop grand) */
+  .kpi-grid{
+    display:grid;
+    grid-template-columns: repeat(4, minmax(0,1fr));
+    gap: 12px;
+  }
+  .kpi{
+    padding: 14px;
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,.10);
+    background: rgba(0,0,0,.20);
+  }
+  .kpi .k{ font-size:12px; opacity:.75; font-weight: 900; }
+  .kpi .v{ margin-top:6px; font-size:20px; font-weight: 950; }
+
+  /* Panels tables prennent le reste (factures plus grand) */
+  .factures-panel{ flex: 1 1 auto; min-height: 0; }
+  .contrats-panel{ flex: 0 0 34%; min-height: 220px; }
+
+  /* Table style */
+  .tbl-wrap{ overflow:auto; }
+  table{ width:100%; border-collapse: collapse; font-size: 13px; }
+  thead th{
+    text-align:left;
+    padding: 10px;
+    opacity:.85;
+    border-bottom:1px solid rgba(255,255,255,.10);
+    white-space: nowrap;
+  }
+  tbody td{
+    padding: 10px;
+    border-top:1px solid rgba(255,255,255,.08);
+    vertical-align: top;
+  }
+  .num{ text-align:right; white-space: nowrap; }
+  .nowrap{ white-space: nowrap; }
+  .sub{ opacity:.72; font-size:12px; margin-top:4px; }
+
+  .pill{
+    display:inline-flex;
+    align-items:center;
+    padding: 3px 10px;
+    border-radius: 999px;
+    border:1px solid rgba(255,255,255,.12);
+    background: rgba(255,255,255,.06);
+    font-weight: 950;
+    font-size: 12px;
+    white-space: nowrap;
+    gap: 8px;
+  }
+  .pill--red{ background: rgba(239,68,68,.18); border-color: rgba(239,68,68,.35); }
+  .pill--amber{ background: rgba(245,158,11,.18); border-color: rgba(245,158,11,.35); }
+  .pill--green{ background: rgba(34,197,94,.16); border-color: rgba(34,197,94,.30); }
+
+  @media (max-width: 1180px){
+    .dash{ position: static; min-height:100vh; height:auto; overflow:auto; padding: 92px 12px 18px; }
+    .dash-grid{ grid-template-columns: 1fr; height:auto; }
+    .right-stack{ height:auto; }
+    .factures-panel, .contrats-panel{ flex: 0 0 auto; }
+  }
+  @media (max-width: 760px){
+    .kpi-grid{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dash">
+  <div class="dash-grid">
+
+    <!-- LEFT -->
+    <aside class="panel">
+      <div class="panel-header">
+        <div>
+          <div class="title">💳 Suivi paiements Mercure</div>
+          <div class="small">Pilotage financier • Paiements</div>
+        </div>
+        <div class="small">Aujourd’hui : {{ today|date:"d/m/Y" }}</div>
+      </div>
+
+      <div class="panel-body filters">
+        <form method="get">
+          <label>Formateur (Mercure)</label>
+          <select name="trainer" {% if not is_manager %}disabled{% endif %}>
+            <option value="">Tous</option>
+            {% for t in mercure_trainers %}
+              <option value="{{ t.id }}" {% if f_trainer == t.id|stringformat:"s" %}selected{% endif %}>
+                {{ t.last_name }} {{ t.first_name }}
+              </option>
+            {% endfor %}
+          </select>
+
+{% if not is_manager %}
+  <div style="opacity:.6; font-size:12px; margin-top:6px;">
+    Filtre verrouillé (compte formateur).
+  </div>
+{% endif %}
+
+          <div class="row">
+            <div>
+              <label>Statut facture</label>
+              <select name="status">
+                <option value="">Tous</option>
+                {% for val, lab in invoice_status_choices %}
+                  <option value="{{ val }}" {% if f_status == val %}selected{% endif %}>{{ lab }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label>Période</label>
+              <select name="period">
+                <option value="all" {% if f_period == "all" %}selected{% endif %}>Tout</option>
+                <option value="year" {% if f_period == "year" %}selected{% endif %}>Année</option>
+                <option value="quarter" {% if f_period == "quarter" %}selected{% endif %}>Trimestre</option>
+                <option value="month" {% if f_period == "month" %}selected{% endif %}>Mois</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="chk">
+            <input type="checkbox" name="overdue" value="1" {% if f_overdue %}checked{% endif %}>
+            <span>Retard uniquement</span>
+          </div>
+
+          <button class="btn" type="submit">Appliquer</button>
+          <a class="btn2" href="{% url 'trainings:dashboard_mercure_paiements' %}">Reset</a>
+        </form>
+
+        <div style="margin-top:14px; opacity:.75; font-size:12px; line-height:1.4;">
+          <strong>Échéance facture</strong> = received_date + 60j.<br>
+          <strong>Retard</strong> = aujourd’hui &gt; échéance et statut ≠ Payée.<br>
+          <strong>Contrat</strong> = alerte J-30 si non envoyé.
+        </div>
+      </div>
+    </aside>
+
+    <!-- RIGHT -->
+    <section class="right-stack">
+
+      <!-- KPI -->
+      <div class="panel" style="flex: 0 0 auto;">
+        <div class="panel-header">
+          <div>
+            <div class="title">📌 KPI</div>
+            <div class="small">Synthèse</div>
+          </div>
+          <div class="small">Factures : {{ invoices|length }} • Contrats : {{ contracts|length }}</div>
+        </div>
+        <div class="panel-body" style="overflow:hidden;">
+          <div class="kpi-grid">
+            <div class="kpi">
+              <div class="k">Total facturé (HT)</div>
+              <div class="v">{{ kpi_total_facture }} €</div>
+            </div>
+            <div class="kpi">
+              <div class="k">Total payé</div>
+              <div class="v">{{ kpi_total_paye }} €</div>
+            </div>
+            <div class="kpi">
+              <div class="k">Non payé</div>
+              <div class="v">{{ kpi_total_non_paye }} €</div>
+            </div>
+            <div class="kpi">
+              <div class="k">Factures en retard</div>
+              <div class="v">{{ kpi_overdue_count }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FACTURES (grand) -->
+      <div class="panel factures-panel">
+        <div class="panel-header">
+          <div>
+            <div class="title">🧾 Factures</div>
+            <div class="small">Liste détaillée</div>
+          </div>
+          <a class="hbtn" href="{% url 'trainings:mercure_invoice_new' %}">➕ Nouveau</a>
+        </div>
+
+        <div class="panel-body tbl-wrap">
+          {% if invoices %}
+            <table>
+              <thead>
+                <tr>
+                  <th>Référence</th>
+                  <th>Session</th>
+                  <th style="text-align:center; width:60px;">Doc</th>
+                  <th>Formateur</th>
+                  <th class="num">Montant HT</th>
+                  <th>Statut</th>
+                  <th>Reçue le</th>
+                  <th>Échéance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for inv in invoices %}
+                  <tr>
+                    <td class="nowrap">{{ inv.reference|default:"—" }}</td>
+                    <td>
+                      {% if inv.session %}
+                        <div style="font-weight:950;">
+                          {{ inv.session.reference|default:"Session" }} — {{ inv.session.client }}
+                        </div>
+                        <div class="sub">
+                          {{ inv.session.start_date|date:"d/m/Y" }}
+                          {% if inv.session.training %} • {{ inv.session.training }}{% endif %}
+                        </div>
+                      {% else %}
+                        —
+                      {% endif %}
+                    </td>
+                    <td style="text-align:center; width:60px;">
+                      {% if inv.document_path %}
+                        <a href="{% url 'trainings:mercure_invoice_open' inv.id %}"
+                          target="_blank" rel="noopener"
+                          title="Ouvrir la facture"
+                          style="text-decoration:none; display:inline-flex; align-items:center; justify-content:center;
+                                  width:34px; height:34px; border-radius:999px;
+                                  border:1px solid rgba(255,255,255,.14);
+                                  background:rgba(255,255,255,.06);">
+                          👁️
+                        </a>
+                      {% else %}
+                        <span style="opacity:.35;">—</span>
+                      {% endif %}
+                    </td>
+                    <td class="nowrap">{{ inv.trainer }}</td>
+                    <td class="num">{{ inv.amount_ht }} €</td>
+                    <td>
+                      <span class="pill">{{ inv.get_status_display }}</span>
+                      {% if inv.is_overdue %}
+                        <span class="pill pill--red" style="margin-left:8px;">Retard</span>
+                      {% elif inv.status == "PAID" %}
+                        <span class="pill pill--green" style="margin-left:8px;">OK</span>
+                      {% endif %}
+                    </td>
+                    <td class="nowrap">{{ inv.received_date|date:"d/m/Y"|default:"—" }}</td>
+                    <td class="nowrap">{{ inv.due_date|date:"d/m/Y"|default:"—" }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% else %}
+            <div class="small">Aucune facture (selon filtres).</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- CONTRATS (en bas) -->
+      <div class="panel contrats-panel">
+        <div class="panel-header">
+          <div>
+            <div class="title">📄 Contrats d’application</div>
+            <div class="small">J-30 • envoi • signature</div>
+          </div>
+          <a class="hbtn" href="{% url 'trainings:mercure_contract_new' %}">➕ Nouveau</a>
+        </div>
+
+        <div class="panel-body tbl-wrap">
+          {% if contracts %}
+            <table>
+              <thead>
+                <tr>
+                  <th>Session</th>
+                  <th>Formateur</th>
+                  <th>Statut</th>
+                  <th class="nowrap">Due (J-30)</th>
+                  <th class="nowrap">Envoyé</th>
+                  <th class="nowrap">Signé</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for c in contracts %}
+                  <tr>
+                    <td>
+                      <div style="font-weight:950;">
+                        {{ c.session.reference|default:"Session" }} — {{ c.session.client }}
+                      </div>
+                      <div class="sub">
+                        {{ c.session.start_date|date:"d/m/Y" }}
+                        {% if c.session.training %} • {{ c.session.training }}{% endif %}
+                      </div>
+                    </td>
+                    <td class="nowrap">{{ c.trainer }}</td>
+                    <td>
+                      <span class="pill">{{ c.get_status_display }}</span>
+                      {% if c.is_due_soon %}
+                        <span class="pill pill--amber" style="margin-left:8px;">J-30</span>
+                      {% endif %}
+                    </td>
+                    <td class="nowrap">{{ c.due_date|date:"d/m/Y"|default:"—" }}</td>
+                    <td class="nowrap">{{ c.sent_date|date:"d/m/Y"|default:"—" }}</td>
+                    <td class="nowrap">{{ c.signed_date|date:"d/m/Y"|default:"—" }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% else %}
+            <div class="small">Aucun contrat (selon filtres).</div>
+          {% endif %}
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+</div>
+{% endblock %}

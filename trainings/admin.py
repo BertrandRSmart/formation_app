@@ -9,6 +9,8 @@ from import_export.widgets import ForeignKeyWidget
 
 from .services.convocations import generate_and_send_session_convocation
 
+from .models import MercureContract, MercureInvoice
+
 
 from .models import (
     Client,
@@ -305,3 +307,28 @@ class SessionAdmin(admin.ModelAdmin):
             "trainings/session_admin.js",
             "trainings/session_location_admin.js",
         )
+
+# ================================================================
+# Gestion suivi prestations formateurs Mercure
+# ================================================================
+
+# trainings/admin.py
+
+
+
+from django.contrib import admin
+from .models import MercureContract, MercureInvoice
+
+
+@admin.register(MercureContract)
+class MercureContractAdmin(admin.ModelAdmin):
+    list_display = ("session", "trainer", "status", "sent_date", "signed_date", "created_at")
+    list_filter = ("status", "trainer")
+    search_fields = ("session__reference", "trainer__first_name", "trainer__last_name")
+
+
+@admin.register(MercureInvoice)
+class MercureInvoiceAdmin(admin.ModelAdmin):
+    list_display = ("reference", "trainer", "session", "amount_ht", "received_date", "status", "paid_date")
+    list_filter = ("status", "trainer")
+    search_fields = ("reference", "session__reference", "trainer__first_name", "trainer__last_name")

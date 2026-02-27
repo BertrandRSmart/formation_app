@@ -7,13 +7,20 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.db.models import Count, Max, Q
-from django.http import JsonResponse
+from django.http import JsonResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from django.db.models import Sum, Count, Value, DecimalField, Q
 from django.db.models.functions import Coalesce, TruncMonth
+from django.http import FileResponse
+
+import os
+from django.conf import settings
+from django.utils.encoding import smart_str
+
+from .models import MercureInvoice, MercureContract, MercureInvoiceStatus, MercureContractStatus
 
 from django.db.models.functions import Coalesce
 
@@ -22,9 +29,9 @@ from .models import TrainingType  # si ton modèle existe bien
 
 from decimal import Decimal
 
-
-
 from .forms import BulkRegistrationForm, NewParticipantFormSet
+from .forms import MercureInvoiceForm, MercureContractForm
+
 from .models import (
     Client,
     Trainer,
@@ -60,6 +67,56 @@ def is_trainer_readonly(user) -> bool:
     """Retourne True si l'utilisateur est dans le groupe FORMATEURS."""
     return user.is_authenticated and user.groups.filter(name="FORMATEURS").exists()
 
+from functools import wraps
+
+def get_trainer_for_user(user):
+    """
+    Retrouve le Trainer associé à l'utilisateur.
+    - Essaye Trainer.user (si ce champ existe)
+    - Sinon fallback sur email
+    """
+    if not user.is_authenticated:
+        return None
+
+    # 1) Si Trainer a un champ 'user'
+    try:
+        t = Trainer.objects.filter(user=user).first()
+        if t:
+            return t
+    except Exception:
+        pass
+
+    # 2) Fallback email
+    user_email = (getattr(user, "email", "") or "").strip()
+    if user_email:
+        try:
+            t = Trainer.objects.filter(email__iexact=user_email).first()
+            if t:
+                return t
+        except Exception:
+            pass
+
+    return None
+
+
+def mercure_only_required(view_func):
+    """
+    Autorise :
+    - managers (non FORMATEURS)
+    - formateurs Mercure
+    """
+    @wraps(view_func)
+    def _wrapped(request, *args, **kwargs):
+        # Managers -> OK
+        if not is_trainer_readonly(request.user):
+            return view_func(request, *args, **kwargs)
+
+        trainer = get_trainer_for_user(request.user)
+        if trainer and (getattr(trainer, "product", "") or "").upper() == Trainer.PRODUCT_MERCURE:
+            return view_func(request, *args, **kwargs)
+
+        raise PermissionDenied("Accès réservé aux formateurs Mercure et aux responsables.")
+    return _wrapped
 
 def manager_required(view_func):
     """Bloque l'accès aux utilisateurs du groupe FORMATEURS."""
@@ -172,12 +229,8 @@ def _sync_task_from_objective(objective: OneToOneObjective) -> None:
 # =========================================================
 
 @login_required
+@login_required
 def home_view(request):
-    """
-    Home dashboard.
-    - today
-    - convocations_alerts: sessions dans <= 15 jours dont l'alerte n'est pas fermée
-    """
     today = date.today()
     limit = today + timedelta(days=15)
 
@@ -186,7 +239,6 @@ def home_view(request):
         start_date__lte=limit,
     )
 
-    # Champ optionnel (si absent, on ne plante pas)
     try:
         qs = qs.filter(convocation_alert_closed__in=[False, None])
     except Exception:
@@ -194,9 +246,19 @@ def home_view(request):
 
     convocations_alerts = qs.order_by("start_date")
 
+    # ✅ DROITS Mercure Paiements
+    if not is_trainer_readonly(request.user):
+        can_access_mercure = True
+    else:
+        t = get_trainer_for_user(request.user)
+        can_access_mercure = bool(
+            t and (getattr(t, "product", "") or "").upper() == Trainer.PRODUCT_MERCURE
+        )
+
     return render(request, "trainings/home.html", {
         "today": today,
         "convocations_alerts": convocations_alerts,
+        "can_access_mercure": can_access_mercure,
     })
 
 
@@ -1016,5 +1078,305 @@ def dashboard_ca_view(request):
         "f_month": month_str,
     })
 
+# =======================================================
+# Gestion des prestations Mercure
+# =======================================================
+
+def get_trainer_for_user(user):
+    """
+    Retrouve le Trainer associé à l'utilisateur.
+    - Essaye Trainer.user (si ce champ existe)
+    - Sinon fallback sur email
+    Ne plante jamais si le champ user n'existe pas.
+    """
+    if not user.is_authenticated:
+        return None
+
+    # ✅ 1) Si Trainer a un champ 'user'
+    try:
+        t = Trainer.objects.filter(user=user).first()
+        if t:
+            return t
+    except Exception:
+        # pas de champ user -> on ignore
+        pass
+
+    # ✅ 2) Fallback email (si Trainer.email existe et user.email renseigné)
+    user_email = (getattr(user, "email", "") or "").strip()
+    if user_email:
+        try:
+            t = Trainer.objects.filter(email__iexact=user_email).first()
+            if t:
+                return t
+        except Exception:
+            pass
+
+    return None
 
 
+from functools import wraps
+
+def mercure_only_required(view_func):
+    @wraps(view_func)
+    def _wrapped(request, *args, **kwargs):
+        # Managers -> OK
+        if not is_trainer_readonly(request.user):
+            return view_func(request, *args, **kwargs)
+
+        # Formateurs -> seulement Mercure
+        trainer = get_trainer_for_user(request.user)
+        if trainer and (getattr(trainer, "product", "") or "").upper() == Trainer.PRODUCT_MERCURE:
+            return view_func(request, *args, **kwargs)
+
+        raise PermissionDenied("Accès réservé aux formateurs Mercure et aux responsables.")
+    return _wrapped
+
+
+@login_required
+@mercure_only_required
+
+
+@login_required
+@mercure_only_required
+def dashboard_mercure_paiements_view(request):
+    today = timezone.localdate()
+    trainer = get_trainer_for_user(request.user)
+
+    # ✅ Liste des formateurs Mercure (pour le filtre)
+    mercure_trainers = Trainer.objects.filter(
+        product=Trainer.PRODUCT_MERCURE
+    ).order_by("last_name", "first_name")
+
+    # ✅ Lire filtre GET (uniquement utile pour manager)
+    selected_trainer_id = (request.GET.get("trainer") or "").strip()
+
+    # Base queryset
+    invoices_qs = (
+        MercureInvoice.objects
+        .select_related("session", "session__client", "session__training", "trainer")
+        .all()
+    )
+
+    contracts_qs = (
+        MercureContract.objects
+        .select_related("session", "session__client", "session__training", "trainer")
+        .all()
+    )
+
+    # ✅ Filtre formateur (GET) — managers uniquement, Mercure only
+    selected_trainer_id = (request.GET.get("trainer") or "").strip()
+
+    # Si formateur Mercure (readonly), on force ses lignes
+    if is_trainer_readonly(request.user) and trainer:
+        invoices_qs = invoices_qs.filter(trainer=trainer)
+        contracts_qs = contracts_qs.filter(trainer=trainer)
+        selected_trainer_id = str(trainer.id)
+
+    # Sinon manager : appliquer filtre si choisi
+    elif selected_trainer_id.isdigit():
+        tid = int(selected_trainer_id)
+        if mercure_trainers.filter(id=tid).exists():  # sécurité: Mercure only
+            invoices_qs = invoices_qs.filter(trainer_id=tid)
+            contracts_qs = contracts_qs.filter(trainer_id=tid)
+        else:
+            selected_trainer_id = ""
+            
+    # ✅ Cas 1 : formateur readonly => on force ses lignes
+    if is_trainer_readonly(request.user) and trainer:
+        invoices_qs = invoices_qs.filter(trainer=trainer)
+        contracts_qs = contracts_qs.filter(trainer=trainer)
+        selected_trainer_id = str(trainer.id)  # pour pré-sélectionner l’UI
+
+    # ✅ Cas 2 : manager => applique le filtre choisi (Mercure only)
+    elif selected_trainer_id.isdigit():
+        tid = int(selected_trainer_id)
+        # sécurité : n'autoriser que les formateurs Mercure dans ce filtre
+        if mercure_trainers.filter(id=tid).exists():
+            invoices_qs = invoices_qs.filter(trainer_id=tid)
+            contracts_qs = contracts_qs.filter(trainer_id=tid)
+        else:
+            selected_trainer_id = ""  # invalide -> reset
+
+    # KPIs
+    ZERO = Value(Decimal("0.00"), output_field=DecimalField(max_digits=12, decimal_places=2))
+
+    total_facture = invoices_qs.aggregate(v=Coalesce(Sum("amount_ht"), ZERO))["v"]
+    total_paye = invoices_qs.filter(status=MercureInvoiceStatus.PAID).aggregate(v=Coalesce(Sum("amount_ht"), ZERO))["v"]
+    total_non_paye = invoices_qs.exclude(status=MercureInvoiceStatus.PAID).aggregate(v=Coalesce(Sum("amount_ht"), ZERO))["v"]
+
+    # Overdue (via property => Python)
+    invoices_list = list(invoices_qs.order_by("-received_date", "-created_at"))
+    overdue_count = sum(1 for inv in invoices_list if inv.is_overdue)
+
+    # Contrats "due soon" (via property => Python)
+    contracts_list = list(contracts_qs.order_by("session__start_date"))
+    due_soon_count = sum(1 for c in contracts_list if c.is_due_soon)
+
+    return render(request, "trainings/dashboard_mercure_paiements.html", {
+        "today": today,
+
+        # datasets
+        "invoices": invoices_list,
+        "contracts": contracts_list,
+
+        # KPIs
+        "kpi_total_facture": total_facture,
+        "kpi_total_paye": total_paye,
+        "kpi_total_non_paye": total_non_paye,
+        "kpi_overdue_count": overdue_count,
+        "kpi_contract_due_soon": due_soon_count,
+
+        # contexte
+        "trainer": trainer,
+        "is_manager": (not is_trainer_readonly(request.user)),
+
+        # ✅ filtres UI
+        "mercure_trainers": mercure_trainers,
+        "f_trainer": selected_trainer_id,
+    })
+# trainings/views.py
+from django.contrib import messages
+from django.shortcuts import redirect, render
+from django.utils import timezone
+
+from .forms import MercureInvoiceForm, MercureContractForm
+from .models import Trainer
+
+# ⚠️ on réutilise tes helpers existants :
+# - mercure_only_required
+# - get_trainer_for_user
+# - is_trainer_readonly
+
+@login_required
+@mercure_only_required
+def mercure_invoice_create_view(request):
+    today = timezone.localdate()
+    trainer = get_trainer_for_user(request.user)
+
+    initial = {}
+    # Pré-remplir trainer si formateur Mercure
+    if is_trainer_readonly(request.user) and trainer:
+        initial["trainer"] = trainer
+
+    # Pré-remplir session si ?session=ID
+    sid = request.GET.get("session")
+    if sid and sid.isdigit():
+        initial["session"] = int(sid)
+
+    if request.method == "POST":
+        form = MercureInvoiceForm(request.POST)
+        # si formateur readonly, forcer trainer côté serveur
+        if is_trainer_readonly(request.user) and trainer:
+            obj = form.save(commit=False)
+            obj.trainer = trainer
+            obj.save()
+            messages.success(request, "Facture enregistrée ✅")
+            return redirect("trainings:dashboard_mercure_paiements")
+
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Facture enregistrée ✅")
+            return redirect("trainings:dashboard_mercure_paiements")
+    else:
+        form = MercureInvoiceForm(initial=initial)
+
+        # si readonly : empêcher de changer trainer côté UI
+        if is_trainer_readonly(request.user) and trainer:
+            form.fields["trainer"].disabled = True
+
+    return render(request, "trainings/mercure_invoice_form.html", {
+        "today": today,
+        "form": form,
+        "mode": "create",
+        "trainer": trainer,
+    })
+
+
+@login_required
+@mercure_only_required
+def mercure_contract_create_view(request):
+    today = timezone.localdate()
+    trainer = get_trainer_for_user(request.user)
+
+    initial = {}
+    if is_trainer_readonly(request.user) and trainer:
+        initial["trainer"] = trainer
+
+    sid = request.GET.get("session")
+    if sid and sid.isdigit():
+        initial["session"] = int(sid)
+
+    if request.method == "POST":
+        form = MercureContractForm(request.POST)
+
+        if is_trainer_readonly(request.user) and trainer:
+            obj = form.save(commit=False)
+            obj.trainer = trainer
+            obj.save()
+            messages.success(request, "Contrat enregistré ✅")
+            return redirect("trainings:dashboard_mercure_paiements")
+
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Contrat enregistré ✅")
+            return redirect("trainings:dashboard_mercure_paiements")
+    else:
+        form = MercureContractForm(initial=initial)
+        if is_trainer_readonly(request.user) and trainer:
+            form.fields["trainer"].disabled = True
+
+    return render(request, "trainings/mercure_contract_form.html", {
+        "today": today,
+        "form": form,
+        "mode": "create",
+        "trainer": trainer,
+    })
+
+import os
+import glob
+from django.conf import settings
+from django.http import FileResponse, Http404
+from django.utils.encoding import smart_str
+
+@login_required
+@mercure_only_required
+def mercure_invoice_open_view(request, invoice_id: int):
+    inv = get_object_or_404(MercureInvoice, pk=invoice_id)
+
+    raw = (inv.document_path or "").strip()
+    if not raw:
+        raise Http404("Aucun document associé à cette facture.")
+
+    path = os.path.normpath(raw)
+
+    # Optionnel : limiter à une base autorisée
+    base_dir = getattr(settings, "MERCURE_INVOICES_BASE_DIR", None)
+    if base_dir:
+        base_norm = os.path.normpath(base_dir)
+        if not path.lower().startswith(base_norm.lower()):
+            raise Http404("Chemin non autorisé.")
+
+    # ✅ Si c'est un dossier -> on prend le 1er PDF trouvé
+    if os.path.isdir(path):
+        try:
+            pdfs = sorted(glob.glob(os.path.join(path, "*.pdf")))
+        except PermissionError:
+            raise Http404("Accès refusé au dossier de facture (droits insuffisants).")
+
+        if not pdfs:
+            raise Http404("Aucun PDF trouvé dans le dossier de facture.")
+        file_path = pdfs[0]
+    else:
+        file_path = path
+
+    # ✅ Vérif existence + accès
+    if not os.path.exists(file_path):
+        raise Http404("Fichier introuvable sur le serveur.")
+
+    try:
+        filename = os.path.basename(file_path)
+        resp = FileResponse(open(file_path, "rb"), content_type="application/pdf")
+        resp["Content-Disposition"] = f'inline; filename="{smart_str(filename)}"'
+        return resp
+    except PermissionError:
+        raise Http404("Accès refusé au fichier de facture (droits insuffisants).")

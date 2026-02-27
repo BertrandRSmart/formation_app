@@ -66,3 +66,30 @@ class NewParticipantForm(forms.Form):
 
 
 NewParticipantFormSet = formset_factory(NewParticipantForm, extra=25, can_delete=False)
+
+# Bouton +Nouveau page Suivi paiements Mercure
+
+from django import forms
+from .models import MercureInvoice, MercureContract
+
+
+class MercureInvoiceForm(forms.ModelForm):
+    class Meta:
+        model = MercureInvoice
+        fields = ["session", "trainer", "reference", "amount_ht", "received_date", "paid_date", "status", "document_path", "notes"]
+        widgets = {
+            "received_date": forms.DateInput(attrs={"type": "date"}),
+            "paid_date": forms.DateInput(attrs={"type": "date"}),
+            "notes": forms.Textarea(attrs={"rows": 4}),
+        }
+
+
+class MercureContractForm(forms.ModelForm):
+    class Meta:
+        model = MercureContract
+        fields = ["session", "trainer", "status", "sent_date", "signed_date", "notes"]
+        widgets = {
+            "sent_date": forms.DateInput(attrs={"type": "date"}),
+            "signed_date": forms.DateInput(attrs={"type": "date"}),
+            "notes": forms.Textarea(attrs={"rows": 4}),
+        }

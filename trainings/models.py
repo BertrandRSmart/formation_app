@@ -1,15 +1,24 @@
+# trainings/models.py
+from __future__ import annotations
+
 from datetime import datetime, time, timedelta
+from decimal import Decimal
 from urllib.parse import urlencode
 
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
+from django.utils import timezone
 
+
+# =========================================================
+# Référentiels
+# =========================================================
 
 class Client(models.Model):
     name = models.CharField(max_length=200)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
 
@@ -17,42 +26,45 @@ class Room(models.Model):
     name = models.CharField(max_length=120)
     location = models.CharField(max_length=200, blank=True)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
 
 class TrainingType(models.Model):
     name = models.CharField(max_length=120)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
 
 class Training(models.Model):
     title = models.CharField(max_length=200)
     training_type = models.ForeignKey(TrainingType, on_delete=models.PROTECT)
-    default_days = models.DecimalField(max_digits=4, decimal_places=1, default=1.0)
+    default_days = models.DecimalField(max_digits=4, decimal_places=1, default=Decimal("1.0"))
     color = models.CharField(max_length=7, default="#3b82f6")  # format #RRGGBB
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.title
 
+
+# =========================================================
+# Formateurs
+# =========================================================
 
 class Trainer(models.Model):
     PRODUCT_MERCURE = "MERCURE"
     PRODUCT_ARGONOS = "ARGONOS"
 
-    PLATFORMS = (
-    ("ARGONOS", "ArgonOS"),
-    ("MERCURE", "Mercure"),
-    )
-
-    platform = models.CharField(max_length=16, choices=PLATFORMS, default="ARGONOS")
-
     PRODUCT_CHOICES = [
         (PRODUCT_MERCURE, "Mercure"),
         (PRODUCT_ARGONOS, "ArgonOS"),
     ]
+
+    PLATFORMS = (
+        ("ARGONOS", "ArgonOS"),
+        ("MERCURE", "Mercure"),
+    )
+    platform = models.CharField(max_length=16, choices=PLATFORMS, default="ARGONOS")
 
     first_name = models.CharField(max_length=120)
     last_name = models.CharField(max_length=120)
@@ -61,14 +73,18 @@ class Trainer(models.Model):
         "Produit",
         max_length=20,
         choices=PRODUCT_CHOICES,
-        default=PRODUCT_ARGONOS,  # ou PRODUCT_MERCURE
+        default=PRODUCT_ARGONOS,
     )
 
     email = models.EmailField(blank=True)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.first_name} {self.last_name}".strip()
 
+
+# =========================================================
+# Sessions
+# =========================================================
 
 class SessionStatus(models.TextChoices):
     DRAFT = "DRAFT", "Brouillon"
@@ -114,7 +130,7 @@ class Session(models.Model):
     start_date = models.DateField()
     end_date = models.DateField()
 
-    days_count = models.DecimalField(max_digits=4, decimal_places=1, default=1.0)
+    days_count = models.DecimalField(max_digits=4, decimal_places=1, default=Decimal("1.0"))
     status = models.CharField(
         max_length=20,
         choices=SessionStatus.choices,
@@ -159,30 +175,26 @@ class Session(models.Model):
         default=0,
         editable=False,
     )
-
     present_count = models.PositiveSmallIntegerField(
         "Nombre de présents",
         default=0,
         editable=False,
     )
 
-    from django.core.validators import MinValueValidator
-
-    # dans class Session(models.Model):
     price_ht = models.DecimalField(
         "Prix formation HT",
         max_digits=10,
         decimal_places=2,
-        default=0,
+        default=Decimal("0.00"),
         validators=[MinValueValidator(0)],
     )
+
     def outlook_compose_link(self) -> str:
         """
         Ouvre Outlook Web avec un évènement pré-rempli.
         Ensuite tu cliques "Réunion Teams" dans Outlook/Teams, tu enregistres,
         puis tu colles le lien dans `teams_meeting_url`.
         """
-        # Horaires par défaut (change si besoin)
         start_dt = datetime.combine(self.start_date, time(9, 0))
         end_dt = datetime.combine(self.end_date, time(17, 0))
 
@@ -226,29 +238,29 @@ class Session(models.Model):
         if self.start_date:
             computed = self.start_date - timedelta(days=16)
 
-            # si convocations_sent_at vide -> on remplit
             if not self.convocations_sent_at:
                 self.convocations_sent_at = computed
-
-            # si start_date a changé -> on recalcule aussi
             elif old_start_date and old_start_date != self.start_date:
                 self.convocations_sent_at = computed
-                # logique métier: on ré-ouvre l'alerte car la date change
                 self.convocation_alert_closed = False
 
         super().save(*args, **kwargs)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.reference} - {self.training} - {self.client} ({self.start_date})"
 
     def clean(self):
         if self.on_client_site:
-            if not self.client_address.strip():
+            if not (self.client_address or "").strip():
                 raise ValidationError("Adresse obligatoire si la formation est chez le client.")
         else:
             if not self.room_id:
                 raise ValidationError("Salle obligatoire si la formation n'est pas chez le client.")
 
+
+# =========================================================
+# Participants / inscriptions
+# =========================================================
 
 class Referrer(models.Model):
     client = models.ForeignKey(
@@ -265,7 +277,7 @@ class Referrer(models.Model):
     email = models.EmailField()
     company_service = models.CharField(max_length=200)  # Service/Société
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.first_name} {self.last_name} - {self.company_service}"
 
 
@@ -281,7 +293,7 @@ class Participant(models.Model):
     first_name = models.CharField(max_length=120)
     last_name = models.CharField(max_length=120)
     email = models.EmailField()
-    company_service = models.CharField(max_length=200, blank=True, default="")  # Service/Société
+    company_service = models.CharField(max_length=200, blank=True, default="")
 
     referrer = models.ForeignKey(
         Referrer,
@@ -291,7 +303,7 @@ class Participant(models.Model):
         related_name="participants",
     )
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.first_name} {self.last_name}".strip()
 
 
@@ -331,9 +343,9 @@ class Registration(models.Model):
 
         cap20 = {"Globale"}
         cap10 = {
-         "Initiation",
-         "Data Exploration niveau 1",
-         "Data Préparation niveau 1",
+            "Initiation",
+            "Data Exploration niveau 1",
+            "Data Préparation niveau 1",
         }
         cap6 = {
             "Développeur niveau 1",
@@ -346,7 +358,7 @@ class Registration(models.Model):
             return 10
         if title in cap6:
             return 6
-        return 10  # défaut
+        return 10
 
     def clean(self):
         capacity = self._capacity()
@@ -360,7 +372,6 @@ class Registration(models.Model):
             qs = qs.exclude(pk=self.pk)
 
         current = qs.count()
-
         if current >= capacity:
             raise ValidationError(
                 {
@@ -374,3 +385,164 @@ class Registration(models.Model):
     def save(self, *args, **kwargs):
         self.full_clean()
         return super().save(*args, **kwargs)
+
+
+# ==================================================================================
+# Mercure — Contrats d’application + Factures
+# ==================================================================================
+
+class MercureContractStatus(models.TextChoices):
+    TODO = "TODO", "À envoyer"
+    SENT = "SENT", "Envoyé"
+    SIGNED = "SIGNED", "Signé"
+    CANCELLED = "CANCELLED", "Annulé"
+
+
+class MercureInvoiceStatus(models.TextChoices):
+    RECEIVED_ADMIN = "RECEIVED_ADMIN", "Reçue (Service admin)"
+    WAITING_PROCESS = "WAITING_PROCESS", "En attente de traitement"
+    PROCESSING = "PROCESSING", "En cours de traitement"
+    VALIDATION = "VALIDATION", "En cours de validation"
+    PAID = "PAID", "Payée"
+
+
+class MercureContract(models.Model):
+    """
+    Contrat d'application Mercure (1 contrat par session Mercure)
+    Objectif: suivi + alerte J-30 si non envoyé/signé.
+    """
+    session = models.OneToOneField(
+        Session,
+        on_delete=models.CASCADE,
+        related_name="mercure_contract",
+    )
+    trainer = models.ForeignKey(
+        Trainer,
+        on_delete=models.PROTECT,
+        related_name="mercure_contracts",
+    )
+
+    reference = models.CharField("Référence", max_length=50, blank=True, default="")
+
+    status = models.CharField(
+        max_length=20,
+        choices=MercureContractStatus.choices,
+        default=MercureContractStatus.TODO,
+    )
+
+    sent_date = models.DateField(null=True, blank=True)
+    signed_date = models.DateField(null=True, blank=True)
+
+    notes = models.TextField(blank=True, default="")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+
+    def save(self, *args, **kwargs):
+        # Auto-fill trainer depuis la session si manquant
+        if not self.trainer_id and getattr(self.session, "trainer_id", None):
+            self.trainer_id = self.session.trainer_id
+
+        # ✅ Sync référence avec la session
+        if self.session_id:
+            self.reference = (getattr(self.session, "reference", "") or "").strip()
+            
+        super().save(*args, **kwargs)
+
+    def __str__(self) -> str:
+        ref = getattr(self.session, "reference", "") or f"Session #{self.session_id}"
+        return f"Contrat Mercure - {ref}"
+
+    @property
+    def due_date(self):
+        """Date cible = J-30 avant start_date"""
+        start = getattr(self.session, "start_date", None)
+        if not start:
+            return None
+        return start - timedelta(days=30)
+
+    @property
+    def is_due_soon(self) -> bool:
+        """
+        True si on est à <= 30 jours de la session et contrat pas envoyé/signé.
+        """
+        start = getattr(self.session, "start_date", None)
+        if not start:
+            return False
+        today = timezone.localdate()
+        if start < today:
+            return False
+        if (start - today).days > 30:
+            return False
+        return self.status in (MercureContractStatus.TODO,)
+
+
+class MercureInvoice(models.Model):
+    """
+    Factures formateurs Mercure (suivi 60 jours à partir de la réception)
+    """
+    session = models.ForeignKey(
+        Session,
+        on_delete=models.PROTECT,
+        related_name="mercure_invoices",
+    )
+    trainer = models.ForeignKey(
+        Trainer,
+        on_delete=models.PROTECT,
+        related_name="mercure_invoices",
+    )
+
+    document_path = models.CharField(
+    "Chemin facture (interne)",
+    max_length=500,
+    blank=True,
+    default="",
+    )
+    reference = models.CharField(max_length=120, blank=True, default="")
+    document_path = models.CharField("Chemin facture (interne)", max_length=500, blank=True, default="")
+    amount_ht = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        validators=[MinValueValidator(0)],
+    )
+
+    # ⚠️ null/blank pour éviter les prompts makemigrations si tu as déjà des lignes
+    received_date = models.DateField(null=True, blank=True)
+    paid_date = models.DateField(null=True, blank=True)
+
+    status = models.CharField(
+        max_length=20,
+        choices=MercureInvoiceStatus.choices,
+        default=MercureInvoiceStatus.RECEIVED_ADMIN,
+    )
+
+    notes = models.TextField(blank=True, default="")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+
+    def __str__(self) -> str:
+        ref = self.reference or "—"
+        return f"Facture {ref} - {self.trainer}"
+
+    @property
+    def due_date(self):
+        if not self.received_date:
+            return None
+        return self.received_date + timedelta(days=60)
+
+    @property
+    def is_overdue(self) -> bool:
+        if self.status == MercureInvoiceStatus.PAID:
+            return False
+        due = self.due_date
+        if not due:
+            return False
+        return timezone.localdate() > due

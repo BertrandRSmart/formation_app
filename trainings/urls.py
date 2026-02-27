@@ -121,4 +121,20 @@ urlpatterns = [
     # Dashboard CA
     # =========================================================
     path("dashboard/ca/", views.dashboard_ca_view, name="dashboard_ca"),
+
+
+    # =========================================================
+    # Dashboard suivi prestations équipes Mercure
+    # =========================================================
+    path("dashboard/mercure/paiements/", views.dashboard_mercure_paiements_view, name="dashboard_mercure_paiements"),
+    # trainings/urls.py
+    path("dashboard/mercure/factures/new/", views.mercure_invoice_create_view, name="mercure_invoice_new"),
+    path("dashboard/mercure/contrats/new/", views.mercure_contract_create_view, name="mercure_contract_new"),
+
+    path(
+    "dashboard/mercure/factures/<int:invoice_id>/open/",
+    views.mercure_invoice_open_view,
+    name="mercure_invoice_open",
+    ),
+
 ]

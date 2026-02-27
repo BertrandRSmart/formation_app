@@ -1,0 +1,101 @@
+{% extends "trainings/base.html" %}
+{% block title %}Nouvelle facture Mercure{% endblock %}
+{% block body_class %}home-gradient no-scroll{% endblock %}
+
+{% block content %}
+<div style="max-width:920px; margin:110px auto 40px; padding:0 16px; color:rgba(255,255,255,.92);">
+  <div style="padding:16px; border-radius:18px; border:1px solid rgba(255,255,255,.10); background: rgba(255,255,255,.05);">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
+      <div>
+        <h1 style="margin:0; font-weight:950;">🧾 Nouvelle facture Mercure</h1>
+        <div style="opacity:.75; margin-top:6px;">Aujourd’hui : {{ today|date:"d/m/Y" }}</div>
+      </div>
+      <a href="{% url 'trainings:dashboard_mercure_paiements' %}"
+         style="padding:10px 14px; border-radius:999px; border:1px solid rgba(255,255,255,.14); background:rgba(0,0,0,.20); color:rgba(255,255,255,.9); text-decoration:none; font-weight:950;">
+        ← Retour
+      </a>
+    </div>
+  </div>
+
+  <form method="post"
+        style="margin-top:14px; padding:16px; border-radius:18px; border:1px solid rgba(255,255,255,.10); background: rgba(0,0,0,.20);">
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+      <div style="padding:12px; border-radius:14px; border:1px solid rgba(239,68,68,.35); background:rgba(239,68,68,.14); margin-bottom:12px;">
+        {{ form.non_field_errors }}
+      </div>
+    {% endif %}
+
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+      <div>
+        <label style="font-weight:950; opacity:.85;">Session</label>
+        {{ form.session }}
+        <div style="opacity:.6; font-size:12px; margin-top:6px;">Choisir la session Mercure liée.</div>
+      </div>
+
+      <div>
+        <label style="font-weight:950; opacity:.85;">Formateur</label>
+        {{ form.trainer }}
+      </div>
+
+      <div>
+        <label style="font-weight:950; opacity:.85;">Référence facture</label>
+        {{ form.reference }}
+      </div>
+
+      <div>
+        <label style="font-weight:950; opacity:.85;">Montant HT</label>
+        {{ form.amount_ht }}
+      </div>
+
+      <div>
+        <label style="font-weight:950; opacity:.85;">Date réception</label>
+        {{ form.received_date }}
+      </div>
+
+      <div>
+        <label style="font-weight:950; opacity:.85;">Date paiement</label>
+        {{ form.paid_date }}
+      </div>
+
+      <div style="grid-column: 1 / -1;">
+        <label style="font-weight:950; opacity:.85;">Statut</label>
+        {{ form.status }}
+      </div>
+
+      <div style="grid-column: 1 / -1;">
+        <label style="font-weight:950; opacity:.85;">Notes</label>
+        {{ form.notes }}
+      </div>
+    </div>
+
+    <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;">
+      <button type="submit"
+              style="padding:10px 14px; border-radius:999px; border:1px solid rgba(34,197,94,.30); background:rgba(34,197,94,.16); color:rgba(255,255,255,.92); font-weight:950; cursor:pointer;">
+        ✅ Enregistrer
+      </button>
+
+      <a href="{% url 'trainings:dashboard_mercure_paiements' %}"
+         style="padding:10px 14px; border-radius:999px; border:1px solid rgba(255,255,255,.14); background:rgba(0,0,0,.20); color:rgba(255,255,255,.9); text-decoration:none; font-weight:950;">
+        Annuler
+      </a>
+    </div>
+  </form>
+</div>
+
+<style>
+  /* Harmoniser les inputs Django */
+  input, select, textarea{
+    width: 100%;
+    box-sizing: border-box;
+    margin-top: 6px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,.12);
+    background: rgba(0,0,0,.22);
+    color: rgba(255,255,255,.92);
+    outline: none;
+  }
+</style>
+{% endblock %}
