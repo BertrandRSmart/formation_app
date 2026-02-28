@@ -394,7 +394,7 @@
               </thead>
               <tbody>
                 {% for inv in invoices %}
-                  <tr>
+                  <tr onclick="rowGo(event, '{% url 'trainings:mercure_invoice_detail' inv.id %}')" style="cursor:pointer;">
                     <td class="nowrap">{{ inv.reference|default:"—" }}</td>
                     <td>
                       {% if inv.session %}
@@ -460,7 +460,7 @@
           {% if contracts %}
             <table>
               <thead>
-                <tr>
+                <tr onclick="rowGo(event, '{% url 'trainings:mercure_contract_detail' c.id %}')" style="cursor:pointer;">
                   <th>Session</th>
                   <th>Formateur</th>
                   <th>Statut</th>
@@ -505,4 +505,11 @@
 
   </div>
 </div>
+<script>
+  function rowGo(ev, url){
+    // Ne pas déclencher si on clique sur un lien/bouton dans la ligne
+    if (ev.target.closest('a, button, input, select, textarea, label')) return;
+    window.location.href = url;
+  }
+</script>
 {% endblock %}

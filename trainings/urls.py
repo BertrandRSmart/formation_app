@@ -137,4 +137,21 @@ urlpatterns = [
     name="mercure_invoice_open",
     ),
 
+    path(
+    "dashboard/mercure/factures/<int:invoice_id>/",
+    views.mercure_invoice_detail_view,
+    name="mercure_invoice_detail",
+    ),
+    path(
+        "dashboard/mercure/contrats/<int:contract_id>/",
+        views.mercure_contract_detail_view,
+        name="mercure_contract_detail",
+    ),
+
+    path(
+    "alerts/mercure-invoices/<int:invoice_id>/dismiss/",
+    views.dismiss_mercure_invoice_alert,
+    name="dismiss_mercure_invoice_alert",
+),
+
 ]

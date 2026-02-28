@@ -12,11 +12,7 @@
     html, body { margin: 0; padding: 0; height: 100%; }
     *, *::before, *::after { box-sizing: border-box; }
 
-    body.no-scroll { overflow: hidden; }
-    main { overflow: hidden; }  
-    
     :root{
-      /* THEME */
       --bg: #0B0F14;
       --surface: rgba(255,255,255,.04);
       --surface-2: rgba(255,255,255,.06);
@@ -24,7 +20,6 @@
       --text: rgba(255,255,255,.92);
       --muted: rgba(255,255,255,.70);
 
-      /* Accent BSmart */
       --accent-1: #3B82F6; /* bleu */
       --accent-2: #A855F7; /* violet */
       --accent-3: #7C3AED;
@@ -34,9 +29,6 @@
     }
 
     body{
-
-      /* ✅ Empêche le scroll global (utilisé par body_class="no-scroll" ou openDrawer()) */
-      body.no-scroll { overflow: hidden; }
       color: var(--text);
       background:
         radial-gradient(1100px 420px at 12% -8%, rgba(59,130,246,.14), transparent 62%),
@@ -46,6 +38,9 @@
       background-color: var(--bg);
       background-attachment: fixed;
     }
+
+    body.no-scroll { overflow: hidden; }
+    main { overflow: hidden; }
 
     /* =========================
        ✅ BSmart Topbar (Glass)
@@ -89,7 +84,7 @@
     }
 
     /* =========================
-       ✅ Brand (logo + texte)
+       ✅ Brand (logo + date tiles)
        ========================= */
     .bsmart-brand{
       display:flex;
@@ -97,7 +92,8 @@
       gap: 14px;
       text-decoration:none;
       color: var(--text);
-      min-width: 340px;
+      min-width: 360px;
+      flex: 0 0 auto;
     }
 
     .bsmart-logo{
@@ -118,23 +114,73 @@
         drop-shadow(0 0 16px rgba(168,85,247,.45));
     }
 
-    .bsmart-brand__text{
+    /* ✅ Date tiles à la place du texte */
+    .brand-date{
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      margin-left: 2px;
+    }
+
+    /* Icône calendrier (SVG inline, colorisée) */
+    .cal-ic{
+      width: 22px;
+      height: 22px;
+      opacity: .85;
+      flex: 0 0 auto;
+      filter: drop-shadow(0 6px 10px rgba(0,0,0,.35));
+    }
+
+    .date-tiles{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      justify-content:center;
+    }
+
+    .dt{
+      width: 58px;
+      height: 52px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.06);
+      box-shadow: 0 10px 26px rgba(0,0,0,0.30);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
       display:flex;
       flex-direction:column;
-      line-height: 1.05;
+      align-items:center;
+      justify-content:center;
+      line-height:1;
+      position: relative;
+      overflow:hidden;
     }
 
-    .bsmart-brand__name{
+    /* Diagonale “futuriste” */
+    .dt::after{
+      content:"";
+      position:absolute;
+      inset:auto -20px -18px auto;
+      width: 110px;
+      height: 70px;
+      background: linear-gradient(135deg, rgba(255,255,255,0.22), transparent 60%);
+      transform: rotate(12deg);
+      opacity: .22;
+      pointer-events:none;
+    }
+
+    /* ✅ Plus compact, sans libellés */
+    .dt-num{
       font-weight: 950;
-      letter-spacing: .2px;
-      font-size: 16px;
+      font-size: 22px;
+      letter-spacing: -0.3px;
+      color: rgba(255,255,255,0.92);
     }
 
-    .bsmart-brand__tagline{
-      margin-top: 4px;
-      font-size: 12px;
-      color: var(--muted);
-    }
+    /* Couleurs (jour / mois / année) */
+    .dt--day   { background: rgba(59,130,246,0.18); border-color: rgba(59,130,246,0.30); }
+    .dt--month { background: rgba(16,185,129,0.18); border-color: rgba(16,185,129,0.30); }
+    .dt--year  { background: rgba(168,85,247,0.18); border-color: rgba(168,85,247,0.30); }
 
     /* =========================
        ✅ Navigation
@@ -145,6 +191,7 @@
       flex-wrap: wrap;
       align-items:center;
       justify-content:flex-end;
+      flex: 0 0 auto;
     }
 
     .bsmart-nav a{
@@ -180,13 +227,15 @@
     }
 
     /* ✅ Responsive */
+    @media (max-width: 1100px){
+      .brand-date{ display:none; } /* cache les tiles si pas assez de place */
+      .bsmart-brand{ min-width:auto; }
+    }
     @media (max-width: 920px){
-      .bsmart-brand__tagline{ display:none; }
       .bsmart-logo{ width: 200px; height: 48px; }
       .bsmart-brand{ min-width: auto; }
     }
     @media (max-width: 640px){
-      .bsmart-brand__text{ display:none; }
       .bsmart-logo{ width: 170px; height: 46px; }
     }
 
@@ -306,12 +355,25 @@
   <header class="bsmart-topbar">
     <div class="bsmart-topbar__inner">
 
-      <!-- ✅ liens robustes (pas de NoReverseMatch) -->
       <a class="bsmart-brand" href="/">
         <img class="bsmart-logo" src="{% static 'trainings/img/bsmart-logo.png' %}?v=4" alt="BSmart">
-        <div class="bsmart-brand__text">
-          <div class="bsmart-brand__name">BSmart Application</div>
-          <div class="bsmart-brand__tagline">Pilotage intelligent de vos formations</div>
+
+        <!-- ✅ À la place du texte : icône calendrier + carrés jour/mois/année -->
+        <div class="brand-date" aria-label="Date du jour">
+          <!-- calendrier (svg) -->
+          <svg class="cal-ic" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M7 2v3M17 2v3" stroke="rgba(255,255,255,.9)" stroke-width="2" stroke-linecap="round"/>
+            <path d="M3.5 9h17" stroke="rgba(255,255,255,.55)" stroke-width="2" stroke-linecap="round"/>
+            <path d="M6 5h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3Z"
+                  stroke="rgba(255,255,255,.75)" stroke-width="2" />
+            <path d="M7.5 12.5h2M12 12.5h2M16.5 12.5h0M7.5 16.5h2M12 16.5h2" stroke="rgba(255,255,255,.55)" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+
+          <div class="date-tiles">
+            <div class="dt dt--day" title="Jour"><div class="dt-num">{{ today|date:"d" }}</div></div>
+            <div class="dt dt--month" title="Mois"><div class="dt-num">{{ today|date:"m" }}</div></div>
+            <div class="dt dt--year" title="Année"><div class="dt-num">{{ today|date:"Y" }}</div></div>
+          </div>
         </div>
       </a>
 
@@ -320,10 +382,8 @@
         <a class="{% if request.path|slice:':8' == '/agenda/' %}is-active{% endif %}" href="/agenda/">Agenda</a>
         <a class="{% if request.path|slice:':11' == '/dashboard/' %}is-active{% endif %}" href="/dashboard/">Dashboard</a>
         <a class="{% if request.path|slice:':6' == '/team/' %}is-active{% endif %}"
-            href="/team/?product=ARGONOS">
-          Équipe
-        </a>
-        
+           href="/team/?product=ARGONOS">Équipe</a>
+
         {% if request.user.is_staff %}
           <a href="/admin/">Admin</a>
         {% endif %}

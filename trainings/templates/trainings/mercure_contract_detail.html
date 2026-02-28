@@ -1,0 +1,58 @@
+{% extends "trainings/base.html" %}
+{% block title %}Détail contrat — Mercure{% endblock %}
+{% block body_class %}home-gradient no-scroll{% endblock %}
+
+{% block content %}
+<div style="max-width:980px; margin:110px auto 40px; padding:0 16px; color:rgba(255,255,255,.92);">
+  <div style="padding:16px; border-radius:18px; border:1px solid rgba(255,255,255,.10); background: rgba(255,255,255,.05);">
+    <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start;">
+      <div>
+        <h1 style="margin:0; font-weight:950;">📄 Contrat d’application — {{ c.reference|default:"—" }}</h1>
+        <div style="opacity:.75; margin-top:6px;">
+          Formateur : {{ c.trainer }} • Statut : {{ c.get_status_display }}
+        </div>
+      </div>
+      <a class="hbtn" href="{% url 'trainings:dashboard_mercure_paiements' %}">← Retour</a>
+    </div>
+  </div>
+
+  <div style="margin-top:14px; display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+    <div style="padding:16px; border-radius:18px; border:1px solid rgba(255,255,255,.10); background: rgba(0,0,0,.20);">
+      <div style="font-weight:950; margin-bottom:10px;">Informations</div>
+      <div style="display:grid; gap:8px; font-size:14px;">
+        <div><span style="opacity:.7;">Envoyé le :</span> <strong>{{ c.sent_date|date:"d/m/Y"|default:"—" }}</strong></div>
+        <div><span style="opacity:.7;">Signé le :</span> <strong>{{ c.signed_date|date:"d/m/Y"|default:"—" }}</strong></div>
+        <div>
+          <span style="opacity:.7;">Due soon (J-30) :</span>
+          {% if c.is_due_soon %}
+            <span class="pill pill--red">Oui</span>
+          {% else %}
+            <span class="pill pill--green">Non</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div style="padding:16px; border-radius:18px; border:1px solid rgba(255,255,255,.10); background: rgba(0,0,0,.20);">
+      <div style="font-weight:950; margin-bottom:10px;">Session liée</div>
+      {% if c.session %}
+        <div style="font-weight:950;">{{ c.session.reference|default:"Session" }} — {{ c.session.client }}</div>
+        <div style="opacity:.75; margin-top:6px;">
+          📅 {{ c.session.start_date|date:"d/m/Y" }} → {{ c.session.end_date|date:"d/m/Y" }}
+          {% if c.session.training %} • {{ c.session.training }}{% endif %}
+        </div>
+        <div style="margin-top:10px;">
+          <a class="hbtn" href="/admin/trainings/session/{{ c.session.id }}/change/">Ouvrir session (admin)</a>
+        </div>
+      {% else %}
+        <div style="opacity:.7;">—</div>
+      {% endif %}
+    </div>
+
+    <div style="grid-column:1 / -1; padding:16px; border-radius:18px; border:1px solid rgba(255,255,255,.10); background: rgba(0,0,0,.20);">
+      <div style="font-weight:950; margin-bottom:10px;">Notes</div>
+      <div style="opacity:.85; white-space:pre-wrap;">{{ c.notes|default:"—" }}</div>
+    </div>
+  </div>
+</div>
+{% endblock %}

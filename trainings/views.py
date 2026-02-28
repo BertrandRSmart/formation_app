@@ -15,6 +15,9 @@ from django.views.decorators.http import require_POST
 from django.db.models import Sum, Count, Value, DecimalField, Q
 from django.db.models.functions import Coalesce, TruncMonth
 from django.http import FileResponse
+from .models import MercureInvoice, MercureContract
+from django.db.models import F, ExpressionWrapper, DateField
+
 
 import os
 from django.conf import settings
@@ -228,11 +231,14 @@ def _sync_task_from_objective(objective: OneToOneObjective) -> None:
 # Pages principales
 # =========================================================
 
-@login_required
+
 @login_required
 def home_view(request):
     today = date.today()
     limit = today + timedelta(days=15)
+
+    # ✅ Alertes FACTURES Mercure (init pour éviter NameError)
+    invoices_alerts = MercureInvoice.objects.none()
 
     qs = Session.objects.select_related("training", "client").filter(
         start_date__gte=today,
@@ -255,12 +261,64 @@ def home_view(request):
             t and (getattr(t, "product", "") or "").upper() == Trainer.PRODUCT_MERCURE
         )
 
+    # ✅ Alertes FACTURES Mercure : échéance <= 15 jours (et non payées)
+    if can_access_mercure or request.user.is_staff:
+        invoices_qs = (
+            MercureInvoice.objects
+            .select_related("trainer", "session", "session__client", "session__training")
+            .exclude(status=MercureInvoiceStatus.PAID)
+            .exclude(received_date__isnull=True)
+            .exclude(payment_alert_closed=True)   # ✅ ICI
+            .annotate(
+                due_date_db=ExpressionWrapper(
+                    F("received_date") + timedelta(days=60),
+                    output_field=DateField(),
+                )
+            )
+        )
+
+        # Si formateur readonly Mercure -> ses factures uniquement
+        if is_trainer_readonly(request.user):
+            t = get_trainer_for_user(request.user)
+            if t:
+                invoices_qs = invoices_qs.filter(trainer=t)
+
+        invoices_alerts = invoices_qs.filter(
+            due_date_db__gte=today,
+            due_date_db__lte=limit,
+        ).order_by("due_date_db")
+
+    # ✅ rendre le queryset "stable" + compteur fiable
+    invoices_alerts_list = list(invoices_alerts)
+    invoices_alerts_count = len(invoices_alerts_list)
+
+    convocations_alerts_list = list(convocations_alerts)
+    convocations_alerts_count = len(convocations_alerts_list)
+
+    alerts_total = invoices_alerts_count + convocations_alerts_count
+    
     return render(request, "trainings/home.html", {
-        "today": today,
-        "convocations_alerts": convocations_alerts,
-        "can_access_mercure": can_access_mercure,
+    "today": today,
+
+    # datasets
+    "convocations_alerts": convocations_alerts_list,
+    "invoices_alerts": invoices_alerts_list,
+
+    # compteurs
+    "convocations_alerts_count": convocations_alerts_count,
+    "invoices_alerts_count": invoices_alerts_count,
+    "alerts_total": alerts_total,
+
+    "can_access_mercure": can_access_mercure,
     })
 
+@staff_member_required
+@require_POST
+def dismiss_mercure_invoice_alert(request, invoice_id: int):
+    inv = get_object_or_404(MercureInvoice, pk=invoice_id)
+    inv.payment_alert_closed = True
+    inv.save(update_fields=["payment_alert_closed"])
+    return redirect("trainings:home")
 
 @login_required
 def team_home(request):
@@ -1380,3 +1438,40 @@ def mercure_invoice_open_view(request, invoice_id: int):
         return resp
     except PermissionError:
         raise Http404("Accès refusé au fichier de facture (droits insuffisants).")
+
+
+@login_required
+@mercure_only_required
+def mercure_invoice_detail_view(request, invoice_id: int):
+    inv = get_object_or_404(
+        MercureInvoice.objects.select_related("session", "session__client", "session__training", "trainer"),
+        pk=invoice_id,
+    )
+
+    # ✅ Sécurité : si formateur readonly, uniquement ses lignes
+    me = get_trainer_for_user(request.user)
+    if is_trainer_readonly(request.user) and me and inv.trainer_id != me.id:
+        raise PermissionDenied("Accès réservé.")
+
+    return render(request, "trainings/mercure_invoice_detail.html", {
+        "inv": inv,
+        "today": timezone.localdate(),
+    })
+
+
+@login_required
+@mercure_only_required
+def mercure_contract_detail_view(request, contract_id: int):
+    c = get_object_or_404(
+        MercureContract.objects.select_related("session", "session__client", "session__training", "trainer"),
+        pk=contract_id,
+    )
+
+    me = get_trainer_for_user(request.user)
+    if is_trainer_readonly(request.user) and me and c.trainer_id != me.id:
+        raise PermissionDenied("Accès réservé.")
+
+    return render(request, "trainings/mercure_contract_detail.html", {
+        "c": c,
+        "today": timezone.localdate(),
+    })

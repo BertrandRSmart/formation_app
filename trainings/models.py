@@ -11,6 +11,7 @@ from django.db import models
 from django.utils import timezone
 
 
+
 # =========================================================
 # Référentiels
 # =========================================================
@@ -481,6 +482,9 @@ class MercureContract(models.Model):
 
 
 class MercureInvoice(models.Model):
+
+    payment_alert_closed = models.BooleanField("Alerte paiement fermée", default=False)
+
     """
     Factures formateurs Mercure (suivi 60 jours à partir de la réception)
     """
@@ -501,6 +505,19 @@ class MercureInvoice(models.Model):
     blank=True,
     default="",
     )
+
+    from django.views.decorators.http import require_POST
+    from django.shortcuts import get_object_or_404, redirect
+    from django.contrib.admin.views.decorators import staff_member_required
+
+    @staff_member_required
+    @require_POST
+    def dismiss_mercure_invoice_alert(request, invoice_id: int):
+        inv = get_object_or_404(MercureInvoice, pk=invoice_id)
+        inv.payment_alert_closed = True
+        inv.save(update_fields=["payment_alert_closed"])
+        return redirect("trainings:home")
+
     reference = models.CharField(max_length=120, blank=True, default="")
     document_path = models.CharField("Chemin facture (interne)", max_length=500, blank=True, default="")
     amount_ht = models.DecimalField(
