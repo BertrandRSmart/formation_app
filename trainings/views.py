@@ -230,14 +230,87 @@ def _sync_task_from_objective(objective: OneToOneObjective) -> None:
 # =========================================================
 # Pages principales
 # =========================================================
+def _week_bounds(d: date) -> tuple[date, date]:
+    """Bornes semaine ISO (lundi -> dimanche) pour la date d."""
+    monday = d - timedelta(days=d.weekday())
+    sunday = monday + timedelta(days=6)
+    return monday, sunday
 
+
+def _session_days_in_week(start: date | None, end: date | None, week_start: date, week_end: date) -> int:
+    """Nombre de jours (inclusifs) de chevauchement entre [start,end] et [week_start,week_end]."""
+    if not start:
+        return 0
+    if not end:
+        end = start
+    a = max(start, week_start)
+    b = min(end, week_end)
+    if b < a:
+        return 0
+    return (b - a).days + 1
 
 @login_required
 def home_view(request):
     today = date.today()
     limit = today + timedelta(days=15)
 
-    # ✅ Alertes FACTURES Mercure (init pour éviter NameError)
+    # =========================
+    # 1) KPIs — Weekly Command Center
+    # =========================
+    week_start, week_end = _week_bounds(today)
+
+    # Sessions de la semaine (base)
+    week_sessions = (
+        Session.objects
+        .select_related("training", "training_type", "client")
+        .filter(start_date__gte=week_start, start_date__lte=week_end)
+    )
+
+    # KPI ArgonOS / Mercure
+    # ✅ On essaye training_type (souvent présent) ; fallback sur training.training_type si besoin
+    week_argonos_count = (
+        week_sessions.filter(
+            Q(training_type__name__iexact="ArgonOS")
+            | Q(training__training_type__name__iexact="ArgonOS")
+        ).count()
+    )
+
+    week_mercure_count = (
+        week_sessions.filter(
+            Q(training_type__name__iexact="Mercure")
+            | Q(training__training_type__name__iexact="Mercure")
+        ).count()
+    )
+
+    # KPI Deadlines (Tasks) — si projects app dispo
+    week_deadlines_count = None
+    if Task is not None:
+        # status DONE selon ton enum Task.Status.DONE si dispo, sinon fallback string
+        try:
+            done_value = Task.Status.DONE
+            week_deadlines_count = (
+                Task.objects.filter(due_date__gte=week_start, due_date__lte=week_end)
+                .exclude(status=done_value)
+                .count()
+            )
+        except Exception:
+            week_deadlines_count = (
+                Task.objects.filter(due_date__gte=week_start, due_date__lte=week_end)
+                .exclude(Q(status__iexact="DONE") | Q(status__iexact="TERMINÉ") | Q(status__iexact="TERMINE"))
+                .count()
+            )
+
+    # KPI Utilization — simple : jours planifiés cette semaine / 5 jours ouvrés
+    planned_days = 0
+    for start_date, end_date in week_sessions.values_list("start_date", "end_date"):
+        planned_days += _session_days_in_week(start_date, end_date, week_start, week_end)
+    working_days = 5
+    week_utilization_pct = round((planned_days / working_days) * 100) if working_days else None
+    utilization_target = 80
+
+    # =========================
+    # 2) Alertes convocations (inchangé)
+    # =========================
     invoices_alerts = MercureInvoice.objects.none()
 
     qs = Session.objects.select_related("training", "client").filter(
@@ -252,7 +325,9 @@ def home_view(request):
 
     convocations_alerts = qs.order_by("start_date")
 
-    # ✅ DROITS Mercure Paiements
+    # =========================
+    # 3) Droits Mercure paiements (inchangé)
+    # =========================
     if not is_trainer_readonly(request.user):
         can_access_mercure = True
     else:
@@ -261,14 +336,16 @@ def home_view(request):
             t and (getattr(t, "product", "") or "").upper() == Trainer.PRODUCT_MERCURE
         )
 
-    # ✅ Alertes FACTURES Mercure : échéance <= 15 jours (et non payées)
+    # =========================
+    # 4) Alertes factures Mercure (inchangé)
+    # =========================
     if can_access_mercure or request.user.is_staff:
         invoices_qs = (
             MercureInvoice.objects
             .select_related("trainer", "session", "session__client", "session__training")
             .exclude(status=MercureInvoiceStatus.PAID)
             .exclude(received_date__isnull=True)
-            .exclude(payment_alert_closed=True)   # ✅ ICI
+            .exclude(payment_alert_closed=True)
             .annotate(
                 due_date_db=ExpressionWrapper(
                     F("received_date") + timedelta(days=60),
@@ -288,7 +365,9 @@ def home_view(request):
             due_date_db__lte=limit,
         ).order_by("due_date_db")
 
-    # ✅ rendre le queryset "stable" + compteur fiable
+    # =========================
+    # 5) Compteurs + context (inchangé + KPIs ajoutés)
+    # =========================
     invoices_alerts_list = list(invoices_alerts)
     invoices_alerts_count = len(invoices_alerts_list)
 
@@ -296,20 +375,29 @@ def home_view(request):
     convocations_alerts_count = len(convocations_alerts_list)
 
     alerts_total = invoices_alerts_count + convocations_alerts_count
-    
+
     return render(request, "trainings/home.html", {
-    "today": today,
+        "today": today,
 
-    # datasets
-    "convocations_alerts": convocations_alerts_list,
-    "invoices_alerts": invoices_alerts_list,
+        # KPIs Weekly Command Center
+        "week_start": week_start,
+        "week_end": week_end,
+        "week_argonos_count": week_argonos_count,
+        "week_mercure_count": week_mercure_count,
+        "week_deadlines_count": week_deadlines_count if week_deadlines_count is not None else "—",
+        "week_utilization_pct": week_utilization_pct,
+        "utilization_target": utilization_target,
 
-    # compteurs
-    "convocations_alerts_count": convocations_alerts_count,
-    "invoices_alerts_count": invoices_alerts_count,
-    "alerts_total": alerts_total,
+        # datasets
+        "convocations_alerts": convocations_alerts_list,
+        "invoices_alerts": invoices_alerts_list,
 
-    "can_access_mercure": can_access_mercure,
+        # compteurs
+        "convocations_alerts_count": convocations_alerts_count,
+        "invoices_alerts_count": invoices_alerts_count,
+        "alerts_total": alerts_total,
+
+        "can_access_mercure": can_access_mercure,
     })
 
 @staff_member_required
@@ -971,10 +1059,6 @@ def argonos_manager_dashboard(request):
 
         "rows": rows,
     })
-
-# ==============================================================
-# Dashboard_ca
-# ==============================================================
 
 # ==============================================================
 # Dashboard CA (filtres + clic histogramme)

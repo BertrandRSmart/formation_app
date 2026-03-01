@@ -1,14 +1,14 @@
 {# templates/trainings/base.html #}
 {% load static %}
 <!doctype html>
-<html lang="fr" data-theme="dark">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}BSmart Application{% endblock %}</title>
 
   <style>
-    /* ✅ Reset global */
+    /* ✅ Global reset */
     html, body { margin: 0; padding: 0; height: 100%; }
     *, *::before, *::after { box-sizing: border-box; }
 
@@ -20,7 +20,7 @@
       --text: rgba(255,255,255,.92);
       --muted: rgba(255,255,255,.70);
 
-      --accent-1: #3B82F6; /* bleu */
+      --accent-1: #3B82F6; /* blue */
       --accent-2: #A855F7; /* violet */
       --accent-3: #7C3AED;
 
@@ -114,7 +114,7 @@
         drop-shadow(0 0 16px rgba(168,85,247,.45));
     }
 
-    /* ✅ Date tiles à la place du texte */
+    /* ✅ Date tiles instead of text */
     .brand-date{
       display:flex;
       align-items:center;
@@ -122,7 +122,7 @@
       margin-left: 2px;
     }
 
-    /* Icône calendrier (SVG inline, colorisée) */
+    /* Calendar icon (inline SVG) */
     .cal-ic{
       width: 22px;
       height: 22px;
@@ -156,7 +156,7 @@
       overflow:hidden;
     }
 
-    /* Diagonale “futuriste” */
+    /* Futuristic diagonal */
     .dt::after{
       content:"";
       position:absolute;
@@ -169,7 +169,6 @@
       pointer-events:none;
     }
 
-    /* ✅ Plus compact, sans libellés */
     .dt-num{
       font-weight: 950;
       font-size: 22px;
@@ -177,7 +176,7 @@
       color: rgba(255,255,255,0.92);
     }
 
-    /* Couleurs (jour / mois / année) */
+    /* Colors (day / month / year) */
     .dt--day   { background: rgba(59,130,246,0.18); border-color: rgba(59,130,246,0.30); }
     .dt--month { background: rgba(16,185,129,0.18); border-color: rgba(16,185,129,0.30); }
     .dt--year  { background: rgba(168,85,247,0.18); border-color: rgba(168,85,247,0.30); }
@@ -228,7 +227,7 @@
 
     /* ✅ Responsive */
     @media (max-width: 1100px){
-      .brand-date{ display:none; } /* cache les tiles si pas assez de place */
+      .brand-date{ display:none; }
       .bsmart-brand{ min-width:auto; }
     }
     @media (max-width: 920px){
@@ -240,7 +239,7 @@
     }
 
     /* =========================
-       ✅ Drawer (panel droite)
+       ✅ Drawer (right panel)
        ========================= */
     .drawer-backdrop{
       position: fixed;
@@ -358,9 +357,8 @@
       <a class="bsmart-brand" href="/">
         <img class="bsmart-logo" src="{% static 'trainings/img/bsmart-logo.png' %}?v=4" alt="BSmart">
 
-        <!-- ✅ À la place du texte : icône calendrier + carrés jour/mois/année -->
-        <div class="brand-date" aria-label="Date du jour">
-          <!-- calendrier (svg) -->
+        <!-- ✅ calendar icon + day/month/year tiles -->
+        <div class="brand-date" aria-label="Today's date">
           <svg class="cal-ic" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M7 2v3M17 2v3" stroke="rgba(255,255,255,.9)" stroke-width="2" stroke-linecap="round"/>
             <path d="M3.5 9h17" stroke="rgba(255,255,255,.55)" stroke-width="2" stroke-linecap="round"/>
@@ -370,25 +368,25 @@
           </svg>
 
           <div class="date-tiles">
-            <div class="dt dt--day" title="Jour"><div class="dt-num">{{ today|date:"d" }}</div></div>
-            <div class="dt dt--month" title="Mois"><div class="dt-num">{{ today|date:"m" }}</div></div>
-            <div class="dt dt--year" title="Année"><div class="dt-num">{{ today|date:"Y" }}</div></div>
+            <div class="dt dt--day" title="Day"><div class="dt-num">{{ today|date:"d" }}</div></div>
+            <div class="dt dt--month" title="Month"><div class="dt-num">{{ today|date:"m" }}</div></div>
+            <div class="dt dt--year" title="Year"><div class="dt-num">{{ today|date:"Y" }}</div></div>
           </div>
         </div>
       </a>
 
       <nav class="bsmart-nav">
-        <a class="{% if request.path == '/' %}is-active{% endif %}" href="/">Accueil</a>
-        <a class="{% if request.path|slice:':8' == '/agenda/' %}is-active{% endif %}" href="/agenda/">Agenda</a>
+        <a class="{% if request.path == '/' %}is-active{% endif %}" href="/">Home</a>
+        <a class="{% if request.path|slice:':8' == '/agenda/' %}is-active{% endif %}" href="/agenda/">Calendar</a>
         <a class="{% if request.path|slice:':11' == '/dashboard/' %}is-active{% endif %}" href="/dashboard/">Dashboard</a>
         <a class="{% if request.path|slice:':6' == '/team/' %}is-active{% endif %}"
-           href="/team/?product=ARGONOS">Équipe</a>
+           href="/team/?product=ARGONOS">Teams</a>
 
         {% if request.user.is_staff %}
           <a href="/admin/">Admin</a>
         {% endif %}
 
-        <a href="{% url 'logout' %}">Déconnexion</a>
+        <a href="{% url 'logout' %}">Sign out</a>
       </nav>
 
     </div>
