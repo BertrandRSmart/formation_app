@@ -79,7 +79,9 @@ def generate_invitations_for_session(*, session: Session, lang: str, base_url: s
     )
 
     # Adresse + lien Google Maps
+    
     address = _location_address_only(session)
+    
     map_url = f"https://www.google.com/maps/search/?api=1&query={quote_plus(address)}" if address else ""
 
     # emails.txt
@@ -121,8 +123,8 @@ def generate_invitations_for_session(*, session: Session, lang: str, base_url: s
     }
 
     # Horaires (si tu veux les rendre dynamiques plus tard, remplace ici)
-    schedule_am = "09:00-12:30"
-    schedule_pm = "14:00-17:30"
+    schedule_am = "09:00-12:00"
+    schedule_pm = "13:30-16:30"
 
     # Logo en URL absolue (servi par Django /static/)
     # -> place le fichier ici: trainings/static/trainings/logo-ArgonOS.png

@@ -99,9 +99,9 @@
       border-radius:18px;
       overflow:hidden;
       background:#fff;
-      /* shadow mint */
       box-shadow: 0 10px 0 0 #DCEFE3;
     }
+
     .card-head{
       background:#156082;
       color:#fff;
@@ -113,11 +113,32 @@
     }
     .card-body{ padding:12px 16px 14px; }
 
-    .kv{ width:100%; border-collapse:collapse; font-size:13.5px; font-weight:700; }
-    .kv td{ padding:5px 0; vertical-align:top; }
-    .k{ width:170px; font-weight:900; color:#156082; }
-    .v{ font-weight:800; color:#0f172a; }
+    .kv{
+      width:100%;
+      border-collapse:collapse;
+      table-layout:fixed;
+      font-size:13.5px;
+      font-weight:700;
+    }
+    .kv td{
+      padding:5px 0;
+      vertical-align:top;
+    }
+    .k{
+      width:150px;
+      font-weight:900;
+      color:#156082;
+      padding-right:12px;
+    }
+    .v{
+      font-weight:800;
+      color:#0f172a;
+      white-space:normal;
+      word-break:break-word;
+      overflow-wrap:anywhere;
+    }
 
+    
     .maplink{
       color:#156082;
       font-weight:900;
@@ -141,7 +162,34 @@
       font-size:16px;
     }
 
+     
     
+    .place-table td{
+      vertical-align:top;
+      padding:4px 0;
+    }
+
+    
+    .place-stack{
+      display:block;
+    }
+
+    .place-label{
+      font-weight:900;
+      color:#156082;
+      font-size:13.5px;
+      margin:0 0 4px 0;
+    }
+
+    .place-value{
+      color:#0f172a;
+      font-weight:800;
+      font-size:13.5px;
+      line-height:1.4;
+      white-space:normal;
+      word-break:break-word;
+      overflow-wrap:break-word;
+    }
   </style>
 </head>
 
@@ -201,12 +249,17 @@
       <div class="card">
         <div class="card-head">LIEU</div>
         <div class="card-body">
-          <table class="kv">
-            <tr><td class="k">Adresse</td><td class="v">{{ location_address|default:"—" }}</td></tr>
+          <div class="place-stack">
+            <div class="place-label">Adresse</div>
+            <div class="place-value">{{ location_address|default:"—" }}</div>
+
             {% if map_url %}
-              <tr><td class="k">Voir la carte</td><td class="v"><a class="maplink" href="{{ map_url }}">Ouvrir Google Maps</a></td></tr>
+              <div class="place-label" style="margin-top:10px;">Voir la carte</div>
+              <div class="place-value">
+                <a class="maplink" href="{{ map_url }}">Ouvrir Google Maps</a>
+              </div>
             {% endif %}
-          </table>
+          </div>
         </div>
       </div>
 

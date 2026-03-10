@@ -7,11 +7,9 @@ from import_export import resources, fields
 from import_export.admin import ImportExportModelAdmin
 from import_export.widgets import ForeignKeyWidget
 
-
 from .services.invitations import generate_invitations_for_session
 
 from .models import MercureContract, MercureInvoice
-
 
 from .models import (
     Client,
@@ -26,9 +24,17 @@ from .models import (
 )
 
 # ---------------------------------------------------------
+# Clients
+# ---------------------------------------------------------
+@admin.register(Client)
+class ClientAdmin(admin.ModelAdmin):
+    list_display = ("name", "is_partner", "country")
+    list_filter = ("is_partner", "country")
+    search_fields = ("name", "country")
+
+# ---------------------------------------------------------
 # Enregistrements simples
 # ---------------------------------------------------------
-admin.site.register(Client)
 admin.site.register(Room)
 admin.site.register(TrainingType)
 admin.site.register(Training)

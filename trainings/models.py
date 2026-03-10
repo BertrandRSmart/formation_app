@@ -20,6 +20,8 @@ from django.utils.html import format_html
 
 class Client(models.Model):
     name = models.CharField(max_length=200)
+    is_partner = models.BooleanField("Partenaire", default=False)
+    country = models.CharField("Pays", max_length=120, blank=True, default="")
 
     def __str__(self) -> str:
         return self.name

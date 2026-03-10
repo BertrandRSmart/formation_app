@@ -1127,7 +1127,7 @@
                   </div>
                 </a>
 
-                <a class="neon-card neon--ref" href="/admin/trainings/partner/">
+                <a class="neon-card neon--ref" href="{% url 'trainings:partners_dashboard' %}">
                   <div class="neon-icon"><img class="neon-ico" src="{% static 'trainings/img/partners_neon.png' %}" alt=""></div>
                   <div class="neon-text">
                     <p class="neon-title">PARTNERS</p>
@@ -1299,12 +1299,34 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
+  // =========================================================
+  // Alerts overview -> open drawer + scroll to section
+  // =========================================================
+  const alertCards = document.querySelectorAll('.alert-open');
+
+  alertCards.forEach(card => {
+    card.addEventListener('click', () => {
+      const targetId = card.dataset.target;
+
+      openDrawer('alertsDrawer');
+
+      setTimeout(() => {
+        const target = document.getElementById(targetId);
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 180);
+    });
+  });
+
+  // =========================================================
+  // Orbit / cockpit
+  // =========================================================
   const orbitZone = document.getElementById('orbitZone');
   const planets = Array.from(document.querySelectorAll('.planet'));
 
   if (!orbitZone || planets.length === 0) return;
 
-  // cockpit
   const sections = Array.from(document.querySelectorAll('.cockpit-section'));
   const titleEl = document.getElementById('cockpitTitle');
   const subEl = document.getElementById('cockpitSub');
@@ -1322,7 +1344,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // pause/resume
   let paused = false;
 
   orbitZone.addEventListener('click', (e) => {
@@ -1334,14 +1355,13 @@ document.addEventListener('DOMContentLoaded', () => {
     p.addEventListener('click', (e) => {
       e.stopPropagation();
       setActive(p.dataset.domain);
-      paused = false; // reprend après sélection
+      paused = false;
     });
   });
 
-  // orbit engine
   let rx = 300;
   let ry = 170;
-  let speed = 0.14; // ✅ moins vite (essaie 0.10 si tu veux encore plus lent)
+  let speed = 0.14;
 
   const N = planets.length;
   const baseAngles = planets.map((_, i) => (i / N) * Math.PI * 2);
@@ -1353,9 +1373,10 @@ document.addEventListener('DOMContentLoaded', () => {
     rx = Math.max(220, Math.min(420, w * 0.34));
     ry = Math.max(130, Math.min(260, h * 0.30));
   }
+
   window.addEventListener('resize', resizeOrbit);
   resizeOrbit();
-  requestAnimationFrame(() => resizeOrbit()); // ✅ après layout
+  requestAnimationFrame(() => resizeOrbit());
 
   let last = performance.now();
   let angle = 0;
@@ -1371,7 +1392,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const x = Math.cos(a) * rx;
       const y = Math.sin(a) * ry;
 
-      const front = (Math.sin(a) + 1) / 2; // 0..1
+      const front = (Math.sin(a) + 1) / 2;
       const scale = 0.78 + front * 0.42;
       const zIndex = Math.round(10 + front * 90);
       const opacity = 0.60 + front * 0.40;
@@ -1387,9 +1408,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     requestAnimationFrame(tick);
   }
+
   requestAnimationFrame(tick);
 
-  // init cockpit
   const active = planets.find(p => p.classList.contains('is-active')) || planets[0];
   if (active) setActive(active.dataset.domain);
 });

@@ -12,7 +12,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
-from django.db.models import Sum, Count, Value, DecimalField, Q
+from django.db.models import Sum, Count, Value, DecimalField, Q, IntegerField
 from django.db.models.functions import Coalesce, TruncMonth
 from django.http import FileResponse
 from .models import MercureInvoice, MercureContract
@@ -1835,3 +1835,90 @@ def api_prereq_initiation(request):
 
     ok, msg = check_initiation_prereq(s, email)
     return JsonResponse({"needs_prereq": True, "ok": ok, "message": msg})
+
+
+def partners_dashboard(request):
+    partner_id = (request.GET.get("partner") or "").strip()
+    country = (request.GET.get("country") or "").strip()
+
+    partners_qs = Client.objects.filter(is_partner=True)
+
+    if country:
+        partners_qs = partners_qs.filter(country=country)
+
+    selected_partner = None
+    if partner_id.isdigit():
+        selected_partner = Client.objects.filter(
+            pk=int(partner_id),
+            is_partner=True,
+        ).first()
+
+    sessions_qs = (
+        Session.objects
+        .select_related("client", "training", "training_type", "trainer", "room")
+        .filter(client__is_partner=True)
+        .order_by("-start_date", "-id")
+    )
+
+    if country:
+        sessions_qs = sessions_qs.filter(client__country=country)
+
+    if selected_partner:
+        sessions_qs = sessions_qs.filter(client=selected_partner)
+
+    total_partners = partners_qs.count() if not selected_partner else 1
+
+    countries_count = (
+        partners_qs.exclude(country="")
+        .values("country")
+        .distinct()
+        .count()
+    )
+
+    sessions_count = sessions_qs.count()
+
+    participants_total = sessions_qs.aggregate(
+        total=Coalesce(Sum("present_count"), Value(0), output_field=IntegerField())
+    )["total"]
+
+    participants_by_type = (
+        sessions_qs.values("training_type__name")
+        .annotate(
+            participants=Coalesce(Sum("present_count"), Value(0), output_field=IntegerField()),
+            sessions=Count("id"),
+        )
+        .order_by("training_type__name")
+    )
+
+    partners_by_country = (
+        partners_qs.exclude(country="")
+        .values("country")
+        .annotate(total=Count("id"))
+        .order_by("country")
+    )
+
+    partner_options = Client.objects.filter(is_partner=True).order_by("name")
+
+    country_options = (
+        Client.objects.filter(is_partner=True)
+        .exclude(country="")
+        .values_list("country", flat=True)
+        .distinct()
+        .order_by("country")
+    )
+
+    context = {
+        "partner_options": partner_options,
+        "country_options": country_options,
+        "selected_partner": selected_partner,
+        "selected_partner_id": partner_id,
+        "selected_country": country,
+        "total_partners": total_partners,
+        "countries_count": countries_count,
+        "sessions_count": sessions_count,
+        "participants_total": participants_total,
+        "participants_by_type": participants_by_type,
+        "partners_by_country": partners_by_country,
+        "sessions": sessions_qs,
+    }
+    return render(request, "trainings/partners_dashboard.html", context)

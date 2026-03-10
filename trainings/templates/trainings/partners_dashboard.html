@@ -1,0 +1,580 @@
+{% extends "trainings/base.html" %}
+{% load static %}
+
+{% block title %}Partenaires — BSmart Application{% endblock %}
+{% block body_class %}no-scroll{% endblock %}
+
+{% block content %}
+<div class="partners-shell">
+
+  <aside class="partners-sidebar glass">
+    <div class="sidebar-head">
+      <div class="eyebrow">Partner Hub</div>
+      <h1>Partenaires</h1>
+      <p>
+        Vue globale des partenaires, de l’activité formation et du volume de participants.
+      </p>
+    </div>
+
+    <form method="get" class="filters-form">
+      <div class="filter-group">
+        <label for="partner">Partenaire</label>
+        <select name="partner" id="partner">
+          <option value="">Tous les partenaires</option>
+          {% for p in partner_options %}
+            <option value="{{ p.id }}" {% if selected_partner_id == p.id|stringformat:"s" %}selected{% endif %}>
+              {{ p.name }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label for="country">Pays</label>
+        <select name="country" id="country">
+          <option value="">Tous les pays</option>
+          {% for c in country_options %}
+            <option value="{{ c }}" {% if selected_country == c %}selected{% endif %}>{{ c }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="filter-actions">
+        <button type="submit" class="btn-primary">Appliquer</button>
+        <a href="{% url 'trainings:partners_dashboard' %}" class="btn-secondary">Réinitialiser</a>
+      </div>
+    </form>
+
+    <div class="sidebar-note">
+      {% if selected_partner %}
+        <div class="mini-title">Partenaire sélectionné</div>
+        <div class="mini-card">
+          <strong>{{ selected_partner.name }}</strong>
+          <div class="muted">
+            {% if selected_partner.country %}{{ selected_partner.country }}{% else %}Pays non renseigné{% endif %}
+          </div>
+        </div>
+      {% else %}
+        <div class="mini-title">Vue active</div>
+        <div class="mini-card">
+          <strong>Vue globale</strong>
+          <div class="muted">Tous les partenaires</div>
+        </div>
+      {% endif %}
+    </div>
+  </aside>
+
+  <main class="partners-main">
+
+    <section class="glass hero-block">
+      <div class="hero-top">
+        <div>
+          <div class="eyebrow">Dashboard Partenaires</div>
+          <h2>
+            {% if selected_partner %}
+              {{ selected_partner.name }}
+            {% else %}
+              Vue globale partenaires
+            {% endif %}
+          </h2>
+        </div>
+      </div>
+
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">Nombre de partenaires</div>
+          <div class="kpi-value">{{ total_partners }}</div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-label">Pays couverts</div>
+          <div class="kpi-value">{{ countries_count }}</div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-label">Sessions de formation</div>
+          <div class="kpi-value">{{ sessions_count }}</div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-label">Participants</div>
+          <div class="kpi-value">{{ participants_total }}</div>
+        </div>
+      </div>
+
+      <div class="analytics-grid">
+        <div class="subpanel">
+          <div class="subpanel-head">
+            <h3>Partenaires par pays</h3>
+          </div>
+
+          {% if partners_by_country %}
+            <div class="stat-list">
+              {% for row in partners_by_country %}
+                <div class="stat-row">
+                  <span>{{ row.country }}</span>
+                  <strong>{{ row.total }}</strong>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="empty-state">Aucune donnée pays disponible.</div>
+          {% endif %}
+        </div>
+
+        <div class="subpanel">
+          <div class="subpanel-head">
+            <h3>Participants par type de formation</h3>
+          </div>
+
+          {% if participants_by_type %}
+            <div class="stat-list">
+              {% for row in participants_by_type %}
+                <div class="stat-row">
+                  <div>
+                    <span>{{ row.training_type__name }}</span>
+                    <div class="row-sub">{{ row.sessions }} session{{ row.sessions|pluralize }}</div>
+                  </div>
+                  <strong>{{ row.participants }}</strong>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="empty-state">Aucune donnée formation disponible.</div>
+          {% endif %}
+        </div>
+      </div>
+    </section>
+
+    <section class="glass table-block">
+      <div class="table-head">
+        <div>
+          <div class="eyebrow">Sessions</div>
+          <h3>Formations réalisées</h3>
+        </div>
+        <div class="table-count">{{ sessions_count }} session{{ sessions_count|pluralize }}</div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="sessions-table">
+          <thead>
+            <tr>
+              <th>Référence</th>
+              <th>Date</th>
+              <th>Partenaire</th>
+              <th>Pays</th>
+              <th>Formation</th>
+              <th>Type</th>
+              <th>Formateur</th>
+              <th>Participants</th>
+              <th>Lieu</th>
+              <th>Satisfaction</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in sessions %}
+              <tr>
+                <td>{{ s.reference }}</td>
+                <td>
+                  {% if s.start_date %}{{ s.start_date|date:"d/m/Y" }}{% else %}—{% endif %}
+                  {% if s.end_date and s.end_date != s.start_date %}
+                    <br><span class="muted">{{ s.end_date|date:"d/m/Y" }}</span>
+                  {% endif %}
+                </td>
+                <td>{{ s.client.name }}</td>
+                <td>{{ s.client.country|default:"—" }}</td>
+                <td>{{ s.training.title }}</td>
+                <td>{{ s.training_type.name }}</td>
+                <td>{{ s.trainer }}</td>
+                <td>{{ s.present_count }}</td>
+                <td>
+                  {% if s.on_client_site %}
+                    Chez client
+                  {% else %}
+                    {{ s.room.name|default:"—" }}
+                  {% endif %}
+                </td>
+                <td>
+                  {% if s.client_satisfaction %}
+                    {{ s.client_satisfaction }}/20
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="10" class="table-empty">
+                  Aucune session trouvée pour les filtres sélectionnés.
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<style>
+  :root{
+    --bg: #0B0F14;
+    --panel: rgba(255,255,255,0.05);
+    --panel-strong: rgba(255,255,255,0.07);
+    --border-soft: rgba(255,255,255,0.09);
+    --text: rgba(255,255,255,0.92);
+    --muted: rgba(255,255,255,0.62);
+    --shadow: 0 18px 45px rgba(0,0,0,0.55);
+    --r: 22px;
+    --accent: #7C3AED;
+    --accent-2: #3B82F6;
+  }
+
+  .partners-shell{
+    position: fixed;
+    inset: 0;
+    padding: 92px 18px 18px;
+    box-sizing: border-box;
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: 300px minmax(0, 1fr);
+    gap: 18px;
+    color: var(--text);
+    background:
+      radial-gradient(900px 500px at 10% -10%, rgba(59,130,246,.18), transparent 55%),
+      radial-gradient(900px 500px at 100% 0%, rgba(124,58,237,.18), transparent 55%),
+      linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0)),
+      #0B0F14;
+  }
+
+  .glass{
+    border-radius: var(--r);
+    border: 1px solid var(--border-soft);
+    background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+    backdrop-filter: blur(12px);
+    box-shadow: var(--shadow);
+  }
+
+  .partners-sidebar{
+    padding: 18px;
+    overflow: auto;
+  }
+
+  .partners-main{
+    min-width: 0;
+    overflow: auto;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 18px;
+  }
+
+  .sidebar-head h1,
+  .hero-top h2,
+  .table-head h3{
+    margin: 0;
+    font-weight: 950;
+    letter-spacing: .2px;
+  }
+
+  .sidebar-head p{
+    margin: 8px 0 0;
+    color: var(--muted);
+    line-height: 1.5;
+    font-size: 14px;
+  }
+
+  .eyebrow{
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    color: rgba(255,255,255,.48);
+    margin-bottom: 8px;
+    font-weight: 800;
+  }
+
+  .filters-form{
+    margin-top: 18px;
+    display: grid;
+    gap: 14px;
+  }
+
+  .filter-group{
+    display: grid;
+    gap: 8px;
+  }
+
+  .filter-group label{
+    font-size: 12px;
+    font-weight: 800;
+    color: rgba(255,255,255,.78);
+  }
+
+  .filter-group select{
+    width: 100%;
+    border: 1px solid rgba(255,255,255,.10);
+    background: rgba(255,255,255,.05);
+    color: white;
+    border-radius: 14px;
+    padding: 12px 14px;
+    outline: none;
+  }
+
+  .filter-actions{
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+  }
+
+  .btn-primary,
+  .btn-secondary{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 42px;
+    padding: 0 14px;
+    border-radius: 12px;
+    text-decoration: none;
+    font-weight: 900;
+    border: 1px solid transparent;
+  }
+
+  .btn-primary{
+    background: linear-gradient(135deg, rgba(124,58,237,.95), rgba(59,130,246,.95));
+    color: white;
+  }
+
+  .btn-secondary{
+    background: rgba(255,255,255,.05);
+    border-color: rgba(255,255,255,.10);
+    color: white;
+  }
+
+  .sidebar-note{
+    margin-top: 18px;
+    padding-top: 18px;
+    border-top: 1px solid rgba(255,255,255,.08);
+  }
+
+  .mini-title{
+    font-size: 12px;
+    font-weight: 900;
+    margin-bottom: 8px;
+    color: rgba(255,255,255,.8);
+  }
+
+  .mini-card{
+    border-radius: 16px;
+    padding: 14px;
+    background: rgba(255,255,255,.04);
+    border: 1px solid rgba(255,255,255,.08);
+  }
+
+  .muted{
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .hero-block{
+    padding: 18px;
+  }
+
+  .hero-top{
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 18px;
+  }
+
+  .kpi-grid{
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+
+  .kpi-card{
+    border-radius: 18px;
+    padding: 16px;
+    background: rgba(255,255,255,.045);
+    border: 1px solid rgba(255,255,255,.08);
+  }
+
+  .kpi-label{
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 8px;
+    font-weight: 700;
+  }
+
+  .kpi-value{
+    font-size: 30px;
+    font-weight: 950;
+    line-height: 1;
+  }
+
+  .analytics-grid{
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .subpanel{
+    border-radius: 18px;
+    padding: 16px;
+    background: rgba(255,255,255,.04);
+    border: 1px solid rgba(255,255,255,.08);
+    min-width: 0;
+  }
+
+  .subpanel-head{
+    margin-bottom: 12px;
+  }
+
+  .subpanel-head h3{
+    margin: 0;
+    font-size: 15px;
+    font-weight: 900;
+  }
+
+  .stat-list{
+    display: grid;
+    gap: 10px;
+  }
+
+  .stat-row{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border-radius: 14px;
+    padding: 12px 14px;
+    background: rgba(255,255,255,.035);
+    border: 1px solid rgba(255,255,255,.06);
+  }
+
+  .row-sub{
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .empty-state{
+    padding: 18px;
+    border-radius: 14px;
+    background: rgba(255,255,255,.035);
+    color: var(--muted);
+    text-align: center;
+  }
+
+  .table-block{
+    padding: 18px;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .table-head{
+    display: flex;
+    justify-content: space-between;
+    align-items: end;
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+
+  .table-count{
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 800;
+  }
+
+  .table-wrap{
+    min-height: 0;
+    overflow: auto;
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,.08);
+    background: rgba(255,255,255,.03);
+  }
+
+  .sessions-table{
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 1100px;
+  }
+
+  .sessions-table thead th{
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: rgba(16,18,24,.96);
+    color: rgba(255,255,255,.72);
+    font-size: 12px;
+    text-align: left;
+    padding: 14px 14px;
+    border-bottom: 1px solid rgba(255,255,255,.08);
+    white-space: nowrap;
+  }
+
+  .sessions-table tbody td{
+    padding: 14px;
+    border-bottom: 1px solid rgba(255,255,255,.06);
+    vertical-align: top;
+    font-size: 14px;
+  }
+
+  .sessions-table tbody tr:hover{
+    background: rgba(255,255,255,.03);
+  }
+
+  .table-empty{
+    text-align: center;
+    color: var(--muted);
+    padding: 28px !important;
+  }
+
+  @media (max-width: 1200px){
+    .kpi-grid{
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .analytics-grid{
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 980px){
+    .partners-shell{
+      position: static;
+      display: block;
+      padding: 92px 14px 18px;
+      overflow: visible;
+    }
+
+    .partners-sidebar{
+      margin-bottom: 16px;
+    }
+
+    .partners-main{
+      overflow: visible;
+      display: block;
+    }
+
+    .hero-block{
+      margin-bottom: 16px;
+    }
+  }
+
+  @media (max-width: 640px){
+    .kpi-grid{
+      grid-template-columns: 1fr;
+    }
+
+    .table-head{
+      flex-direction: column;
+      align-items: start;
+    }
+  }
+</style>
+{% endblock %}

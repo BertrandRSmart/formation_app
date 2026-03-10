@@ -162,6 +162,6 @@ urlpatterns = [
     path("alerts/convocations/<int:session_id>/create-invitations/", views.create_invitations, name="create_invitations"),
     path("api/prereq-initiation/", views.api_prereq_initiation, name="api_prereq_initiation"),
 
-    
+    path("partners/", views.partners_dashboard, name="partners_dashboard"),
     
     ]
