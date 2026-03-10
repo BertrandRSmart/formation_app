@@ -1,0 +1,298 @@
+{% extends "trainings/base.html" %}
+{% load static %}
+
+{% block title %}Internal Evaluation — BSmart{% endblock %}
+{% block body_class %}no-scroll{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* --- page cadrée --- */
+  html, body { height:100%; margin:0; }
+  body { overflow:hidden !important; }
+  main { height:100%; overflow:hidden; }
+
+  .wrap{
+    position: fixed;
+    inset: 0;
+    padding: 92px 18px 18px;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+
+  .panel{
+    height: calc(100vh - 92px - 18px);
+    border-radius: 22px;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.04);
+    box-shadow: 0 18px 45px rgba(0,0,0,0.55);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+    min-height:0;
+  }
+
+  .head{
+    flex: 0 0 auto;
+    padding: 14px 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap: 12px;
+  }
+
+  /* --- NEW: split layout --- */
+  .split{
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 16px;
+    display: grid;
+    grid-template-columns: 1.05fr 0.95fr; /* gauche un poil plus large */
+    gap: 14px;
+    overflow:hidden;
+  }
+
+  .col{
+    min-height: 0;
+    overflow:auto;
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(0,0,0,0.18);
+    padding: 14px;
+  }
+
+  .col-title{
+    font-weight: 950;
+    margin: 0 0 10px;
+    opacity:.95;
+  }
+  .col-sub{
+    margin: -6px 0 12px;
+    font-size: 12px;
+    opacity:.7;
+  }
+
+  /* --- form fields --- */
+  .grid{ display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .field label{ display:block; font-size:12px; opacity:.85; font-weight:900; margin-bottom:6px; }
+  .field input, .field select, .field textarea{
+    width:100%;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(0,0,0,0.22);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: white;
+    font-weight: 900;
+    outline:none;
+  }
+  .field textarea{ min-height: 84px; }
+
+  /* --- scores table --- */
+  .scores{ border-radius: 16px; border: 1px solid rgba(255,255,255,0.08); overflow:hidden; }
+  .scores-head{
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    font-weight: 950;
+    background: rgba(255,255,255,0.03);
+    position: sticky;
+    top: 0;
+    z-index: 5;
+  }
+  table{ width:100%; border-collapse: collapse; }
+  th, td{ padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.06); vertical-align: top; font-size: 13px; }
+  th{ text-transform: uppercase; letter-spacing: .9px; font-size: 11px; opacity:.8; text-align:left; }
+  td input[type="number"]{ width: 90px; }
+
+  .actions{
+    display:flex;
+    justify-content:flex-end;
+    gap: 10px;
+    padding-top: 12px;
+  }
+  .btn{
+    padding: 10px 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.14);
+    background: rgba(255,255,255,0.06);
+    color: white;
+    font-weight: 950;
+    cursor:pointer;
+    text-decoration:none;
+  }
+  .btn:hover{ filter: brightness(1.06); }
+
+  /* responsive */
+  @media (max-width: 1100px){
+    .split{ grid-template-columns: 1fr; }
+    .grid{ grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 720px){
+    .grid{ grid-template-columns: 1fr; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="wrap">
+  <div class="panel">
+    <div class="head">
+      <div>
+        <h1 class="h-title">
+          {% if mode == "edit" %}✏️ Edit Evaluation{% else %}➕ New Evaluation{% endif %}
+        </h1>
+        <div class="h-sub">Context • Comments • Criteria scoring</div>
+      </div>
+      <a class="btn" href="{% url 'trainer_eval:internal_eval_list' %}">Back</a>
+    </div>
+
+    <form method="post">
+      {% csrf_token %}
+
+      <div class="split">
+
+        <!-- LEFT -->
+        <section class="col">
+          <h3 class="col-title">🧾 Context & comments</h3>
+          <div class="col-sub">Trainer, training, rubric + qualitative feedback</div>
+
+          <div class="grid">
+            {% for field in form %}
+              {% if field.name == "evaluated_on" or field.name == "trainer" or field.name == "training" or field.name == "rubric" %}
+                <div class="field">
+                  {{ field.label_tag }}
+                  {{ field }}
+                  {% if field.errors %}
+                    <div style="color:#ffb4b4; font-weight:900; margin-top:6px;">{{ field.errors }}</div>
+                  {% endif %}
+                </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+
+          <div class="grid" style="grid-template-columns:1fr 1fr; margin-top:12px;">
+            <div class="field">
+              {{ form.strengths.label_tag }}{{ form.strengths }}
+            </div>
+            <div class="field">
+              {{ form.improvements.label_tag }}{{ form.improvements }}
+            </div>
+          </div>
+
+          <div class="grid" style="grid-template-columns:1fr 1fr; margin-top:12px;">
+            <div class="field">
+              {{ form.manager_comment.label_tag }}{{ form.manager_comment }}
+            </div>
+            <div class="field">
+              {{ form.trainer_comment.label_tag }}{{ form.trainer_comment }}
+            </div>
+          </div>
+
+          <div class="actions">
+            <button class="btn" type="submit">Save</button>
+            {% if mode == "edit" %}
+              <a class="btn" href="{% url 'trainer_eval:internal_eval_list' %}">Done</a>
+            {% endif %}
+          </div>
+        </section>
+
+        <!-- RIGHT -->
+        <section class="col">
+          <h3 class="col-title">✅ Criteria scores</h3>
+          <div class="col-sub">Score each criterion (0–5) + optional comment</div>
+
+          <div class="scores">
+            <div class="scores-head">Criteria scores</div>
+
+            {{ formset.management_form }}
+
+            <table>
+              <thead>
+                <tr>
+                  <th>Criterion</th>
+                  <th style="width:120px;">Score (0-5)</th>
+                  <th>Comment</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% if formset.forms %}
+                  {% for f in formset.forms %}
+                    <tr>
+                      <td>
+                        {{ f.criterion }}
+                        {% if f.instance.criterion %}
+                          <div style="font-weight:950;">{{ f.instance.criterion.label }}</div>
+                          <div style="opacity:.7; font-size:12px;">{{ f.instance.criterion.get_section_display }}</div>
+                        {% else %}
+                          <div style="font-weight:950; opacity:.75;">(criterion)</div>
+                        {% endif %}
+                      </td>
+                      <td>{{ f.score }}</td>
+                      <td>{{ f.comment }}</td>
+                    </tr>
+                  {% endfor %}
+                {% else %}
+                  <tr>
+                    <td colspan="3" style="opacity:.75;">
+                      No rubric scores yet. Save once, then edit.
+                    </td>
+                  </tr>
+                {% endif %}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+      </div>
+    </form>
+      
+    </form>
+  </div>
+</div>
+<script>
+(function(){
+  const trainingSel = document.getElementById("id_training");
+  const rubricSel = document.getElementById("id_rubric");
+  if(!trainingSel || !rubricSel) return;
+
+  async function refreshRubrics(trainingId){
+    if(!trainingId){
+      rubricSel.innerHTML = '<option value="">---------</option>';
+      return;
+    }
+
+    const url = "{% url 'trainer_eval:rubrics_by_training' %}" + "?training_id=" + encodeURIComponent(trainingId);
+    const res = await fetch(url, {headers: {"X-Requested-With":"XMLHttpRequest"}});
+    const data = await res.json();
+
+    const current = rubricSel.value;
+    rubricSel.innerHTML = '<option value="">---------</option>';
+
+    let firstActiveId = null;
+
+    (data.rubrics || []).forEach(r => {
+      const opt = document.createElement("option");
+      opt.value = r.id;
+      opt.textContent = r.label;
+      rubricSel.appendChild(opt);
+      if(r.is_active && !firstActiveId) firstActiveId = String(r.id);
+    });
+
+    // on garde la sélection si possible, sinon on prend l'active, sinon rien
+    if(current && [...rubricSel.options].some(o => o.value === current)){
+      rubricSel.value = current;
+    } else if(firstActiveId){
+      rubricSel.value = firstActiveId;
+    }
+  }
+
+  trainingSel.addEventListener("change", () => refreshRubrics(trainingSel.value));
+
+  // au chargement : si training déjà pré-rempli, on charge la liste filtrée
+  if(trainingSel.value){
+    refreshRubrics(trainingSel.value);
+  }
+})();
+</script>
+{% endblock %}

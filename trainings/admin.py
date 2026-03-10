@@ -7,7 +7,8 @@ from import_export import resources, fields
 from import_export.admin import ImportExportModelAdmin
 from import_export.widgets import ForeignKeyWidget
 
-from .services.convocations import generate_and_send_session_convocation
+
+from .services.invitations import generate_invitations_for_session
 
 from .models import MercureContract, MercureInvoice
 
@@ -36,19 +37,23 @@ admin.site.register(Registration)
 # ---------------------------------------------------------
 # Action admin - Convocations (PDF session + email participants)
 # ---------------------------------------------------------
-@admin.action(description="📩 Générer + envoyer la convocation (PDF) aux participants")
-def send_session_convocations(modeladmin, request, queryset):
+@admin.action(description="📩 Générer convocations (PDF) — FR+EN (wkhtmltopdf)")
+def generate_session_invitations(modeladmin, request, queryset):
     ok = 0
-    for session in queryset:
+    for s in queryset:
         try:
-            sent = generate_and_send_session_convocation(session)
+            base_url = request.build_absolute_uri("/")
+            r_fr = generate_invitations_for_session(session=s, lang="fr", base_url=base_url)
+            r_en = generate_invitations_for_session(session=s, lang="en", base_url=base_url)
+
             messages.success(
                 request,
-                f"{session.reference or session.id} : {sent} email(s) envoyé(s)."
+                f"{s.reference or s.id} : FR({len(r_fr.pdf_files)} PDF) + EN({len(r_en.pdf_files)} PDF) — dossier: {r_fr.folder_rel}"
             )
             ok += 1
         except Exception as e:
-            messages.error(request, f"Erreur {session.reference or session.id} : {e}")
+            messages.error(request, f"Erreur {s.reference or s.id} : {e}")
+
     if ok:
         messages.success(request, f"✅ Terminé pour {ok} session(s).")
 
@@ -57,8 +62,8 @@ def send_session_convocations(modeladmin, request, queryset):
 # ---------------------------------------------------------
 @admin.register(Referrer)
 class ReferrerAdmin(admin.ModelAdmin):
-    list_display = ("last_name", "first_name", "email", "client")
-    search_fields = ("last_name", "first_name", "email", "client__name")
+    list_display = ("last_name", "first_name", "email", "client", "service_address")
+    search_fields = ("last_name", "first_name", "email", "client__name", "service_address")
     list_filter = ("client",)
 
 
@@ -156,7 +161,7 @@ class SessionAdminForm(forms.ModelForm):
 class SessionAdmin(admin.ModelAdmin):
     form = SessionAdminForm
 
-    actions = [send_session_convocations]
+    actions = [generate_session_invitations]
 
     list_display = (
         "reference",

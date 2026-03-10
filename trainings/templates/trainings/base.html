@@ -379,6 +379,10 @@
         <a class="{% if request.path == '/' %}is-active{% endif %}" href="/">Home</a>
         <a class="{% if request.path|slice:':8' == '/agenda/' %}is-active{% endif %}" href="/agenda/">Calendar</a>
         <a class="{% if request.path|slice:':11' == '/dashboard/' %}is-active{% endif %}" href="/dashboard/">Dashboard</a>
+        {% if request.user.is_staff %}
+          <a class="{% if request.path|slice:':28' == '/trainer-eval/internal-evaluations/' %}is-active{% endif %}"
+            href="{% url 'trainer_eval:internal_eval_list' %}">Trainer Ops</a>
+        {% endif %}
         <a class="{% if request.path|slice:':6' == '/team/' %}is-active{% endif %}"
            href="/team/?product=ARGONOS">Teams</a>
 
@@ -386,7 +390,7 @@
           <a href="/admin/">Admin</a>
         {% endif %}
 
-        <a href="{% url 'logout' %}">Sign out</a>
+        <a href="/accounts/logout/">Sign out</a>
       </nav>
 
     </div>
@@ -436,5 +440,18 @@
       {% endfor %}
     </div>
   {% endif %}
-</body>
+
+  {% if debug %}
+    <div style="
+      position:fixed; left:12px; bottom:12px; z-index:999999;
+      font:12px/1.2 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      padding:8px 10px; border-radius:10px;
+      background:rgba(0,0,0,.65); border:1px solid rgba(255,255,255,.18);
+      color:rgba(255,255,255,.9); backdrop-filter: blur(8px);
+    ">
+      TEMPLATE: {{ request.resolver_match.view_name }}<br>
+      PATH: {{ request.path }}
+    </div>
+    {% endif %}
+  </body>
 </html>

@@ -1,0 +1,14 @@
+{% extends "trainings/base.html" %}
+{% block title %}Trainer Alerts{% endblock %}
+{% block body_class %}home-gradient{% endblock %}
+{% block content %}
+<div style="max-width:1200px; margin:110px auto 40px; padding:0 16px;">
+  <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:12px;">
+    <div>
+      <h1 style="margin:0; font-weight:950;">Trainer Alerts</h1>
+      <div style="opacity:.7; margin-top:6px;">Placeholder</div>
+    </div>
+    <a class="xbtn" href="{% url 'trainer_eval:alerts_create' %}" style="text-decoration:none;">+ New</a>
+  </div>
+</div>
+{% endblock %}

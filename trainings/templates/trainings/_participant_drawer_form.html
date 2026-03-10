@@ -8,10 +8,24 @@
 
   <div style="display:grid; gap:10px;">
     {{ p_form.as_p }}
+
+    <!-- ✅ Pré-requis (affiché/masqué par JS) -->
+    <div id="prereqBox" style="
+      display:none;
+      padding:10px 12px;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,0.10);
+      background: rgba(0,0,0,0.20);
+      font-weight:900;
+      font-size:13px;
+    ">
+      <span id="prereqIcon" style="margin-right:8px;">ℹ️</span>
+      <span id="prereqMsg">Vérification du pré-requis…</span>
+    </div>
   </div>
 
   <div style="display:flex; gap:10px; margin-top:14px;">
-    <button type="submit" style="
+    <button id="saveBtn" type="submit" style="
       padding:10px 14px; border-radius:12px;
       border:1px solid rgba(124,58,237,0.45);
       background: rgba(124,58,237,0.18);
@@ -28,3 +42,103 @@
     </button>
   </div>
 </form>
+
+<script>
+(function(){
+  // ---- helpers UI
+  function setPrereqUI(show, ok, message){
+    var box = document.getElementById('prereqBox');
+    var icon = document.getElementById('prereqIcon');
+    var msg  = document.getElementById('prereqMsg');
+    var btn  = document.getElementById('saveBtn');
+
+    if(!box || !icon || !msg || !btn) return;
+
+    box.style.display = show ? '' : 'none';
+
+    if(!show){
+      btn.disabled = false;
+      btn.style.opacity = '1';
+      btn.style.cursor = 'pointer';
+      return;
+    }
+
+    msg.textContent = message || '';
+
+    if(ok){
+      icon.textContent = '✅';
+      box.style.borderColor = 'rgba(34,197,94,0.40)';
+      box.style.background  = 'rgba(34,197,94,0.10)';
+      btn.disabled = false;
+      btn.style.opacity = '1';
+      btn.style.cursor = 'pointer';
+    }else{
+      icon.textContent = '⛔';
+      box.style.borderColor = 'rgba(239,68,68,0.40)';
+      box.style.background  = 'rgba(239,68,68,0.12)';
+      btn.disabled = true;              // ✅ BLOQUANT
+      btn.style.opacity = '.55';
+      btn.style.cursor = 'not-allowed';
+    }
+  }
+
+  // ---- trouver le champ email dans p_form
+  // Django génère souvent id="id_email". On tente plusieurs sélecteurs pour être robuste.
+  var emailInput =
+      document.querySelector('#id_email') ||
+      document.querySelector('input[name="email"]') ||
+      document.querySelector('input[type="email"]');
+
+  // si pas trouvé -> on ne fait rien
+  if(!emailInput) return;
+
+  var sessionId = "{{ session.id }}";
+
+  // anti-spam requêtes
+  var lastValue = "";
+  var timer = null;
+
+  function check(){
+    var email = (emailInput.value || "").trim();
+    if(email === lastValue) return;
+    lastValue = email;
+
+    if(!email){
+      // pas d’email -> on masque l’encart et on laisse enregistrer (tu peux choisir de bloquer si email obligatoire)
+      setPrereqUI(false, true, "");
+      return;
+    }
+
+    // état "loading"
+    setPrereqUI(true, false, "Vérification du pré-requis Initiation…");
+
+    // ⚠️ URL API (à adapter si tu n'as pas encore ajouté cette route)
+    // recommandé : name="api_prereq_initiation" dans trainings/urls.py
+    var url = "{% url 'trainings:api_prereq_initiation' %}" + "?session_id=" + encodeURIComponent(sessionId) + "&email=" + encodeURIComponent(email);
+
+    fetch(url, {headers: {"X-Requested-With":"XMLHttpRequest"}})
+      .then(r => r.json())
+      .then(data => {
+        // data: {needs_prereq: bool, ok: bool, message: str}
+        if(!data || data.needs_prereq === false){
+          // prérequis non applicable => on masque l'encart, pas de blocage
+          setPrereqUI(false, true, "");
+          return;
+        }
+        setPrereqUI(true, !!data.ok, data.message || (data.ok ? "✅ Pré-requis validé." : "⛔ Initiation requise."));
+      })
+      .catch(() => {
+        // en cas d'erreur API: on bloque par prudence (bloquant)
+        setPrereqUI(true, false, "Erreur de vérification. Impossible d’inscrire sans validation.");
+      });
+  }
+
+  emailInput.addEventListener('input', function(){
+    clearTimeout(timer);
+    timer = setTimeout(check, 350);
+  });
+
+  // check au chargement si email pré-rempli
+  setTimeout(check, 50);
+})();
+</script>

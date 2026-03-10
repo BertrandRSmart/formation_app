@@ -1,3 +1,4 @@
+# trainings/views_manage.py
 print("✅ LOADED trainings/views_manage.py")
 
 from datetime import date
@@ -8,23 +9,92 @@ from django.db.models import Q, Count
 from django.http import HttpResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views.decorators.http import require_POST
+from urllib.parse import urlencode
 
-from .models import Session, Registration, Client, Trainer
+from .models import Session, Registration, Client, Trainer, TrainingType, RegistrationStatus
 from .forms_manage import ParticipantForm, RegistrationMiniForm
 from .views import manager_required
 
 
+# =========================================================
+# Helpers
+# =========================================================
+
+def _current_filter_params(request):
+    """
+    Construit un dict de params GET à conserver dans les href / redirects.
+    On exclut "drawer" (UI), et on garde "session" si présent.
+    """
+    keys = ("month", "client", "trainer", "product", "status", "q", "session")
+    params = {}
+    for k in keys:
+        v = (request.GET.get(k) or "").strip()
+        if v:
+            params[k] = v
+    return params
+
+
+def _redirect_to_manage_home(request, **overrides):
+    """
+    Redirect vers /formations/ en conservant les filtres courants.
+    overrides permet d’imposer session=..., etc.
+    """
+    params = _current_filter_params(request)
+    params.update({k: v for k, v in overrides.items() if v not in (None, "", False)})
+
+    base = redirect("trainings:training_manage_home")
+    if params:
+        return redirect(f"{base.url}?{urlencode(params)}")
+    return base
+
+
+# =========================================================
+# Board Sessions
+# =========================================================
+
 @manager_required
 def training_manage_home(request):
-    month = request.GET.get("month") or ""        # "YYYY-MM"
-    client_id = request.GET.get("client") or ""
-    trainer_id = request.GET.get("trainer") or ""
-    status = request.GET.get("status") or ""      # upcoming / ongoing / done
-    selected_id = request.GET.get("session") or ""
+    # ✅ Persist filters in session (avant tout)
+    FILTER_KEYS = ("month", "client", "trainer", "product", "status", "q")
+    SESSION_KEY = "manage_sessions_filters"
+
+    # Reset explicite
+    if request.GET.get("reset") == "1":
+        request.session.pop(SESSION_KEY, None)
+        return redirect("trainings:training_manage_home")
+
+    # Arrivée sans paramètres => réappliquer les derniers filtres
+    # (on évite de boucler si session vide)
+    if not request.GET:
+        saved = request.session.get(SESSION_KEY) or {}
+        if saved:
+            return redirect(f"{request.path}?{urlencode(saved)}")
+
+    # Enregistrer les filtres actuels (uniquement ceux renseignés)
+    current = {}
+    for k in FILTER_KEYS:
+        v = (request.GET.get(k) or "").strip()
+        if v:
+            current[k] = v
+    request.session[SESSION_KEY] = current
+    request.session.modified = True
+
+    # --- Lire GET ---
+    month = (request.GET.get("month") or "").strip()          # "YYYY-MM"
+    client_id = (request.GET.get("client") or "").strip()
+    trainer_id = (request.GET.get("trainer") or "").strip()
+    product_id = (request.GET.get("product") or "").strip()   # ✅ NOUVEAU
+    status = (request.GET.get("status") or "").strip()        # upcoming/ongoing/done
+    selected_id = (request.GET.get("session") or "").strip()
     q = (request.GET.get("q") or "").strip()
 
-    qs = Session.objects.all()
     today = date.today()
+
+    qs = (
+        Session.objects
+        .select_related("training", "training_type", "client", "trainer")
+        .all()
+    )
 
     # --- Filtres ---
     if month:
@@ -39,6 +109,11 @@ def training_manage_home(request):
 
     if trainer_id.isdigit():
         qs = qs.filter(trainer_id=int(trainer_id))
+
+    # ✅ Filtre PRODUIT (TrainingType)
+    if product_id.isdigit():
+        pid = int(product_id)
+        qs = qs.filter(Q(training_type_id=pid) | Q(training__training_type_id=pid))
 
     if status == "upcoming":
         qs = qs.filter(start_date__gt=today)
@@ -62,6 +137,7 @@ def training_manage_home(request):
 
     # --- Compteur participants par session ---
     session_ids = [s.id for s in sessions]
+    participants_count_by_session = {}
     if session_ids:
         counts_qs = (
             Registration.objects
@@ -70,8 +146,6 @@ def training_manage_home(request):
             .annotate(c=Count("id"))
         )
         participants_count_by_session = {row["session_id"]: row["c"] for row in counts_qs}
-    else:
-        participants_count_by_session = {}
 
     # --- Session sélectionnée + inscriptions ---
     selected_session = None
@@ -86,13 +160,13 @@ def training_manage_home(request):
             .select_related("participant")
             .order_by("participant__last_name", "participant__first_name")
         )
-        # Formulaire “Inscription” (participant)
         p_form = ParticipantForm()
 
     # --- Listes filtres ---
     clients = Client.objects.order_by("name")
     trainers = Trainer.objects.order_by("last_name", "first_name")
     months = [f"{today.year}-{mm:02d}" for mm in range(1, 13)]
+    training_types = TrainingType.objects.order_by("name")
 
     return render(request, "trainings/manage_sessions_board.html", {
         "sessions": sessions,
@@ -105,17 +179,25 @@ def training_manage_home(request):
 
         "clients": clients,
         "trainers": trainers,
+        "training_types": training_types,
+
+        # valeurs filtres (pour template)
+        "months": months,
+        "today": today,
         "month": month,
         "client_id": client_id,
         "trainer_id": trainer_id,
+        "product_id": product_id,
         "status": status,
         "q": q,
-        "months": months,
-        "today": today,
 
         "p_form": p_form,
     })
 
+
+# =========================================================
+# Participants
+# =========================================================
 
 @manager_required
 def session_participant_add(request, session_id):
@@ -129,9 +211,9 @@ def session_participant_add(request, session_id):
             messages.success(request, "Participant ajouté à la session ✅")
         else:
             messages.error(request, "Formulaire invalide. Vérifie les champs.")
-        return redirect(f"/formations/?session={session.id}")
 
-    return redirect(f"/formations/?session={session.id}")
+    # ✅ Revenir sur /formations/ en conservant filtres + session sélectionnée
+    return _redirect_to_manage_home(request, session=session.id)
 
 
 @manager_required
@@ -146,11 +228,13 @@ def session_participant_edit(request, session_id, registration_id):
     if request.method == "POST":
         p_form = ParticipantForm(request.POST, instance=reg.participant)
         r_form = RegistrationMiniForm(request.POST, instance=reg)
+
         if p_form.is_valid() and r_form.is_valid():
             p_form.save()
             r_form.save()
             messages.success(request, "Participant mis à jour ✅")
-            return redirect(f"/formations/?session={session.id}")
+            return _redirect_to_manage_home(request, session=session.id)
+
         messages.error(request, "Formulaire invalide. Vérifie les champs.")
     else:
         p_form = ParticipantForm(instance=reg.participant)
@@ -172,7 +256,8 @@ def session_participant_delete(request, session_id, registration_id):
     reg = get_object_or_404(Registration, pk=registration_id, session=session)
     reg.delete()
     messages.success(request, "Participant retiré de la session ✅")
-    return redirect(f"/formations/?session={session.id}")
+
+    return _redirect_to_manage_home(request, session=session.id)
 
 
 @manager_required
@@ -197,3 +282,21 @@ def export_participants_csv(request, session_id):
         writer.writerow([p.last_name, p.first_name, p.email])
 
     return response
+
+
+@manager_required
+@require_POST
+def session_participant_set_status(request, session_id, registration_id):
+    reg = get_object_or_404(Registration, pk=registration_id, session_id=session_id)
+    status = (request.POST.get("status") or "").strip()
+
+    valid = {c[0] for c in RegistrationStatus.choices}
+    if status not in valid:
+        messages.error(request, "Statut invalide.")
+        return _redirect_to_manage_home(request, session=session_id)
+
+    reg.status = status
+    reg.save(update_fields=["status"])
+    messages.success(request, "Statut mis à jour ✅")
+
+    return _redirect_to_manage_home(request, session=session_id)

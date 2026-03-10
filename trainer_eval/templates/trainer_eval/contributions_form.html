@@ -1,52 +1,279 @@
 {% extends "trainings/base.html" %}
-{% block title %}{% if obj %}Modifier{% else %}Nouvelle{% endif %} contribution{% endblock %}
+{% block title %}{% if obj %}Modifier{% else %}Nouvelle{% endif %} contribution projet{% endblock %}
 
 {% block content %}
-<div style="max-width:900px; margin:0 auto; padding:18px 16px;">
-  <h1 style="margin:0 0 8px;">{% if obj %}Modifier{% else %}Nouvelle{% endif %} contribution</h1>
-  <div style="color:#64748b; margin-bottom:16px;">
-    Les points ont une valeur par défaut selon le type (modifiable).
+<style>
+  .cf-wrap{ max-width: 1100px; margin: 0 auto; padding: 14px 14px 24px; }
+  .cf-top{
+    display:flex; align-items:flex-end; justify-content:space-between;
+    gap:12px; flex-wrap:wrap; margin-bottom: 12px;
+  }
+  .cf-title{ margin:0; font-weight:950; letter-spacing:.2px; }
+  .cf-sub{ color: rgba(255,255,255,0.62); font-size: 12px; margin-top:4px; }
+
+  .glass{
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,0.10);
+    background: rgba(255,255,255,0.06);
+    box-shadow: 0 18px 45px rgba(0,0,0,0.35);
+    overflow:hidden;
+  }
+  .glass .hd{
+    padding: 12px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.04);
+    display:flex; align-items:flex-end; justify-content:space-between; gap:10px; flex-wrap:wrap;
+  }
+  .glass .bd{ padding: 12px; }
+
+  .btnx{
+    display:inline-flex; align-items:center; gap:8px;
+    padding:10px 14px; border-radius:12px;
+    border:1px solid rgba(255,255,255,0.14);
+    background:rgba(255,255,255,0.08);
+    color:rgba(255,255,255,0.95);
+    text-decoration:none;
+    font-weight:800;
+    cursor:pointer;
+  }
+  .btnx:hover{ background:rgba(255,255,255,0.14); }
+  .btnx.ghost{ opacity:.85; }
+
+  .grid2{ display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+  .field label{ display:block; font-size:12px; opacity:.75; margin:0 0 6px; }
+  .field select, .field input, .field textarea{
+    width:100%;
+    padding:10px 10px;
+    border-radius:12px;
+    border:1px solid rgba(255,255,255,0.14);
+    background: rgba(0,0,0,0.20);
+    color: rgba(255,255,255,0.92);
+    outline:none;
+  }
+  .field textarea{ min-height: 84px; }
+
+  .rubric-badge{
+    padding:6px 10px; border-radius:999px;
+    border:1px solid rgba(59,130,246,0.28);
+    background: rgba(59,130,246,0.16);
+    font-weight:900; font-size:12px;
+  }
+
+  .crit{
+    padding: 10px 12px;
+    border-radius: 14px;
+    border: 1px solid rgba(255,255,255,0.10);
+    background: rgba(0,0,0,0.16);
+  }
+  .crit-top{ display:flex; gap:12px; align-items:flex-start; justify-content:space-between; }
+  .crit-name{ font-weight:950; }
+  .crit-desc{ opacity:.70; font-size:12px; margin-top:4px; }
+  .crit-score{ min-width:140px; }
+  .crit-score input{ text-align:center; font-weight:900; }
+  .muted{ opacity:.75; }
+  .err{ color:#f87171; font-size:12px; margin-top:6px; }
+</style>
+
+<div class="cf-wrap">
+
+  <div class="cf-top">
+    <div>
+      <h1 class="cf-title">{% if obj %}Modifier{% else %}Nouvelle{% endif %} contribution projet</h1>
+      <div class="cf-sub">
+        Choisis un projet + étape de validation, puis note la grille. (Staff uniquement)
+      </div>
+    </div>
+
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <button class="btnx" form="contribForm" type="submit">💾 Enregistrer</button>
+      <a class="btnx ghost" href="{% url 'trainer_eval:contributions_list' %}">↩️ Retour</a>
+    </div>
   </div>
 
-  <form method="post">
+  <form id="contribForm" method="post">
     {% csrf_token %}
 
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-      <div>
-        <label>Formateur</label>
-        {{ form.trainer }}
+    <!-- CONTEXTE -->
+    <div class="glass">
+      <div class="hd">
+        <div>
+          <div style="font-weight:950;">Contexte</div>
+          <div class="cf-sub">Formateur, projet, étape, grille</div>
+        </div>
+        {% if obj %}
+          <div class="rubric-badge">Score : {{ obj.rubric_score_100 }}% — {{ obj.get_decision_display }}</div>
+        {% endif %}
       </div>
 
-      <div>
-        <label>Formation (optionnel)</label>
-        {{ form.training }}
-      </div>
+      <div class="bd">
+        <div class="grid2">
+          <div class="field">
+            <label>Formateur</label>
+            {{ form.trainer }}
+            {% for e in form.trainer.errors %}<div class="err">{{ e }}</div>{% endfor %}
+          </div>
 
-      <div>
-        <label>Type</label>
-        {{ form.kind }}
-      </div>
+          <div class="field">
+            <label>Date</label>
+            {{ form.evaluated_on }}
+            {% for e in form.evaluated_on.errors %}<div class="err">{{ e }}</div>{% endfor %}
+          </div>
 
-      <div>
-        <label>Points</label>
-        {{ form.points }}
-      </div>
+          <div class="field">
+            <label>Projet</label>
+            {{ form.project }}
+            {% for e in form.project.errors %}<div class="err">{{ e }}</div>{% endfor %}
+          </div>
 
-      <div>
-        <label>Date</label>
-        {{ form.date }}
+          <div class="field">
+            <label>Étape</label>
+            {{ form.step }}
+            {% for e in form.step.errors %}<div class="err">{{ e }}</div>{% endfor %}
+            <div class="muted" style="font-size:12px; margin-top:6px;">Les étapes proposées dépendent du projet choisi.</div>
+          </div>
+
+          <div class="field">
+            <label>Grille</label>
+            {{ form.rubric }}
+            {% for e in form.rubric.errors %}<div class="err">{{ e }}</div>{% endfor %}
+            <div class="muted" style="font-size:12px; margin-top:6px;">
+              Change la grille puis enregistre : les lignes de critères seront générées si nécessaire.
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Décision</label>
+            {{ form.decision }}
+            {% for e in form.decision.errors %}<div class="err">{{ e }}</div>{% endfor %}
+          </div>
+        </div>
       </div>
     </div>
 
-    <div style="margin-top:12px;">
-      <label>Description</label>
-      {{ form.description }}
+    <div style="height:12px;"></div>
+
+    <!-- CRITERES -->
+    <div class="glass">
+      <div class="hd">
+        <div>
+          <div style="font-weight:950;">Critères</div>
+          <div class="cf-sub">Note chaque critère (0..5) et ajoute un commentaire si besoin</div>
+        </div>
+      </div>
+
+      <div class="bd">
+        {{ formset.management_form }}
+
+        {% if formset.forms %}
+          <div style="display:grid; gap:10px;">
+            {% for f in formset %}
+              <div class="crit">
+                {{ f.id }}
+                {{ f.criterion }}
+
+                <div class="crit-top">
+                  <div style="flex:1;">
+                    <div class="crit-name">
+                      {{ f.instance.criterion.get_section_display }} — {{ f.instance.criterion.label }}
+                    </div>
+                    {% if f.instance.criterion.description %}
+                      <div class="crit-desc">{{ f.instance.criterion.description }}</div>
+                    {% endif %}
+                  </div>
+
+                  <div class="crit-score">
+                    <label class="muted" style="display:block; font-size:12px; margin-bottom:6px;">Score</label>
+                    {{ f.score }}
+                    {% for e in f.score.errors %}<div class="err">{{ e }}</div>{% endfor %}
+                  </div>
+                </div>
+
+                <div style="margin-top:10px;">
+                  <label class="muted" style="display:block; font-size:12px; margin-bottom:6px;">Commentaire</label>
+                  {{ f.comment }}
+                  {% for e in f.comment.errors %}<div class="err">{{ e }}</div>{% endfor %}
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="muted">
+            Aucun critère pour l’instant. Choisis une grille puis clique sur “Enregistrer” une première fois pour générer les critères.
+          </div>
+        {% endif %}
+      </div>
     </div>
 
-    <div style="display:flex; gap:10px; margin-top:14px;">
-      <button class="btn" type="submit">Enregistrer</button>
-      <a class="btn" href="{% url 'trainer_eval:contributions_list' %}" style="opacity:0.85;">Retour</a>
+    <div style="height:12px;"></div>
+
+    <!-- QUALITATIF -->
+    <div class="glass">
+      <div class="hd">
+        <div>
+          <div style="font-weight:950;">Synthèse</div>
+          <div class="cf-sub">Points forts, axes d’amélioration, note manager</div>
+        </div>
+      </div>
+
+      <div class="bd">
+        <div class="grid2">
+          <div class="field">
+            <label>Points forts</label>
+            {{ form.strengths }}
+          </div>
+          <div class="field">
+            <label>Axes d’amélioration</label>
+            {{ form.improvements }}
+          </div>
+          <div class="field" style="grid-column: 1 / -1;">
+            <label>Commentaire manager (privé)</label>
+            {{ form.manager_comment }}
+          </div>
+        </div>
+      </div>
     </div>
+
+    <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
+      <button class="btnx" type="submit">💾 Enregistrer</button>
+      <a class="btnx ghost" href="{% url 'trainer_eval:contributions_list' %}">↩️ Retour</a>
+    </div>
+
   </form>
 </div>
+
+<script>
+  // Charger dynamiquement les étapes quand on change le projet (create/edit)
+  const projectSelect = document.querySelector('select[name="project"]');
+  const stepSelect = document.querySelector('select[name="step"]');
+
+  async function loadSteps(projectId, keepValue){
+    if(!stepSelect) return;
+    stepSelect.innerHTML = '<option value="">---------</option>';
+    if(!projectId) return;
+
+    const res = await fetch("{% url 'trainer_eval:project_steps_by_project' %}?project_id=" + encodeURIComponent(projectId));
+    const data = await res.json();
+    (data.steps || []).forEach(s => {
+      const opt = document.createElement("option");
+      opt.value = s.id;
+      opt.textContent = s.label;
+      stepSelect.appendChild(opt);
+    });
+
+    if(keepValue){
+      stepSelect.value = keepValue;
+    }
+  }
+
+  // au chargement : si projet déjà sélectionné, on recharge la liste et on conserve l'étape
+  const initialProject = projectSelect?.value;
+  const initialStep = stepSelect?.value;
+  if(initialProject){
+    loadSteps(initialProject, initialStep);
+  }
+
+  projectSelect?.addEventListener("change", (e) => {
+    loadSteps(e.target.value, "");
+  });
+</script>
 {% endblock %}

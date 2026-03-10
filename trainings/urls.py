@@ -1,5 +1,5 @@
 # trainings/urls.py
-from django.urls import path
+from django.urls import path, include
 
 from . import views
 from . import views_manage
@@ -152,6 +152,16 @@ urlpatterns = [
     "alerts/mercure-invoices/<int:invoice_id>/dismiss/",
     views.dismiss_mercure_invoice_alert,
     name="dismiss_mercure_invoice_alert",
-),
+    ),
 
-]
+    path("formations/<int:session_id>/participants/<int:registration_id>/status/",
+     views_manage.session_participant_set_status,
+     name="session_participant_set_status"),
+
+    path("test-pdf/", views.test_pdf, name="test_pdf"),
+    path("alerts/convocations/<int:session_id>/create-invitations/", views.create_invitations, name="create_invitations"),
+    path("api/prereq-initiation/", views.api_prereq_initiation, name="api_prereq_initiation"),
+
+    
+    
+    ]

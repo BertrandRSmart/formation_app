@@ -1,72 +1,292 @@
 {% extends "trainings/base.html" %}
-{% block title %}Contributions{% endblock %}
-
+{% block title %}Contributions — Pilotage{% endblock %}
 
 {% block content %}
-<div style="max-width:95vw; margin:0 auto; padding:18px 16px;">
+<div style="position:fixed;left:12px;bottom:12px;z-index:999999;
+            background:rgba(0,0,0,.75);color:#fff;padding:8px 10px;border-radius:10px;
+            font:12px ui-monospace;">
+  template used: {{ template_used }}
+</div>
+<style>
+  .pv-wrap{ max-width: 98vw; margin: 0 auto; padding: 14px 14px 18px; }
+  .pv-grid{ display:grid; grid-template-columns: 340px 1fr; gap: 14px; align-items:start; }
+
+  .pv-card{
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,0.10);
+    background: rgba(255,255,255,0.06);
+    box-shadow: 0 18px 45px rgba(0,0,0,0.35);
+    overflow:hidden;
+  }
+  .pv-card .hd{
+    padding: 12px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.04);
+  }
+  .pv-title{ margin:0; font-weight:950; letter-spacing:.2px; }
+  .pv-sub{ color: rgba(255,255,255,0.62); font-size: 12px; margin-top:4px; }
+  .pv-body{ padding: 12px; }
+
+  .pv-actions{ display:flex; gap:10px; align-items:center; justify-content:flex-end; flex-wrap:wrap; }
+  .pv-btn{
+    display:inline-flex; align-items:center; gap:8px;
+    padding:10px 14px; border-radius:12px;
+    border:1px solid rgba(255,255,255,0.14);
+    background:rgba(255,255,255,0.08);
+    color:rgba(255,255,255,0.95);
+    text-decoration:none;
+    font-weight:750;
+    cursor:pointer;
+  }
+  .pv-btn:hover{ background:rgba(255,255,255,0.14); }
+  .pv-btn.ghost{ opacity:.85; }
+
+  .pv-field label{ display:block; font-size:12px; opacity:.75; margin:0 0 6px; }
+  .pv-field select, .pv-field input{
+    width:100%;
+    padding:10px 10px;
+    border-radius:12px;
+    border:1px solid rgba(255,255,255,0.14);
+    background: rgba(0,0,0,0.20);
+    color: rgba(255,255,255,0.92);
+    outline:none;
+  }
+
+  .trainer-list{ display:grid; gap:10px; }
+  .tcard{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:10px 12px;
+    border-radius:14px;
+    border:1px solid rgba(255,255,255,0.10);
+    background: rgba(0,0,0,0.16);
+    text-decoration:none;
+    color: rgba(255,255,255,0.92);
+  }
+  .tcard:hover{ background: rgba(255,255,255,0.06); }
+  .tname{ font-weight:900; }
+  .tmeta{ font-size:12px; opacity:.68; margin-top:2px; }
+  .pill{
+    padding:4px 9px;
+    border-radius:999px;
+    border:1px solid rgba(59,130,246,0.28);
+    background: rgba(59,130,246,0.16);
+    font-weight:900;
+    font-size:12px;
+    min-width:34px;
+    text-align:center;
+  }
+  .tcard.is-active{
+    border-color: rgba(124,58,237,0.55);
+    background: rgba(124,58,237,0.14);
+  }
+
+  .tblwrap{ overflow:auto; }
+  table.pv-table{ width:100%; min-width: 1200px; border-collapse: collapse; }
+  table.pv-table thead tr{ text-align:left; background: rgba(255,255,255,0.04); }
+  table.pv-table th, table.pv-table td{
+    padding: 10px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    vertical-align: top;
+  }
+  .scorepill{
+    padding:4px 9px;
+    border-radius:999px;
+    border:1px solid rgba(16,185,129,0.28);
+    background: rgba(16,185,129,0.16);
+    font-weight:900;
+    font-size:12px;
+  }
+  .muted{ opacity:.7; }
+</style>
+
+<div class="pv-wrap">
+
   <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap;">
     <div>
-      <h1 style="margin:0 0 6px;">Contributions stratégiques</h1>
-      <div style="color:#64748b;">Création / mise à jour contenus, mentorat, ateliers, projets. Visible staff uniquement.</div>
+      <h1 class="pv-title" style="margin:0 0 6px;">Contributions — Pilotage</h1>
+      <div class="pv-sub">Évaluations sur étapes de validation des projets (catégorie / projet / étape). Staff uniquement.</div>
     </div>
 
-    <a href="{% url 'trainer_eval:contributions_create' %}"
-       style="
-        display:inline-flex;
-        align-items:center;
-        gap:8px;
-        padding:10px 14px;
-        border-radius:12px;
-        border:1px solid rgba(255,255,255,0.14);
-        background:rgba(255,255,255,0.08);
-        color:rgba(255,255,255,0.95);
-        text-decoration:none;
-        font-weight:600;
-        transition:all 0.2s ease;
-      "
-      onmouseover="this.style.background='rgba(255,255,255,0.15)'"
-      onmouseout="this.style.background='rgba(255,255,255,0.08)'">
-      ➕ Nouvelle contribution
-</a>
+    <div class="pv-actions">
+      <a class="pv-btn" href="{% url 'trainer_eval:contributions_create' %}">➕ Nouvelle contribution</a>
+      {% if selected_trainer %}
+        <a class="pv-btn ghost" href="{{ url_no_trainer }}">↩️ Reset formateur</a>
+      {% endif %}
+    </div>
   </div>
 
-  <div style="margin-top:16px; overflow:auto; border:1px solid rgba(255,255,255,0.08); border-radius:12px;">
-    <table style="width:100%; border-collapse:collapse;">
-      <thead>
-        <tr style="text-align:left; background:rgba(255,255,255,0.04);">
-          <th style="padding:10px;">Date</th>
-          <th style="padding:10px;">Formateur</th>
-          <th style="padding:10px;">Type</th>
-          <th style="padding:10px;">Formation</th>
-          <th style="padding:10px;">Points</th>
-          <th style="padding:10px;">Description</th>
-          <th style="padding:10px;">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for it in items %}
-          <tr style="border-top:1px solid rgba(255,255,255,0.06);">
-            <td style="padding:10px;">{{ it.date|date:"d/m/Y" }}</td>
-            <td style="padding:10px;">{{ it.trainer }}</td>
-            <td style="padding:10px;">{{ it.get_kind_display }}</td>
-            <td style="padding:10px;">
-              {% if it.training %}{{ it.training }}{% else %}<span style="opacity:0.8;">(Global)</span>{% endif %}
-            </td>
-            <td style="padding:10px;">
-              <span style="padding:4px 8px; border-radius:999px; background:rgba(34,197,94,0.12); border:1px solid rgba(34,197,94,0.22);">
-                {{ it.points }}
-              </span>
-            </td>
-            <td style="padding:10px; color:#cbd5e1;">{{ it.description|default:"" }}</td>
-            <td style="padding:10px;">
-              <a class="btn" href="{% url 'trainer_eval:contributions_edit' it.id %}">Modifier</a>
-            </td>
-          </tr>
-        {% empty %}
-          <tr><td colspan="7" style="padding:14px; color:#64748b;">Aucune contribution pour l’instant.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  <div class="pv-grid" style="margin-top:14px;">
+
+    <!-- LEFT -->
+    <div class="pv-card">
+      <div class="hd">
+        <div style="font-weight:950;">Filtres</div>
+        <div class="pv-sub">Affiner la vue globale</div>
+      </div>
+
+      <div class="pv-body">
+        <form method="get" id="filtersForm" style="display:grid; gap:10px;">
+          <div class="pv-field">
+            <label>Catégorie projet</label>
+            <select name="category" id="categorySelect">
+              <option value="">Toutes</option>
+              {% for c in categories %}
+                <option value="{{ c.id }}" {% if category_id|add:"" == c.id|add:"" %}selected{% endif %}>{{ c.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="pv-field">
+            <label>Projet</label>
+            <select name="project" id="projectSelect">
+              <option value="">Tous</option>
+              {% for p in projects %}
+                <option value="{{ p.id }}" {% if project_id|add:"" == p.id|add:"" %}selected{% endif %}>{{ p.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="pv-field">
+            <label>Étape</label>
+            <select name="step" id="stepSelect">
+              <option value="">Toutes</option>
+              {% for s in steps %}
+                <option value="{{ s.id }}" {% if step_id|add:"" == s.id|add:"" %}selected{% endif %}>{{ s.title }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="pv-field">
+            <label>Décision</label>
+            <select name="decision">
+              <option value="">Toutes</option>
+              {% for k,v in decisions %}
+                <option value="{{ k }}" {% if decision == k %}selected{% endif %}>{{ v }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="pv-field">
+            <label>Recherche</label>
+            <input name="q" value="{{ q }}" placeholder="projet, étape, commentaire…">
+          </div>
+
+          {% if selected_trainer %}
+            <input type="hidden" name="trainer" value="{{ selected_trainer.id }}">
+          {% endif %}
+
+          <div style="display:flex; gap:10px; margin-top:2px;">
+            <button class="pv-btn" type="submit" style="flex:1; justify-content:center;">Filtrer</button>
+            <a class="pv-btn ghost" href="{% url 'trainer_eval:contributions_list' %}" style="justify-content:center;">Reset</a>
+          </div>
+        </form>
+
+        <div style="height:12px;"></div>
+
+        <div style="font-weight:950; margin:4px 0 10px;">Formateurs</div>
+        <div class="trainer-list">
+          {% for t in trainers %}
+            <a class="tcard {% if selected_trainer and selected_trainer.id == t.id %}is-active{% endif %}"
+               href="?{% if category_id %}category={{ category_id }}&{% endif %}{% if project_id %}project={{ project_id }}&{% endif %}{% if step_id %}step={{ step_id }}&{% endif %}{% if decision %}decision={{ decision }}&{% endif %}{% if q %}q={{ q|urlencode }}&{% endif %}trainer={{ t.id }}">
+              <div>
+                <div class="tname">{{ t.last_name }} {{ t.first_name }}</div>
+                <div class="tmeta">{{ t.contrib_count }} contribution(s)</div>
+              </div>
+              <div class="pill">{{ t.contrib_count }}</div>
+            </a>
+          {% empty %}
+            <div class="muted" style="padding:8px 2px;">Aucun formateur trouvé.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="pv-card">
+      <div class="hd">
+        <div>
+          <div style="font-weight:950;">Vue globale</div>
+          <div class="pv-sub">
+            {% if selected_trainer %}
+              Filtré sur : <strong>{{ selected_trainer }}</strong>
+            {% else %}
+              Toutes contributions
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="pv-body tblwrap">
+        <table class="pv-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Formateur</th>
+              <th>Catégorie</th>
+              <th>Projet</th>
+              <th>Étape</th>
+              <th>Score</th>
+              <th>Décision</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for it in rows %}
+              <tr>
+                <td>{{ it.evaluated_on|date:"d/m/Y" }}</td>
+                <td>{{ it.trainer }}</td>
+                <td>{{ it.project.category|default:"—" }}</td>
+                <td>{{ it.project }}</td>
+                <td>{{ it.step|default:"—" }}</td>
+                <td><span class="scorepill">{{ it.rubric_score_100 }}%</span></td>
+                <td>{{ it.get_decision_display }}</td>
+                <td>
+                  <a class="pv-btn" style="padding:8px 10px;" href="{% url 'trainer_eval:contributions_edit' it.id %}">
+                    ✏️ Modifier
+                  </a>
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="8" class="muted" style="padding:14px;">Aucune contribution pour l’instant.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
   </div>
 </div>
+
+<script>
+  // Charger dynamiquement les étapes quand le projet change
+  const projectSelect = document.getElementById("projectSelect");
+  const stepSelect = document.getElementById("stepSelect");
+
+  async function loadSteps(projectId){
+    stepSelect.innerHTML = '<option value="">Toutes</option>';
+    if(!projectId) return;
+
+    const res = await fetch("{% url 'trainer_eval:project_steps_by_project' %}?project_id=" + encodeURIComponent(projectId));
+    const data = await res.json();
+    (data.steps || []).forEach(s => {
+      const opt = document.createElement("option");
+      opt.value = s.id;
+      opt.textContent = s.label;
+      stepSelect.appendChild(opt);
+    });
+  }
+
+  projectSelect?.addEventListener("change", async (e) => {
+    await loadSteps(e.target.value);
+    stepSelect.value = "";
+    document.getElementById("filtersForm").submit();
+  });
+
+  const categorySelect = document.getElementById("categorySelect");
+  categorySelect?.addEventListener("change", () => {
+    document.getElementById("filtersForm").submit();
+  });
+</script>
 {% endblock %}

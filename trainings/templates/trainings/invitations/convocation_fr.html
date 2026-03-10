@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Convocation - {{ session.reference }}</title>
+  <style>
+    @page { size: A4; margin: 0; }
+    * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+    html, body{
+      margin:0; padding:0;
+      width:210mm; height:297mm;
+      background:#fff;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    body{ overflow:hidden; }
+
+    .page{
+      position:relative;
+      width:210mm; height:297mm;
+      overflow:hidden;
+      background:#fff;
+    }
+
+    /* Barres gauche */
+    .leftbar{
+      position:absolute; top:0; left:0; bottom:0;
+      width:78px;
+      background:#156082;   /* bleu */
+    }
+    .leftbar2{
+      position:absolute; top:0; left:78px; bottom:0;
+      width:6px;
+      background:#E4A5EB;   /* rose */
+    }
+
+    /* Zone contenu */
+    .content{
+      position:absolute;
+      top:0; left:84px; right:0; bottom:0;
+      padding:26px 28px 0 28px;
+      color:#156082;
+    }
+
+    .spacer-bottom{ height: 76px; }
+
+    /* Header */
+    .header{ width:100%; border-collapse:collapse; }
+    .header td{ vertical-align:top; }
+
+    .logo{
+      display:block;
+      width:250px;
+      max-height:58px;
+      height:auto;
+    }
+
+    .refbox{
+      width:300px;
+      background:#DCEFE3;         /* mint */
+      border:2px solid #156082;   /* bleu */
+      border-radius:18px;
+      padding:12px 14px;
+    }
+    .refrow{ width:100%; border-collapse:collapse; font-weight:900; font-size:12.5px; }
+    .refrow td{ padding:2px 0; vertical-align:middle; }
+    .refrow td:first-child{ width:55%; text-align:left; color:#156082; }
+    .refrow td:last-child{ width:45%; text-align:right; color:#0f172a; white-space:nowrap; }
+
+    /* Title */
+    .title{
+      margin:18px 0 0;
+      font-size:40px;
+      font-weight:900;
+      letter-spacing:.6px;
+      color:#156082;
+    }
+    .underline{
+      height:6px;
+      width:540px;
+      background:#E4A5EB;
+      margin-top:10px;
+      border-radius:999px;
+    }
+
+    .intro{
+      margin-top:18px;
+      font-size:15px;
+      font-weight:700;
+      color:#156082;
+    }
+    .intro p{ margin:0 0 10px; }
+
+    /* Cards */
+    .card{
+      margin-top:16px;
+      border:2px solid #156082;
+      border-radius:18px;
+      overflow:hidden;
+      background:#fff;
+      /* shadow mint */
+      box-shadow: 0 10px 0 0 #DCEFE3;
+    }
+    .card-head{
+      background:#156082;
+      color:#fff;
+      padding:12px 16px;
+      font-weight:900;
+      letter-spacing:.6px;
+      text-transform:uppercase;
+      font-size:14px;
+    }
+    .card-body{ padding:12px 16px 14px; }
+
+    .kv{ width:100%; border-collapse:collapse; font-size:13.5px; font-weight:700; }
+    .kv td{ padding:5px 0; vertical-align:top; }
+    .k{ width:170px; font-weight:900; color:#156082; }
+    .v{ font-weight:800; color:#0f172a; }
+
+    .maplink{
+      color:#156082;
+      font-weight:900;
+      text-decoration:underline;
+      word-break:break-word;
+      overflow-wrap:anywhere;
+    }
+
+    /* Bandeau bas */
+    .bottom{
+      position:absolute;
+      left:84px;
+      right:28px;
+      bottom:22px;
+      background:#156082;
+      color:#fff;
+      padding:16px 18px;
+      font-weight:900;
+      letter-spacing:.6px;
+      text-transform:uppercase;
+      font-size:16px;
+    }
+
+    
+  </style>
+</head>
+
+<body>
+  <div class="page">
+    <div class="leftbar"></div>
+    <div class="leftbar2"></div>
+
+    
+    <div class="content">
+      <table class="header">
+        <tr>
+          <td style="width:60%;">
+            <img class="logo" src="{{ logo_url }}" alt="">
+          </td>
+          <td style="width:40%; text-align:right;">
+            <div class="refbox">
+              <table class="refrow">
+                <tr><td>Ref formation :</td><td>{{ session.reference|default:"—" }}</td></tr>
+                <tr><td>Date d’envoi :</td><td>{{ today|date:"d/m/Y" }}</td></tr>
+              </table>
+            </div>
+          </td>
+        </tr>
+      </table>
+
+      <div class="title">CONVOCATION FORMATION</div>
+      <div class="underline"></div>
+
+      <div class="intro">
+        <p>Madame, Monsieur,</p>
+        <p>Nous avons le plaisir de vous convier à la formation suivante.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-head">PARTICIPANT</div>
+        <div class="card-body">
+          <table class="kv">
+            <tr><td class="k">Prénom - Nom</td><td class="v">{{ participant.first_name }} {{ participant.last_name }}</td></tr>
+            <tr><td class="k">Email</td><td class="v">{{ participant.email }}</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">DÉTAILS DE LA FORMATION</div>
+        <div class="card-body">
+          <table class="kv">
+            <tr><td class="k">Intitulé</td><td class="v">{{ session.training.title }}</td></tr>
+            <tr><td class="k">Dates</td><td class="v">{{ session.start_date|date:"d/m/Y" }}{% if session.end_date %} → {{ session.end_date|date:"d/m/Y" }}{% endif %}</td></tr>
+            <tr><td class="k">Horaires</td><td class="v">{{ schedule_am }} puis {{ schedule_pm }}</td></tr>
+            <tr><td class="k">Formateur</td><td class="v">{{ session.trainer.first_name }} {{ session.trainer.last_name }}</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">LIEU</div>
+        <div class="card-body">
+          <table class="kv">
+            <tr><td class="k">Adresse</td><td class="v">{{ location_address|default:"—" }}</td></tr>
+            {% if map_url %}
+              <tr><td class="k">Voir la carte</td><td class="v"><a class="maplink" href="{{ map_url }}">Ouvrir Google Maps</a></td></tr>
+            {% endif %}
+          </table>
+        </div>
+      </div>
+
+      <div class="spacer-bottom"></div>
+    </div>
+
+    <div class="bottom">TRÈS BONNE FORMATION !</div>
+  </div>
+</body>
+</html>

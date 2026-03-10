@@ -4,7 +4,7 @@ from . import views
 app_name = "trainer_eval"
 
 urlpatterns = [
-    path("satisfaction/", views.session_satisfaction_list, name="session_satisfaction_list"),
+    # path("satisfaction/", views.session_satisfaction_list, name="session_satisfaction_list"),
     path("satisfaction/<int:pk>/edit/", views.session_satisfaction_edit, name="session_satisfaction_edit"),
 
     path("internal-evaluations/", views.internal_eval_list, name="internal_eval_list"),
@@ -20,4 +20,8 @@ urlpatterns = [
     path("alerts/<int:pk>/edit/", views.alerts_edit, name="alerts_edit"),
 
     path("dashboard/", views.trainer_eval_dashboard, name="dashboard"),
-]
+    path("api/rubrics/", views.rubrics_by_training, name="rubrics_by_training"),
+
+    path("api/project-steps/", views.project_steps_by_project, name="project_steps_by_project"),
+    path("api/project-rubrics/", views.project_rubrics_by_category, name="project_rubrics_by_category"),
+    ]

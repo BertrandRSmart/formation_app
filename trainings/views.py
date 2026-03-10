@@ -18,6 +18,8 @@ from django.http import FileResponse
 from .models import MercureInvoice, MercureContract
 from django.db.models import F, ExpressionWrapper, DateField
 
+from trainings.services.invitations import generate_invitations_for_session
+
 
 import os
 from django.conf import settings
@@ -325,6 +327,8 @@ def home_view(request):
 
     convocations_alerts = qs.order_by("start_date")
 
+    
+
     # =========================
     # 3) Droits Mercure paiements (inchangé)
     # =========================
@@ -400,6 +404,29 @@ def home_view(request):
         "can_access_mercure": can_access_mercure,
     })
 
+
+@staff_member_required
+@require_POST
+def create_invitations(request, session_id: int):
+        s = get_object_or_404(
+            Session.objects.select_related("training", "client", "trainer", "room"),
+            pk=session_id,
+        )
+
+        lang = (request.POST.get("lang") or "fr").lower().strip()
+        base_url = request.build_absolute_uri("/")
+
+        try:
+            result = generate_invitations_for_session(session=s, lang=lang, base_url=base_url)
+            messages.success(
+                request,
+                f"✅ Convocations {lang.upper()} générées : {len(result.pdf_files)} PDF — {result.folder_rel}"
+            )
+        except Exception as e:
+            messages.error(request, f"❌ Erreur convocations : {e}")
+
+        return redirect("trainings:home")    
+        
 @staff_member_required
 @require_POST
 def dismiss_mercure_invoice_alert(request, invoice_id: int):
@@ -413,18 +440,21 @@ def team_home(request):
     return render(request, "trainings/team_home.html")
 
 
+
+
 @login_required
 def agenda_view(request):
-    return render(request, "trainings/agenda.html")
+    today = timezone.localdate()
+    return render(request, "trainings/agenda.html", {"today": today})
+
 
 
 @login_required
 def session_detail_view(request, session_id: int):
-    """Fiche session (lecture seule)"""
     s = get_object_or_404(
-        Session.objects.select_related(
-            "training", "training_type", "client", "trainer", "backup_trainer", "room"
-        ),
+        Session.objects
+        .select_related("training", "training_type", "client", "trainer", "backup_trainer", "room")
+        .prefetch_related("registrations__participant"),
         id=session_id,
     )
     return render(request, "trainings/session_detail.html", {"s": s})
@@ -505,21 +535,51 @@ def bulk_registrations(request):
 
 @login_required
 def sessions_json(request):
-    """Renvoie les sessions pour FullCalendar (avec filtres client/formateur)."""
+    """Renvoie les sessions pour FullCalendar (avec filtres)."""
+
     client_id = request.GET.get("client_id")
     trainer_id = request.GET.get("trainer_id")
 
-    qs = Session.objects.select_related(
-        "training", "training_type", "client", "trainer", "backup_trainer", "room"
-    )
+    product = (request.GET.get("product") or "").upper().strip()
+    from_str = (request.GET.get("from") or "").strip()
+    to_str = (request.GET.get("to") or "").strip()
 
+    from_date = None
+    to_date = None
+    try:
+        if from_str:
+            from_date = date.fromisoformat(from_str)
+        if to_str:
+            to_date = date.fromisoformat(to_str)
+    except Exception:
+        from_date = None
+        to_date = None
+
+    qs = Session.objects.select_related(
+    "training", "training_type", "client", "trainer", "backup_trainer", "room"
+    ).filter(start_date__isnull=False)
+    
     if client_id:
         qs = qs.filter(client_id=client_id)
     if trainer_id:
         qs = qs.filter(trainer_id=trainer_id)
 
+    if product in ("ARGONOS", "MERCURE"):
+        qs = qs.filter(
+            Q(training_type__name__iexact=product)
+            | Q(training__training_type__name__iexact=product)
+        )
+
+    if from_date:
+        qs = qs.filter(start_date__gte=from_date)
+    if to_date:
+        qs = qs.filter(start_date__lte=to_date)
+
     events = []
     for s in qs:
+        if not s.start_date:
+            continue
+
         if getattr(s, "on_client_site", False):
             location = getattr(s, "client_address", "") or ""
         else:
@@ -557,6 +617,7 @@ def sessions_json(request):
         })
 
     return JsonResponse(events, safe=False)
+    
 
 
 @login_required
@@ -1068,6 +1129,22 @@ def argonos_manager_dashboard(request):
 @manager_required
 def dashboard_ca_view(request):
     today = timezone.localdate()
+    training_types = TrainingType.objects.order_by("name")
+    # --- Choix filtres (UI) ---
+    PERIOD_CHOICES = [
+        ("all", "Tout"),
+        ("year", "Année (en cours)"),
+        ("quarter", "Trimestre (en cours)"),
+        ("month", "Mois (en cours)"),
+    ]
+
+    VIEW_CHOICES = [
+        ("all", "Tous"),
+        ("realise", "Réalisé"),
+        ("previsionnel", "Prévisionnel"),
+    ]
+
+    training_types = TrainingType.objects.order_by("name")
 
     # ----------------------------
     # 1) Lire les filtres (GET)
@@ -1092,7 +1169,10 @@ def dashboard_ca_view(request):
     # 3) Filtre: produit (TrainingType)
     # ----------------------------
     if training_type_id.isdigit():
-        qs = qs.filter(training_type_id=int(training_type_id))
+        tid = int(training_type_id)
+        qs = qs.filter(
+            Q(training_type_id=tid) | Q(training__training_type_id=tid)
+        )
 
     # ----------------------------
     # 4) Filtre: période (bornes sur ca_date)
@@ -1218,6 +1298,19 @@ def dashboard_ca_view(request):
         "f_period": period,
         "f_view": view_mode,
         "f_month": month_str,
+      
+
+        # dropdowns
+        "training_types": training_types,
+        "period_choices": PERIOD_CHOICES,
+        "view_choices": VIEW_CHOICES,
+
+        # keep selected
+        "f_training_type": training_type_id,
+        "f_period": period,
+        "f_view": view_mode,
+        "f_month": month_str,
+   
     })
 
 # =======================================================
@@ -1559,3 +1652,186 @@ def mercure_contract_detail_view(request, contract_id: int):
         "c": c,
         "today": timezone.localdate(),
     })
+
+import pdfkit
+from django.conf import settings
+from django.http import HttpResponse
+from django.contrib.auth.decorators import login_required
+
+@login_required
+def test_pdf(request):
+    html = "<h1>Test PDF OK</h1><p>PDF via wkhtmltopdf.</p>"
+    config = pdfkit.configuration(wkhtmltopdf=settings.WKHTMLTOPDF_CMD)
+    pdf = pdfkit.from_string(html, False, configuration=config)
+    resp = HttpResponse(pdf, content_type="application/pdf")
+    resp["Content-Disposition"] = 'inline; filename="test.pdf"'
+    return resp
+
+from django.conf import settings
+from django.http import HttpResponse
+from django.contrib.auth.decorators import login_required
+
+import pdfkit
+
+
+@login_required
+def test_pdf(request):
+    html = """
+    <!doctype html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <style>
+        body { font-family: Arial, sans-serif; padding: 24px; }
+        h1 { margin: 0 0 10px; }
+        .box { border:1px solid #ddd; padding:12px; border-radius:10px; }
+      </style>
+    </head>
+    <body>
+      <h1>Test PDF OK ✅</h1>
+      <div class="box">
+        <p>Si tu lis ceci dans un PDF, wkhtmltopdf + pdfkit fonctionnent.</p>
+        <p><strong>URL :</strong> %s</p>
+      </div>
+    </body>
+    </html>
+    """ % request.build_absolute_uri("/")
+
+    cmd = getattr(settings, "WKHTMLTOPDF_CMD", "").strip()
+    if not cmd:
+        return HttpResponse("WKHTMLTOPDF_CMD manquant dans settings.py", status=500)
+
+    config = pdfkit.configuration(wkhtmltopdf=cmd)
+    try:
+        pdf = pdfkit.from_string(html, False, configuration=config, options={
+            "encoding": "UTF-8",
+            "quiet": ""
+        })
+    except OSError as e:
+        return HttpResponse(f"wkhtmltopdf introuvable/erreur: {e}", status=500)
+
+    resp = HttpResponse(pdf, content_type="application/pdf")
+    resp["Content-Disposition"] = 'inline; filename="test.pdf"'
+    return resp
+
+# =========================================================
+# Pré-requis ArgonOS (Initiation obligatoire avant DP1/DE1)
+# =========================================================
+
+def _session_product_name(s: Session) -> str:
+    """Retourne ARGONOS / MERCURE / '' en essayant plusieurs champs."""
+    # session.training_type (FK) peut exister
+    try:
+        if getattr(s, "training_type", None) and getattr(s.training_type, "name", None):
+            return (s.training_type.name or "").upper()
+    except Exception:
+        pass
+
+    # fallback training.training_type
+    try:
+        if getattr(s, "training", None) and getattr(s.training, "training_type", None):
+            return (s.training.training_type.name or "").upper()
+    except Exception:
+        pass
+
+    return ""
+
+
+def _session_training_title(s: Session) -> str:
+    try:
+        if getattr(s, "training", None) and getattr(s.training, "title", None):
+            return (s.training.title or "")
+    except Exception:
+        pass
+    return ""
+
+
+def _needs_initiation_prereq_for_session(s: Session) -> bool:
+    """
+    True si la session est ArgonOS et que la formation est DP1 ou DE1.
+    Ajuste les mots-clés selon tes titres exacts.
+    """
+    product = _session_product_name(s)
+    if product != "ARGONOS":
+        return False
+
+    title = _session_training_title(s).upper()
+
+    is_dp = "DATA PRÉPARATION" in title or "DATA PREPARATION" in title
+    is_de = "DATA EXPLORATION" in title
+
+    # heuristique "niveau 1"
+    is_lvl1 = ("NIVEAU 1" in title) or ("NIV 1" in title) or ("N1" in title) or ("LEVEL 1" in title)
+
+    return (is_lvl1 and (is_dp or is_de))
+
+
+def check_initiation_prereq(session: Session, email: str) -> tuple[bool, str]:
+    """
+    Vérifie que le participant (email) a déjà été PRESENT à une session 'Initiation' ArgonOS.
+    Retour (ok, message).
+    """
+    if not session:
+        return False, "Session introuvable."
+
+    # Si la session ne nécessite pas le pré-requis -> OK
+    if not _needs_initiation_prereq_for_session(session):
+        return True, "Pré-requis non applicable."
+
+    email = (email or "").strip()
+    if not email:
+        return False, "Email requis pour vérifier le pré-requis."
+
+    # retrouver participant
+    p = Participant.objects.filter(email__iexact=email).first()
+    if not p:
+        return False, "Participant inconnu : crée-le d'abord (ou vérifie l'email)."
+
+    # chercher une présence sur une session Initiation ArgonOS
+    # On privilégie status PRESENT (réellement participé)
+    initiation_q = Q(session__training__title__icontains="initiation")
+
+    # ArgonOS : via session.training_type OU training.training_type
+    argonos_q = (
+        Q(session__training_type__name__iexact="ARGONOS")
+        | Q(session__training__training_type__name__iexact="ARGONOS")
+    )
+
+    attended = (
+        Registration.objects
+        .filter(participant=p)
+        .filter(initiation_q)
+        .filter(argonos_q)
+        .filter(status=RegistrationStatus.PRESENT)
+        .exists()
+    )
+
+    if attended:
+        return True, "✅ Pré-requis validé : Initiation déjà suivie."
+    return False, "⛔ Pré-requis non validé : Initiation ArgonOS requise avant DP1/DE1."
+
+
+@login_required
+def api_prereq_initiation(request):
+    """
+    API appelée depuis le drawer : renvoie
+    - needs_prereq: bool
+    - ok: bool
+    - message: str
+    """
+    sid = (request.GET.get("session_id") or "").strip()
+    email = (request.GET.get("email") or "").strip()
+
+    if not sid.isdigit():
+        return JsonResponse({"needs_prereq": False, "ok": True, "message": ""})
+
+    s = Session.objects.select_related("training", "training_type", "training__training_type").filter(pk=int(sid)).first()
+    if not s:
+        return JsonResponse({"needs_prereq": False, "ok": False, "message": "Session introuvable."})
+
+    needs = _needs_initiation_prereq_for_session(s)
+    if not needs:
+        return JsonResponse({"needs_prereq": False, "ok": True, "message": ""})
+
+    ok, msg = check_initiation_prereq(s, email)
+    return JsonResponse({"needs_prereq": True, "ok": ok, "message": msg})

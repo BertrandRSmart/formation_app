@@ -1,17 +1,21 @@
+# config/urls.py
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
-from django.urls import path, include
 from django.http import HttpResponse
+from django.urls import include, path
+
 from trainings.views import bulk_registrations
 
 urlpatterns = [
     # Test
     path("ping/", lambda request: HttpResponse("PING OK ✅")),
 
-    # ✅ Projects (Kanban)
+    # Trainer eval (AVANT le include trainings)
+    path("trainer-eval/", include(("trainer_eval.urls", "trainer_eval"), namespace="trainer_eval")),
+
+    # Projects
     path("projects/", include(("projects.urls", "projects"), namespace="projects")),
-
-    path("trainer-eval/", include("trainer_eval.urls")),
-
 
     # Admin custom
     path(
@@ -29,3 +33,6 @@ urlpatterns = [
     # Site (home + trainings)
     path("", include("trainings.urls")),
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

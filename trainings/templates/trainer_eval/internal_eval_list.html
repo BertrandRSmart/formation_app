@@ -1,0 +1,417 @@
+{# templates/trainer_eval/internal_eval_list.html #}
+{% extends "trainings/base.html" %}
+{% load static %}
+
+{% block title %}Internal Evaluations — BSmart{% endblock %}
+{% block body_class %}no-scroll{% endblock %}
+
+{% block extra_head %}
+<style>
+  html, body { height:100%; margin:0; }
+  body { overflow:hidden !important; }
+  main { height:100%; overflow:hidden; }
+
+  .wrap{
+    position: fixed;
+    inset: 0;
+    padding: 92px 18px 18px;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+
+  .shell{
+    height: calc(100vh - 92px - 18px);
+    display:grid;
+    grid-template-columns: 360px 1fr;
+    gap: 14px;
+    min-height:0;
+  }
+
+  .panel{
+    border-radius: 22px;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.04);
+    box-shadow: 0 18px 45px rgba(0,0,0,0.55);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    overflow:hidden;
+    min-height:0;
+    display:flex;
+    flex-direction:column;
+  }
+
+  .p-head{
+    padding: 14px 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap: 12px;
+    flex: 0 0 auto;
+  }
+  .p-title{ margin:0; font-size: 18px; font-weight: 950; letter-spacing:-0.25px; }
+  .p-sub{ color: rgba(255,255,255,0.65); font-size: 12px; margin-top:4px; }
+
+  /* Par défaut : PAS de scroll dans les panels */
+  .p-body{
+    padding: 14px;
+    overflow: hidden;   /* ✅ stop scrollbar dans le panel */
+    min-height:0;
+  }
+
+  .btn{
+    padding: 10px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.14);
+    background: rgba(255,255,255,0.06);
+    color: white;
+    font-weight: 900;
+    cursor:pointer;
+    text-decoration:none;
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    line-height:1;
+  }
+  .btn:hover{ filter: brightness(1.06); }
+  .btn--sm{ padding: 8px 12px; font-size: 12px; }
+
+  .seg{
+    display:flex;
+    gap:10px;
+    padding: 10px;
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(0,0,0,0.18);
+    margin-bottom: 12px;
+  }
+  .seg a{
+    flex:1;
+    text-align:center;
+    padding: 10px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.12);
+    background: rgba(255,255,255,0.05);
+    color: rgba(255,255,255,0.88);
+    text-decoration:none;
+    font-weight: 950;
+    font-size: 12px;
+  }
+  .seg a.is-on{
+    background:
+      radial-gradient(220px 60px at 30% 30%, rgba(59,130,246,.22), transparent 60%),
+      radial-gradient(220px 60px at 70% 70%, rgba(168,85,247,.22), transparent 60%),
+      rgba(255,255,255,0.06);
+    border-color: rgba(168,85,247,.35);
+    color: rgba(255,255,255,0.96);
+  }
+
+  .card{
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(0,0,0,0.18);
+    padding: 12px;
+    margin-bottom: 12px;
+  }
+  .card h3{
+    margin:0 0 8px;
+    font-size: 13px;
+    font-weight: 950;
+    opacity:.95;
+  }
+
+  .field{ margin-bottom: 10px; }
+  .field label{
+    display:block;
+    font-size: 11px;
+    opacity:.75;
+    font-weight: 950;
+    margin-bottom: 6px;
+    letter-spacing:.2px;
+  }
+  .field input, .field select{
+    width:100%;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(0,0,0,0.22);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: white;
+    font-weight: 900;
+    outline:none;
+  }
+
+  .trainers{
+    display:grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr)); /* 2 colonnes */
+    gap: 10px;
+  }
+
+  .tcard{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap: 10px;
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.04);
+    padding: 8px 10px;
+    border-radius: 14px;
+    text-decoration:none;
+    color: rgba(255,255,255,0.92);
+  }
+  .tcard:hover{ filter: brightness(1.06); transform: translateY(-1px); }
+  .tname{ font-weight: 950; font-size: 12px; }
+  .tmeta{ opacity:.7; font-size: 10px; margin-top:1px; }
+  .pill{
+    padding: 5px 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.10);
+    background: rgba(0,0,0,0.20);
+    font-weight: 950;
+    font-size: 11px;
+    opacity:.95;
+    white-space:nowrap;
+  }
+  .tcard.is-sel{
+    border-color: rgba(168,85,247,.35);
+    background:
+      radial-gradient(260px 60px at 20% 40%, rgba(59,130,246,.18), transparent 55%),
+      radial-gradient(260px 60px at 80% 60%, rgba(168,85,247,.18), transparent 55%),
+      rgba(255,255,255,0.05);
+  }
+
+  .tablewrap{
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(0,0,0,0.18);
+    overflow: auto;          /* ✅ le scroll est ici */
+    max-height: 100%;        /* ✅ prend la hauteur dispo du panel */
+  }
+
+  table{ width:100%; border-collapse: collapse; }
+  th, td{
+    padding: 10px 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    vertical-align: top;
+    font-size: 13px;
+  }
+  th{
+    text-transform: uppercase;
+    letter-spacing: .9px;
+    font-size: 11px;
+    opacity:.75;
+    text-align:left;
+    background: rgba(255,255,255,0.03);
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+
+  .badge{
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.10);
+    background: rgba(255,255,255,0.05);
+    font-weight: 950;
+    font-size: 12px;
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    white-space:nowrap;
+  }
+  .badge--ok{ border-color: rgba(16,185,129,.35); background: rgba(16,185,129,.10); }
+  .badge--mid{ border-color: rgba(59,130,246,.35); background: rgba(59,130,246,.10); }
+  .badge--low{ border-color: rgba(239,68,68,.35); background: rgba(239,68,68,.10); }
+
+  .right-head-actions{
+    display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+  }
+
+  @media (max-width: 1100px){
+    .shell{ grid-template-columns: 1fr; }
+    body { overflow:auto !important; }
+    .wrap{ position: static; padding: 92px 18px 18px; }
+    .shell{ height:auto; }
+    .panel{ height:auto; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="wrap">
+  <div class="shell">
+
+    {# ================= LEFT ================= #}
+    <div class="panel">
+      <div class="p-head">
+        <div>
+          <h2 class="p-title">🎛️ Pilotage</h2>
+          <div class="p-sub">Filtres + sélection formateur</div>
+        </div>
+        <a class="btn btn--sm" href="{{ url_no_trainer }}">Reset</a>
+      </div>
+
+      <div class="p-body">
+
+        <div class="seg">
+          <a href="{{ url_argonos }}" class="{% if product == 'ARGONOS' %}is-on{% endif %}">ArgonOS</a>
+          <a href="{{ url_mercure }}" class="{% if product == 'MERCURE' %}is-on{% endif %}">Mercure</a>
+        </div>
+
+        <div class="card">
+          <h3>🔎 Filtres globaux</h3>
+
+          <form method="get" style="display:block;">
+            <input type="hidden" name="product" value="{{ product }}">
+            {# pas de trainer ici volontairement #}
+
+            <div class="field">
+              <label>Recherche</label>
+              <input name="q" value="{{ q }}" placeholder="Nom, formation, commentaire...">
+            </div>
+
+            <div class="field">
+              <label>Formation</label>
+              <select name="training">
+                <option value="">— Toutes —</option>
+                {% for t in trainings %}
+                  <option value="{{ t.id }}" {% if training_id|add:"" == t.id|add:"" %}selected{% endif %}>{{ t.title }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="field">
+              <label>Niveau / décision</label>
+              <select name="decision">
+                <option value="">— Toutes —</option>
+                {% for val, lab in decisions %}
+                  <option value="{{ val }}" {% if decision == val %}selected{% endif %}>{{ lab }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div style="display:flex; gap:10px; justify-content:flex-end; padding-top:6px;">
+              <button class="btn btn--sm" type="submit">Appliquer</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="card" style="margin-bottom:0;">
+          <h3>👥 Formateurs</h3>
+          <div class="p-sub" style="margin: -6px 0 10px;">Clique un formateur pour filtrer</div>
+
+          <div class="trainers">
+            {% if trainers %}
+              {% for t in trainers %}
+                <a class="tcard {% if selected_trainer and selected_trainer.id == t.id %}is-sel{% endif %}"
+                   href="?product={{ product }}&q={{ q|urlencode }}&training={{ training_id }}&decision={{ decision }}&trainer={{ t.id }}">
+                  <div>
+                    <div class="tname">{{ t.first_name }} {{ t.last_name }}</div>
+                    <div class="tmeta">{{ t.eval_count }} évaluation(s)</div>
+                  </div>
+                  <div class="pill">Voir</div>
+                </a>
+              {% endfor %}
+            {% else %}
+              <div style="opacity:.75; font-size:13px;">
+                Aucun formateur trouvé avec ces filtres.
+              </div>
+            {% endif %}
+          </div>
+
+          {% if selected_trainer %}
+            <div style="margin-top:12px; display:flex; justify-content:flex-end;">
+              <a class="btn btn--sm" href="{{ url_no_trainer }}">Retirer filtre formateur</a>
+            </div>
+          {% endif %}
+        </div>
+
+      </div>
+    </div>
+
+    {# ================= RIGHT ================= #}
+    <div class="panel">
+      <div class="p-head">
+        <div>
+          <h2 class="p-title">📊 Vue globale</h2>
+          <div class="p-sub">
+            {% if selected_trainer %}
+              Focus : <strong>{{ selected_trainer.first_name }} {{ selected_trainer.last_name }}</strong>
+            {% else %}
+              Résultats selon les filtres
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="right-head-actions">
+          <a class="btn btn--sm" href="{% url 'trainer_eval:internal_eval_create' %}">➕ Nouvelle évaluation</a>
+          <a class="btn btn--sm" href="{% url 'trainer_eval:dashboard' %}">Back</a>
+        </div>
+      </div>
+
+      <div class="p-body">
+        <div class="tablewrap">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:110px;">Date</th>
+                <th>Formateur</th>
+                <th>Formation</th>
+                <th style="width:160px;">Grille</th>
+                <th style="width:140px;">Score</th>
+                <th style="width:160px;">Décision</th>
+                <th style="width:110px;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% if rows %}
+                {% for r in rows %}
+                  <tr>
+                    <td>{{ r.evaluated_on|date:"d/m/Y" }}</td>
+                    <td style="font-weight:950;">{{ r.trainer.first_name }} {{ r.trainer.last_name }}</td>
+                    <td>{{ r.training.title }}</td>
+                    <td>
+                      {% if r.rubric %}
+                        <span class="pill">{{ r.rubric.version_label }}</span>
+                      {% else %}
+                        <span style="opacity:.7;">—</span>
+                      {% endif %}
+                    </td>
+                    <td>
+                      {% if r.rubric_score_100 %}
+                        {% if r.rubric_score_100 >= 75 %}
+                          <span class="badge badge--ok">✅ {{ r.rubric_score_100 }}%</span>
+                        {% elif r.rubric_score_100 >= 50 %}
+                          <span class="badge badge--mid">🟦 {{ r.rubric_score_100 }}%</span>
+                        {% else %}
+                          <span class="badge badge--low">⚠️ {{ r.rubric_score_100 }}%</span>
+                        {% endif %}
+                      {% else %}
+                        <span class="badge">—</span>
+                      {% endif %}
+                    </td>
+                    <td>
+                      <span class="pill">{{ r.get_decision_display }}</span>
+                    </td>
+                    <td>
+                      <a class="btn btn--sm" href="{% url 'trainer_eval:internal_eval_edit' r.id %}">Edit</a>
+                    </td>
+                  </tr>
+                {% endfor %}
+              {% else %}
+                <tr>
+                  <td colspan="7" style="opacity:.75; padding: 16px;">
+                    Aucun résultat pour ces filtres.
+                  </td>
+                </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+{% endblock %}

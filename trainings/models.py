@@ -10,6 +10,8 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.utils import timezone
 
+from django.utils.html import format_html
+
 
 
 # =========================================================
@@ -128,8 +130,8 @@ class Session(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
 
-    start_date = models.DateField()
-    end_date = models.DateField()
+    start_date = models.DateField(blank=True, null=True)
+    end_date = models.DateField(blank=True, null=True)
 
     days_count = models.DecimalField(max_digits=4, decimal_places=1, default=Decimal("1.0"))
     status = models.CharField(
@@ -164,8 +166,10 @@ class Session(models.Model):
     accounting_sheets_sent_at = models.DateField("Date d'envoi feuilles compta", null=True, blank=True)
 
     # Clôture
-    client_satisfaction = models.PositiveSmallIntegerField(
+    client_satisfaction = models.DecimalField(
         "Satisfaction client (/20)",
+        max_digits=4,          # ex: 20.00 => 4 chiffres au total
+        decimal_places=2,      # 2 chiffres après la virgule
         null=True,
         blank=True,
         validators=[MinValueValidator(0), MaxValueValidator(20)],
@@ -190,12 +194,17 @@ class Session(models.Model):
         validators=[MinValueValidator(0)],
     )
 
-    def outlook_compose_link(self) -> str:
+    
+
+    def outlook_compose_link(self):
         """
         Ouvre Outlook Web avec un évènement pré-rempli.
         Ensuite tu cliques "Réunion Teams" dans Outlook/Teams, tu enregistres,
         puis tu colles le lien dans `teams_meeting_url`.
         """
+        if not self.start_date or not self.end_date:
+            return "Dates non renseignées"
+
         start_dt = datetime.combine(self.start_date, time(9, 0))
         end_dt = datetime.combine(self.end_date, time(17, 0))
 
@@ -220,7 +229,47 @@ class Session(models.Model):
             "location": location,
             "body": body,
         }
-        return "https://outlook.office.com/calendar/0/deeplink/compose?" + urlencode(params)
+
+        url = "https://outlook.office.com/calendar/0/deeplink/compose?" + urlencode(params)
+
+        return format_html(
+            '<a href="{}" target="_blank">Créer l’événement Outlook</a>',
+            url
+        )
+
+    outlook_compose_link.short_description = "Lien Outlook"
+
+    # --- Invitations helpers (HTML -> PDF) ---------------------------------
+
+    def invitation_language_default(self) -> str:
+        """
+        Langue par défaut si on ne stocke pas en DB.
+        On part sur FR, et on pourra choisir EN via le bouton (paramètre POST).
+        """
+        return "fr"
+
+    def invitation_location_label(self) -> str:
+        """
+        Libellé lieu à afficher sur la convocation.
+        - Si chez le client : adresse client
+        - Sinon : salle + éventuellement adresse salle
+        """
+        if self.on_client_site:
+            return (self.client_address or "").strip()
+        if self.room:
+            # On combine nom + location si disponible
+            loc = (self.room.location or "").strip()
+            return f"{self.room.name}{' — ' + loc if loc else ''}"
+        return ""
+
+    def invitation_schedule_am(self) -> str:
+        return "09:00–12:00"
+
+    def invitation_schedule_pm(self) -> str:
+        return "13:30–16:30"
+
+    def invitation_schedule_full(self) -> str:
+        return f"{self.invitation_schedule_am()} puis {self.invitation_schedule_pm()}"
 
     def save(self, *args, **kwargs):
         # auto-fill training_type depuis training si besoin
@@ -277,6 +326,9 @@ class Referrer(models.Model):
     role = models.CharField(max_length=150)  # "qualité" (ex: RH, Manager, etc.)
     email = models.EmailField()
     company_service = models.CharField(max_length=200)  # Service/Société
+    service_address = models.TextField("Adresse du service", blank=True)
+
+    
 
     def __str__(self) -> str:
         return f"{self.first_name} {self.last_name} - {self.company_service}"
@@ -339,49 +391,10 @@ class Registration(models.Model):
     class Meta:
         unique_together = ("session", "participant")
 
-    def _capacity(self) -> int:
-        title = (self.session.training.title or "").strip()
-
-        cap20 = {"Globale"}
-        cap10 = {
-            "Initiation",
-            "Data Exploration niveau 1",
-            "Data Préparation niveau 1",
-        }
-        cap6 = {
-            "Développeur niveau 1",
-            "Admin Système Installation",
-        }
-
-        if title in cap20:
-            return 20
-        if title in cap10:
-            return 10
-        if title in cap6:
-            return 6
-        return 10
-
     def clean(self):
-        capacity = self._capacity()
-
-        qs = (
-            Registration.objects.filter(session=self.session)
-            .values("participant_id")
-            .distinct()
-        )
-        if self.pk:
-            qs = qs.exclude(pk=self.pk)
-
-        current = qs.count()
-        if current >= capacity:
-            raise ValidationError(
-                {
-                    "participant": (
-                        f"Session complète : {current}/{capacity} participants "
-                        f"(formation '{self.session.training.title}')."
-                    )
-                }
-            )
+        super().clean()
+        # ✅ plus de limite de places (aucune validation de capacité)
+        return
 
     def save(self, *args, **kwargs):
         self.full_clean()

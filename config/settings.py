@@ -47,9 +47,6 @@ INSTALLED_APPS = [
     "trainer_eval",
     "finance.apps.FinanceConfig",
     
-    
-    
-    
 
 ]
 
@@ -67,14 +64,21 @@ ROOT_URLCONF = 'config.urls'
 
 TEMPLATES = [
     {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
         "DIRS": [BASE_DIR / "templates"],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
+
+                # (optionnel mais recommandé)
+                "django.template.context_processors.static",
+                "django.template.context_processors.tz",
+
+                # ✅ NEW : date globale
+                "trainings.context_processors.global_dates",
             ],
         },
     },
@@ -149,3 +153,5 @@ EMAIL_HOST_USER = "training.argonos@chapsvision.com"
 EMAIL_HOST_PASSWORD = "TON_MOT_DE_PASSE_OU_APP_PASSWORD"
 
 DEFAULT_FROM_EMAIL = "training.argonos@chapsvision.com"
+
+WKHTMLTOPDF_CMD = r"C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe"

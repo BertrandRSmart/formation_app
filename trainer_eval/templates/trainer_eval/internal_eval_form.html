@@ -1,8 +1,8 @@
 {% extends "trainings/base.html" %}
-{% block title %}{% if obj %}Modifier{% else %}Nouvelle{% endif %} évaluation interne{% endblock %}
+{% block title %}{% if eval_obj %}Modifier{% else %}Nouvelle{% endif %} évaluation interne{% endblock %}
 
 {% block content %}
-<h1 style="margin:0 0 8px;">{% if obj %}Modifier{% else %}Nouvelle{% endif %} évaluation interne</h1>
+<h1 style="margin:0 0 8px;">{% if eval_obj %}Modifier{% else %}Nouvelle{% endif %} évaluation interne</h1>
 <div style="color:#64748b; margin-bottom:16px;">
   Laisse “Formation” vide pour une évaluation globale.
 </div>
@@ -55,8 +55,8 @@
   </div>
 
   <div style="margin-top:12px;">
-    <label>Note privée (confidentiel)</label>
-    {{ form.private_note }}
+    <label>Commentaire manager (privé)</label>
+    {{ form.manager_comment }}
   </div>
 
   <div style="display:flex; gap:10px; margin-top:14px;">

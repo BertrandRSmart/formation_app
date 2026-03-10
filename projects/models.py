@@ -61,3 +61,28 @@ class Task(models.Model):
 
     def __str__(self):
         return self.title
+
+class ProjectStep(models.Model):
+    class Status(models.TextChoices):
+        TODO = "todo", "À faire"
+        DOING = "doing", "En cours"
+        DONE = "done", "Validé"
+
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="steps")
+    title = models.CharField(max_length=160)  # ex: Kickoff / Recette / Livraison
+    description = models.TextField(blank=True)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.TODO)
+    order = models.PositiveIntegerField(default=0)
+
+    due_date = models.DateField(null=True, blank=True)
+    done_date = models.DateField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["order", "id"]
+        unique_together = ("project", "title")
+
+    def __str__(self):
+        return f"{self.project} — {self.title}"

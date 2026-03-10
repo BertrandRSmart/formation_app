@@ -1,0 +1,349 @@
+{% extends "trainings/base.html" %}
+{% load static %}
+
+{% block title %}Trainer Operations — BSmart Application{% endblock %}
+{% block body_class %}home-gradient no-scroll{% endblock %}
+
+{% block extra_head %}
+<style>
+  :root{
+    --text: rgba(255,255,255,0.92);
+    --muted: rgba(255,255,255,0.65);
+
+    --border: rgba(255,255,255,0.06);
+    --shadow: 0 18px 45px rgba(0,0,0,0.55);
+    --r2: 22px;
+
+    --a-blue: #3B82F6;
+    --a-orange:#F59E0B;
+    --a-violet:#7C3AED;
+    --a-green:#10B981;
+    --a-indigo:#6366F1;
+
+    --neon-c1:#3B82F6;
+    --neon-c2:#6366F1;
+  }
+
+  /* cockpit mode */
+  html, body { height: 100%; margin: 0; }
+  body { overflow: hidden !important; }
+  main { height: 100%; overflow: hidden; }
+
+  .dash{
+    position: fixed;
+    inset: 0;
+    box-sizing: border-box;
+    padding: 92px 18px 18px; /* ✅ aligné avec ton Home */
+    overflow: hidden;
+    color: var(--text);
+    background: transparent;
+  }
+
+  .dash-grid{
+    height: calc(100vh - 92px - 18px);
+    min-width: 0;
+    display:grid;
+    gap: 12px;
+    grid-template-columns: clamp(320px, 28vw, 420px) minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .panel{
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    border-radius: var(--r2);
+    background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    display:flex;
+    flex-direction:column;
+  }
+
+  .panel-header{
+    flex: 0 0 auto;
+    padding: 12px 12px;
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    gap: 12px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01));
+  }
+
+  .title{ margin:0; font-size: 18px; font-weight: 900; letter-spacing: -0.2px; }
+  .small{ font-size: 13px; color: var(--muted); }
+
+  .panel-header--big .title{
+    font-size: 20px;
+    font-weight: 950;
+    letter-spacing: -0.3px;
+  }
+
+  /* left summary blocks */
+  .left-body{
+    padding: 12px;
+    flex: 1 1 auto;
+    min-height: 0;
+    display:flex;
+    flex-direction:column;
+    gap: 12px;
+    overflow:hidden;
+  }
+
+  .mini{
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,0.14);
+    background: rgba(0,0,0,0.40);
+    padding: 12px;
+    box-shadow: 0 18px 40px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.09);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    overflow:hidden;
+  }
+  .mini .k{ font-size: 10.5px; letter-spacing: 1px; text-transform: uppercase; opacity:.78; font-weight:900; }
+  .mini .v{ margin-top: 8px; font-size: 28px; font-weight: 950; letter-spacing:-0.5px; line-height:1; }
+  .mini .s{ margin-top: 8px; font-size: 12px; color: rgba(255,255,255,0.78); }
+
+  /* hub */
+  .hub{
+    padding: 12px;
+    flex: 1 1 auto;
+    min-height: 0;
+    display:flex;
+    flex-direction:column;
+    gap: 10px;
+    overflow: hidden;
+  }
+
+  .hub-section{
+    border: 1px solid rgba(255,255,255,0.06);
+    background: rgba(255,255,255,0.02);
+    border-radius: 18px;
+    overflow:hidden;
+    flex: 1 1 0;
+    display:flex;
+    flex-direction:column;
+    min-height: 0;
+  }
+  .hub-section--violet { border-color: rgba(124,58,237,0.18); background: rgba(124,58,237,0.06); }
+  .hub-section--blue   { border-color: rgba(59,130,246,0.18); background: rgba(59,130,246,0.06); }
+
+  .hub-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    padding: 6px 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+  }
+  .hub-head h2{
+    margin:0;
+    font-size: 16px;
+    font-weight: 950;
+    letter-spacing:-0.25px;
+  }
+  .hub-head .tag{
+    font-size: 12px;
+    color: rgba(255,255,255,0.65);
+  }
+
+  .hub-grid{
+    padding: 10px;
+    display:grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .neon-card{
+    position: relative;
+    display:flex;
+    align-items:center;
+    gap: 12px;
+    padding: 12px 12px;
+    border-radius: 18px;
+    text-decoration:none;
+    color: rgba(255,255,255,0.92);
+    background: rgba(0,0,0,0.28);
+    overflow:hidden;
+    min-height: 74px;
+    isolation: isolate;
+    transition: transform .18s ease, filter .18s ease;
+  }
+  .neon-card:hover{ transform: translateY(-3px); filter: saturate(1.05) contrast(1.05); }
+
+  .neon-card{ --c1: var(--neon-c1); --c2: var(--neon-c2); }
+  .neon-card::before{
+    content:"";
+    position:absolute;
+    inset:0;
+    padding: 2px;
+    border-radius: 18px;
+    background: linear-gradient(90deg, var(--c1), var(--c2));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+    opacity: .92;
+    z-index: 0;
+  }
+  .neon-card::after{
+    content:"";
+    position:absolute;
+    inset:-18px;
+    filter: blur(10px);
+    opacity: .85;
+    z-index: 0;
+    pointer-events:none;
+    background:
+      radial-gradient(220px 140px at 18% 55%, rgba(59,130,246,0.22), transparent 62%),
+      radial-gradient(220px 140px at 82% 45%, rgba(99,102,241,0.18), transparent 62%);
+  }
+
+  .neon-icon{ flex:0 0 auto; z-index: 1; }
+  .neon-ico{
+    width: 80px;
+    height: 60px;
+    object-fit: contain;
+    display:block;
+    filter: drop-shadow(0 12px 26px rgba(0,0,0,0.40));
+  }
+  .neon-text{ z-index: 1; min-width: 0; }
+  .neon-title{
+    margin:0;
+    font-weight: 950;
+    font-size: 12.8px;
+    letter-spacing: .6px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow:hidden;
+    text-overflow: ellipsis;
+  }
+  .neon-sub{
+    margin: 4px 0 0;
+    font-size: 11.2px;
+    color: rgba(255,255,255,0.72);
+    font-style: italic;
+    line-height: 1.2;
+  }
+
+  @media (max-width: 1100px){
+    body{ overflow:auto !important; }
+    .dash{ position: static; overflow: visible; height:auto; padding: 86px 14px 14px; }
+    .dash-grid{ height:auto; grid-template-columns: 1fr; }
+    .hub-grid{ grid-template-columns: 1fr; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dash">
+  <div class="dash-grid">
+
+    <!-- LEFT -->
+    <aside class="panel">
+      <div class="panel-header panel-header--big" style="align-items:flex-start;">
+        <div>
+          <div class="title">Trainer Operations</div>
+          <div class="small">Internal evaluation & skills</div>
+        </div>
+        <div class="small">module</div>
+      </div>
+
+      <div class="left-body">
+        <div class="mini">
+          <div class="k">Evaluations</div>
+          <div class="v">—</div>
+          <div class="s">Total internal evaluations.</div>
+        </div>
+
+        <div class="mini" style="border-color: rgba(124,58,237,0.22);">
+          <div class="k">Templates</div>
+          <div class="v">—</div>
+          <div class="s">Versioned by release.</div>
+        </div>
+
+        <div class="mini" style="border-color: rgba(59,130,246,0.22);">
+          <div class="k">Discussion</div>
+          <div class="v">—</div>
+          <div class="s">Manager + trainer comments.</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- RIGHT -->
+    <section class="panel">
+      <div class="panel-header panel-header--big">
+        <div>
+          <div class="title">Evaluation Control Hub</div>
+          <div class="small">Quick actions</div>
+        </div>
+        <div class="small">BSmart design</div>
+      </div>
+
+      <div class="hub">
+        <div class="hub-section hub-section--violet">
+          <div class="hub-head">
+            <h2> INTERNAL EVALUATION</h2>
+            <div class="tag">observe • discuss • improve</div>
+          </div>
+
+          <div class="hub-grid">
+            <a class="neon-card" href="#">
+              <div class="neon-icon">
+                <img class="neon-ico" src="{% static 'trainings/img/internal_evaluations_neon.png' %}" alt="">
+              </div>
+              <div class="neon-text">
+                <p class="neon-title">INTERNAL EVALUATIONS</p>
+                <p class="neon-sub">List & follow-up per trainer / session.</p>
+              </div>
+            </a>
+
+            <a class="neon-card" href="#">
+              <div class="neon-icon">
+                <img class="neon-ico" src="{% static 'trainings/img/trainers_dashboard_neon.png' %}" alt="">
+              </div>
+              <div class="neon-text">
+                <p class="neon-title">TRAINERS DASHBOARD</p>
+                <p class="neon-sub">Scores, trends, levels (later).</p>
+              </div>
+            </a>
+          </div>
+        </div>
+
+        <div class="hub-section hub-section--blue">
+          <div class="hub-head">
+            <h2> REFERENTIAL</h2>
+            <div class="tag">templates • releases</div>
+          </div>
+
+          <div class="hub-grid">
+            <a class="neon-card" href="#">
+              <div class="neon-icon">
+                <img class="neon-ico" src="{% static 'trainings/img/contributions_neon.png' %}" alt="">
+              </div>
+              <div class="neon-text">
+                <p class="neon-title">TEMPLATES</p>
+                <p class="neon-sub">Create / version by major release.</p>
+              </div>
+            </a>
+
+            <a class="neon-card" href="#">
+              <div class="neon-icon">
+                <img class="neon-ico" src="{% static 'trainings/img/team_management_neon.png' %}" alt="">
+              </div>
+              <div class="neon-text">
+                <p class="neon-title">TRAINER SKILLS</p>
+                <p class="neon-sub">Beginner / Intermediate / Expert / N/A.</p>
+              </div>
+            </a>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </div>
+</div>
+{% endblock %}
