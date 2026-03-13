@@ -1115,12 +1115,15 @@
               {% endif %}
             </div>
 
-            <!-- NETWORK -->
+            
+                <!-- NETWORK -->
             <div class="cockpit-section" data-domain="network">
               {% if request.user.is_staff %}
-              <div class="hub-grid hub-grid--2">
+              <div class="hub-grid hub-grid--3">
                 <a class="neon-card neon--ref" href="/admin/trainings/referent/">
-                  <div class="neon-icon"><img class="neon-ico" src="{% static 'trainings/img/referents_neon.png' %}" alt=""></div>
+                  <div class="neon-icon">
+                    <img class="neon-ico" src="{% static 'trainings/img/referents_neon.png' %}" alt="">
+                  </div>
                   <div class="neon-text">
                     <p class="neon-title">REFERENTS</p>
                     <p class="neon-sub">Manage contacts.</p>
@@ -1128,10 +1131,22 @@
                 </a>
 
                 <a class="neon-card neon--ref" href="{% url 'trainings:partners_dashboard' %}">
-                  <div class="neon-icon"><img class="neon-ico" src="{% static 'trainings/img/partners_neon.png' %}" alt=""></div>
+                  <div class="neon-icon">
+                    <img class="neon-ico" src="{% static 'trainings/img/partners_neon.png' %}" alt="">
+                  </div>
                   <div class="neon-text">
                     <p class="neon-title">PARTNERS</p>
                     <p class="neon-sub">Manage collaborations.</p>
+                  </div>
+                </a>
+
+                <a class="neon-card neon--ref" href="{% url 'trainings:partners_detail' %}">
+                  <div class="neon-icon">
+                    <img class="neon-ico" src="{% static 'trainings/img/partners_neon.png' %}" alt="">
+                  </div>
+                  <div class="neon-text">
+                    <p class="neon-title">PARTNERS DETAILS</p>
+                    <p class="neon-sub">Open detailed partner view.</p>
                   </div>
                 </a>
               </div>
@@ -1139,6 +1154,7 @@
               <div style="opacity:.75; padding:10px;">Restricted access.</div>
               {% endif %}
             </div>
+              
 
           </div>
         </div>

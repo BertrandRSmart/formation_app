@@ -2,219 +2,262 @@
 {% load static %}
 
 {% block title %}Partenaires — BSmart Application{% endblock %}
-{% block body_class %}no-scroll{% endblock %}
+{% block body_class %}{% endblock %}
 
 {% block content %}
-<div class="partners-shell">
+<div class="partners-page">
+  <div class="partners-shell">
 
-  <aside class="partners-sidebar glass">
-    <div class="sidebar-head">
-      <div class="eyebrow">Partner Hub</div>
-      <h1>Partenaires</h1>
-      <p>
-        Vue globale des partenaires, de l’activité formation et du volume de participants.
-      </p>
-    </div>
-
-    <form method="get" class="filters-form">
-      <div class="filter-group">
-        <label for="partner">Partenaire</label>
-        <select name="partner" id="partner">
-          <option value="">Tous les partenaires</option>
-          {% for p in partner_options %}
-            <option value="{{ p.id }}" {% if selected_partner_id == p.id|stringformat:"s" %}selected{% endif %}>
-              {{ p.name }}
-            </option>
-          {% endfor %}
-        </select>
+    <aside class="partners-sidebar glass">
+      <div class="sidebar-head">
+        <div class="eyebrow">Partner Hub</div>
+        <h1>Partenaires</h1>
+        <p>
+          Vue globale des partenaires, de l’activité formation et du volume de participants.
+        </p>
       </div>
 
-      <div class="filter-group">
-        <label for="country">Pays</label>
-        <select name="country" id="country">
-          <option value="">Tous les pays</option>
-          {% for c in country_options %}
-            <option value="{{ c }}" {% if selected_country == c %}selected{% endif %}>{{ c }}</option>
-          {% endfor %}
-        </select>
-      </div>
-
-      <div class="filter-actions">
-        <button type="submit" class="btn-primary">Appliquer</button>
-        <a href="{% url 'trainings:partners_dashboard' %}" class="btn-secondary">Réinitialiser</a>
-      </div>
-    </form>
-
-    <div class="sidebar-note">
-      {% if selected_partner %}
-        <div class="mini-title">Partenaire sélectionné</div>
-        <div class="mini-card">
-          <strong>{{ selected_partner.name }}</strong>
-          <div class="muted">
-            {% if selected_partner.country %}{{ selected_partner.country }}{% else %}Pays non renseigné{% endif %}
-          </div>
-        </div>
-      {% else %}
-        <div class="mini-title">Vue active</div>
-        <div class="mini-card">
-          <strong>Vue globale</strong>
-          <div class="muted">Tous les partenaires</div>
-        </div>
-      {% endif %}
-    </div>
-  </aside>
-
-  <main class="partners-main">
-
-    <section class="glass hero-block">
-      <div class="hero-top">
-        <div>
-          <div class="eyebrow">Dashboard Partenaires</div>
-          <h2>
-            {% if selected_partner %}
-              {{ selected_partner.name }}
-            {% else %}
-              Vue globale partenaires
-            {% endif %}
-          </h2>
-        </div>
-      </div>
-
-      <div class="kpi-grid">
-        <div class="kpi-card">
-          <div class="kpi-label">Nombre de partenaires</div>
-          <div class="kpi-value">{{ total_partners }}</div>
-        </div>
-
-        <div class="kpi-card">
-          <div class="kpi-label">Pays couverts</div>
-          <div class="kpi-value">{{ countries_count }}</div>
-        </div>
-
-        <div class="kpi-card">
-          <div class="kpi-label">Sessions de formation</div>
-          <div class="kpi-value">{{ sessions_count }}</div>
-        </div>
-
-        <div class="kpi-card">
-          <div class="kpi-label">Participants</div>
-          <div class="kpi-value">{{ participants_total }}</div>
-        </div>
-      </div>
-
-      <div class="analytics-grid">
-        <div class="subpanel">
-          <div class="subpanel-head">
-            <h3>Partenaires par pays</h3>
-          </div>
-
-          {% if partners_by_country %}
-            <div class="stat-list">
-              {% for row in partners_by_country %}
-                <div class="stat-row">
-                  <span>{{ row.country }}</span>
-                  <strong>{{ row.total }}</strong>
-                </div>
-              {% endfor %}
-            </div>
-          {% else %}
-            <div class="empty-state">Aucune donnée pays disponible.</div>
-          {% endif %}
-        </div>
-
-        <div class="subpanel">
-          <div class="subpanel-head">
-            <h3>Participants par type de formation</h3>
-          </div>
-
-          {% if participants_by_type %}
-            <div class="stat-list">
-              {% for row in participants_by_type %}
-                <div class="stat-row">
-                  <div>
-                    <span>{{ row.training_type__name }}</span>
-                    <div class="row-sub">{{ row.sessions }} session{{ row.sessions|pluralize }}</div>
-                  </div>
-                  <strong>{{ row.participants }}</strong>
-                </div>
-              {% endfor %}
-            </div>
-          {% else %}
-            <div class="empty-state">Aucune donnée formation disponible.</div>
-          {% endif %}
-        </div>
-      </div>
-    </section>
-
-    <section class="glass table-block">
-      <div class="table-head">
-        <div>
-          <div class="eyebrow">Sessions</div>
-          <h3>Formations réalisées</h3>
-        </div>
-        <div class="table-count">{{ sessions_count }} session{{ sessions_count|pluralize }}</div>
-      </div>
-
-      <div class="table-wrap">
-        <table class="sessions-table">
-          <thead>
-            <tr>
-              <th>Référence</th>
-              <th>Date</th>
-              <th>Partenaire</th>
-              <th>Pays</th>
-              <th>Formation</th>
-              <th>Type</th>
-              <th>Formateur</th>
-              <th>Participants</th>
-              <th>Lieu</th>
-              <th>Satisfaction</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for s in sessions %}
-              <tr>
-                <td>{{ s.reference }}</td>
-                <td>
-                  {% if s.start_date %}{{ s.start_date|date:"d/m/Y" }}{% else %}—{% endif %}
-                  {% if s.end_date and s.end_date != s.start_date %}
-                    <br><span class="muted">{{ s.end_date|date:"d/m/Y" }}</span>
-                  {% endif %}
-                </td>
-                <td>{{ s.client.name }}</td>
-                <td>{{ s.client.country|default:"—" }}</td>
-                <td>{{ s.training.title }}</td>
-                <td>{{ s.training_type.name }}</td>
-                <td>{{ s.trainer }}</td>
-                <td>{{ s.present_count }}</td>
-                <td>
-                  {% if s.on_client_site %}
-                    Chez client
-                  {% else %}
-                    {{ s.room.name|default:"—" }}
-                  {% endif %}
-                </td>
-                <td>
-                  {% if s.client_satisfaction %}
-                    {{ s.client_satisfaction }}/20
-                  {% else %}
-                    —
-                  {% endif %}
-                </td>
-              </tr>
-            {% empty %}
-              <tr>
-                <td colspan="10" class="table-empty">
-                  Aucune session trouvée pour les filtres sélectionnés.
-                </td>
-              </tr>
+      <form method="get" class="filters-form">
+        <div class="filter-group">
+          <label for="partner">Partenaire</label>
+          <select name="partner" id="partner">
+            <option value="">Tous les partenaires</option>
+            {% for p in partner_options %}
+              <option value="{{ p.id }}" {% if selected_partner_id == p.id|stringformat:"s" %}selected{% endif %}>
+                {{ p.name }}
+              </option>
             {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </section>
+          </select>
+        </div>
 
-  </main>
+        <div class="filter-group">
+          <label for="country">Pays</label>
+          <select name="country" id="country">
+            <option value="">Tous les pays</option>
+            {% for c in country_options %}
+              <option value="{{ c }}" {% if selected_country == c %}selected{% endif %}>{{ c }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="filter-actions">
+          <button type="submit" class="btn-primary">Appliquer</button>
+          <a href="{% url 'trainings:partners_dashboard' %}" class="btn-secondary">Réinitialiser</a>
+        </div>
+      </form>
+
+      <div class="sidebar-note">
+        {% if selected_partner %}
+          <div class="mini-title">Partenaire sélectionné</div>
+          <div class="mini-card">
+            <strong>{{ selected_partner.name }}</strong>
+            <div class="muted">
+              {% if selected_partner.country %}{{ selected_partner.country }}{% else %}Pays non renseigné{% endif %}
+            </div>
+          </div>
+        {% else %}
+          <div class="mini-title">Vue active</div>
+          <div class="mini-card">
+            <strong>Vue globale</strong>
+            <div class="muted">Tous les partenaires</div>
+          </div>
+        {% endif %}
+      </div>
+    </aside>
+
+    <main class="partners-main">
+
+      <section class="glass hero-block">
+        <div class="hero-top">
+          <div>
+            <div class="eyebrow">Dashboard Partenaires</div>
+            <h2>
+              {% if selected_partner %}
+                {{ selected_partner.name }}
+              {% else %}
+                Vue globale partenaires
+              {% endif %}
+            </h2>
+
+            <div class="active-filters">
+              {% if selected_country %}
+                <span class="filter-pill">Pays : {{ selected_country }}</span>
+              {% endif %}
+              {% if selected_training %}
+                <span class="filter-pill">Formation : {{ selected_training }}</span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-label">Partenaires</div>
+            <div class="kpi-value">{{ total_partners }}</div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-label">Pays</div>
+            <div class="kpi-value">{{ countries_count }}</div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-label">Sessions</div>
+            <div class="kpi-value">{{ sessions_count }}</div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-label">Participants</div>
+            <div class="kpi-value">{{ participants_total }}</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="glass charts-block">
+        <div class="charts-grid">
+          <div class="subpanel chart-panel">
+            <div class="subpanel-head">
+              <h3>Partenaires par pays</h3>
+            </div>
+            {% if country_chart_labels %}
+              <div class="chart-box compact-chart">
+                <canvas id="partnersByCountryChart"></canvas>
+              </div>
+            {% else %}
+              <div class="empty-state">Aucune donnée disponible.</div>
+            {% endif %}
+          </div>
+
+          <div class="subpanel chart-panel">
+            <div class="subpanel-head">
+              <h3>Participants par formation</h3>
+            </div>
+            {% if participants_training_chart_labels %}
+              <div class="chart-box compact-chart">
+                <canvas id="participantsByTrainingChart"></canvas>
+              </div>
+            {% else %}
+              <div class="empty-state">Aucune donnée disponible.</div>
+            {% endif %}
+          </div>
+
+          {% if not selected_partner %}
+            <div class="subpanel chart-panel">
+              <div class="subpanel-head">
+                <h3>Sessions par partenaire</h3>
+              </div>
+              {% if partner_sessions_chart_labels %}
+                <div class="chart-box compact-chart">
+                  <canvas id="sessionsByPartnerChart"></canvas>
+                </div>
+              {% else %}
+                <div class="empty-state">Aucune donnée disponible.</div>
+              {% endif %}
+            </div>
+
+            <div class="subpanel chart-panel">
+              <div class="subpanel-head">
+                <h3>Participants par partenaire</h3>
+              </div>
+              {% if partner_participants_chart_labels %}
+                <div class="chart-box compact-chart">
+                  <canvas id="participantsByPartnerChart"></canvas>
+                </div>
+              {% else %}
+                <div class="empty-state">Aucune donnée disponible.</div>
+              {% endif %}
+            </div>
+          {% else %}
+            <div class="subpanel chart-panel">
+              <div class="subpanel-head">
+                <h3>Répartition des participants par formation</h3>
+              </div>
+              {% if partner_breakdown_labels %}
+                <div class="chart-box compact-chart">
+                  <canvas id="partnerBreakdownParticipantsChart"></canvas>
+                </div>
+              {% else %}
+                <div class="empty-state">Aucune donnée disponible.</div>
+              {% endif %}
+            </div>
+
+            <div class="subpanel chart-panel">
+              <div class="subpanel-head">
+                <h3>Sessions par formation</h3>
+              </div>
+              {% if partner_breakdown_labels %}
+                <div class="chart-box compact-chart">
+                  <canvas id="partnerBreakdownSessionsChart"></canvas>
+                </div>
+              {% else %}
+                <div class="empty-state">Aucune donnée disponible.</div>
+              {% endif %}
+            </div>
+          {% endif %}
+        </div>
+      </section>
+
+      <section class="glass table-block">
+        <div class="table-head">
+          <div>
+            <div class="eyebrow">Sessions</div>
+            <h3>Formations réalisées</h3>
+          </div>
+          <div class="table-count">{{ sessions_count }} session{{ sessions_count|pluralize }}</div>
+        </div>
+
+        <div class="table-wrap compact-table-wrap">
+          <table class="sessions-table compact-table">
+            <thead>
+              <tr>
+                <th>Référence</th>
+                <th>Date</th>
+                <th>Partenaire</th>
+                <th>Pays</th>
+                <th>Formation</th>
+                <th>Participants</th>
+                <th>Satisfaction</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for s in sessions|slice:":8" %}
+                <tr>
+                  <td>{{ s.reference }}</td>
+                  <td>
+                    {% if s.start_date %}{{ s.start_date|date:"d/m/Y" }}{% else %}—{% endif %}
+                  </td>
+                  <td>{{ s.client.name }}</td>
+                  <td>{{ s.client.country|default:"—" }}</td>
+                  <td>{{ s.training.title }}</td>
+                  <td>{{ s.present_count }}</td>
+                  <td>
+                    {% if s.client_satisfaction %}
+                      {{ s.client_satisfaction }}/20
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="7" class="table-empty">
+                    Aucune session trouvée pour les filtres sélectionnés.
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        {% if sessions_count > 8 %}
+          <div class="table-note">
+            Affichage limité aux 8 premières sessions pour conserver une vue sans défilement.
+          </div>
+        {% endif %}
+      </section>
+
+    </main>
+  </div>
 </div>
 
 <style>
@@ -226,26 +269,40 @@
     --text: rgba(255,255,255,0.92);
     --muted: rgba(255,255,255,0.62);
     --shadow: 0 18px 45px rgba(0,0,0,0.55);
-    --r: 22px;
+    --r: 20px;
     --accent: #7C3AED;
     --accent-2: #3B82F6;
   }
 
-  .partners-shell{
-    position: fixed;
-    inset: 0;
-    padding: 92px 18px 18px;
+  html, body{
+    overflow-x: hidden;
+    overflow-y: auto;
+    min-height: 100%;
+  }
+
+  *{
     box-sizing: border-box;
-    overflow: hidden;
-    display: grid;
-    grid-template-columns: 300px minmax(0, 1fr);
-    gap: 18px;
+  }
+
+  .partners-page{
+    min-height: 100vh;
+    padding: 12px 12px 16px;
     color: var(--text);
     background:
       radial-gradient(900px 500px at 10% -10%, rgba(59,130,246,.18), transparent 55%),
       radial-gradient(900px 500px at 100% 0%, rgba(124,58,237,.18), transparent 55%),
       linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0)),
       #0B0F14;
+  }
+
+  .partners-shell{
+    width: 100%;
+    max-width: 1800px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 280px minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
   }
 
   .glass{
@@ -257,16 +314,17 @@
   }
 
   .partners-sidebar{
-    padding: 18px;
-    overflow: auto;
+    padding: 14px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
   }
 
   .partners-main{
     min-width: 0;
-    overflow: auto;
     display: grid;
-    grid-template-rows: auto minmax(0, 1fr);
-    gap: 18px;
+    gap: 12px;
   }
 
   .sidebar-head h1,
@@ -277,54 +335,59 @@
     letter-spacing: .2px;
   }
 
+  .sidebar-head h1,
+  .hero-top h2{
+    line-height: 1.08;
+  }
+
   .sidebar-head p{
-    margin: 8px 0 0;
+    margin: 6px 0 0;
     color: var(--muted);
-    line-height: 1.5;
-    font-size: 14px;
+    line-height: 1.35;
+    font-size: 12px;
   }
 
   .eyebrow{
-    font-size: 11px;
+    font-size: 10px;
     text-transform: uppercase;
     letter-spacing: .14em;
     color: rgba(255,255,255,.48);
-    margin-bottom: 8px;
+    margin-bottom: 6px;
     font-weight: 800;
   }
 
   .filters-form{
-    margin-top: 18px;
     display: grid;
-    gap: 14px;
+    gap: 10px;
   }
 
   .filter-group{
     display: grid;
-    gap: 8px;
+    gap: 6px;
   }
 
   .filter-group label{
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 800;
     color: rgba(255,255,255,.78);
   }
 
   .filter-group select{
     width: 100%;
+    min-height: 40px;
     border: 1px solid rgba(255,255,255,.10);
     background: rgba(255,255,255,.05);
     color: white;
-    border-radius: 14px;
-    padding: 12px 14px;
+    border-radius: 12px;
+    padding: 10px 12px;
     outline: none;
+    font-size: 13px;
   }
 
   .filter-actions{
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-top: 4px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
   }
 
   .btn-primary,
@@ -332,12 +395,14 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 42px;
-    padding: 0 14px;
-    border-radius: 12px;
+    min-height: 38px;
+    padding: 0 10px;
+    border-radius: 10px;
     text-decoration: none;
     font-weight: 900;
     border: 1px solid transparent;
+    white-space: nowrap;
+    font-size: 12px;
   }
 
   .btn-primary{
@@ -352,176 +417,205 @@
   }
 
   .sidebar-note{
-    margin-top: 18px;
-    padding-top: 18px;
+    margin-top: auto;
+    padding-top: 12px;
     border-top: 1px solid rgba(255,255,255,.08);
   }
 
   .mini-title{
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 900;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
     color: rgba(255,255,255,.8);
   }
 
   .mini-card{
-    border-radius: 16px;
-    padding: 14px;
+    border-radius: 14px;
+    padding: 12px;
     background: rgba(255,255,255,.04);
     border: 1px solid rgba(255,255,255,.08);
+    font-size: 12px;
   }
 
   .muted{
     color: var(--muted);
-    font-size: 12px;
+    font-size: 11px;
   }
 
-  .hero-block{
-    padding: 18px;
+  .hero-block,
+  .charts-block,
+  .table-block{
+    padding: 12px;
+    min-width: 0;
   }
 
   .hero-top{
+    margin-bottom: 10px;
+  }
+
+  .active-filters{
+    margin-top: 8px;
     display: flex;
-    align-items: start;
-    justify-content: space-between;
-    gap: 16px;
-    margin-bottom: 18px;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .filter-pill{
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 0 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 800;
+    color: white;
+    background: rgba(124,58,237,.20);
+    border: 1px solid rgba(124,58,237,.35);
   }
 
   .kpi-grid{
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 14px;
-    margin-bottom: 18px;
+    gap: 10px;
   }
 
   .kpi-card{
-    border-radius: 18px;
-    padding: 16px;
+    border-radius: 16px;
+    padding: 12px;
     background: rgba(255,255,255,.045);
-    border: 1px solid rgba(255,255,255,.08);
-  }
-
-  .kpi-label{
-    font-size: 12px;
-    color: var(--muted);
-    margin-bottom: 8px;
-    font-weight: 700;
-  }
-
-  .kpi-value{
-    font-size: 30px;
-    font-weight: 950;
-    line-height: 1;
-  }
-
-  .analytics-grid{
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 14px;
-  }
-
-  .subpanel{
-    border-radius: 18px;
-    padding: 16px;
-    background: rgba(255,255,255,.04);
     border: 1px solid rgba(255,255,255,.08);
     min-width: 0;
   }
 
+  .kpi-label{
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 6px;
+    font-weight: 700;
+  }
+
+  .kpi-value{
+    font-size: clamp(20px, 2vw, 28px);
+    font-weight: 950;
+    line-height: 1;
+  }
+
+  .charts-grid{
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    align-items: stretch;
+  }
+
+  .subpanel{
+    border-radius: 16px;
+    padding: 10px;
+    background: rgba(255,255,255,.04);
+    border: 1px solid rgba(255,255,255,.08);
+    min-width: 0;
+    overflow: hidden;
+  }
+
   .subpanel-head{
-    margin-bottom: 12px;
+    margin-bottom: 8px;
   }
 
   .subpanel-head h3{
     margin: 0;
-    font-size: 15px;
+    font-size: 12px;
     font-weight: 900;
+    line-height: 1.2;
   }
 
-  .stat-list{
-    display: grid;
-    gap: 10px;
-  }
-
-  .stat-row{
+  .chart-panel{
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    border-radius: 14px;
-    padding: 12px 14px;
-    background: rgba(255,255,255,.035);
-    border: 1px solid rgba(255,255,255,.06);
+    flex-direction: column;
+    min-height: 0;
   }
 
-  .row-sub{
-    margin-top: 4px;
-    font-size: 11px;
-    color: var(--muted);
+  .chart-box{
+    position: relative;
+    width: 100%;
+    height: 180px;
+    min-height: 180px;
+    max-height: 180px;
+  }
+
+  .chart-box canvas{
+    width: 100% !important;
+    height: 100% !important;
+    display: block;
+    cursor: pointer;
   }
 
   .empty-state{
-    padding: 18px;
-    border-radius: 14px;
+    padding: 12px;
+    border-radius: 12px;
     background: rgba(255,255,255,.035);
     color: var(--muted);
     text-align: center;
+    font-size: 12px;
+    min-height: 180px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .table-block{
-    padding: 18px;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    gap: 8px;
   }
 
   .table-head{
     display: flex;
     justify-content: space-between;
     align-items: end;
-    gap: 14px;
-    margin-bottom: 14px;
+    gap: 10px;
   }
 
-  .table-count{
+  .table-count,
+  .table-note{
     color: var(--muted);
-    font-size: 13px;
+    font-size: 11px;
     font-weight: 800;
   }
 
-  .table-wrap{
-    min-height: 0;
-    overflow: auto;
-    border-radius: 18px;
+  .compact-table-wrap{
+    border-radius: 16px;
     border: 1px solid rgba(255,255,255,.08);
     background: rgba(255,255,255,.03);
+    overflow: hidden;
   }
 
   .sessions-table{
     width: 100%;
     border-collapse: collapse;
-    min-width: 1100px;
+    table-layout: fixed;
   }
 
   .sessions-table thead th{
-    position: sticky;
-    top: 0;
-    z-index: 2;
     background: rgba(16,18,24,.96);
     color: rgba(255,255,255,.72);
-    font-size: 12px;
+    font-size: 10px;
     text-align: left;
-    padding: 14px 14px;
+    padding: 7px 8px;
     border-bottom: 1px solid rgba(255,255,255,.08);
     white-space: nowrap;
   }
 
   .sessions-table tbody td{
-    padding: 14px;
+    padding: 6px 8px;
     border-bottom: 1px solid rgba(255,255,255,.06);
     vertical-align: top;
-    font-size: 14px;
+    font-size: 11px;
+    line-height: 1.15;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sessions-table tbody tr:last-child td{
+    border-bottom: none;
   }
 
   .sessions-table tbody tr:hover{
@@ -531,50 +625,283 @@
   .table-empty{
     text-align: center;
     color: var(--muted);
-    padding: 28px !important;
+    padding: 18px !important;
   }
 
-  @media (max-width: 1200px){
+  @media (max-width: 1500px){
+    .charts-grid{
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 1300px){
+    .partners-shell{
+      grid-template-columns: 250px minmax(0, 1fr);
+    }
+
     .kpi-grid{
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .analytics-grid{
-      grid-template-columns: 1fr;
+    .chart-box{
+      height: 170px;
+      min-height: 170px;
+      max-height: 170px;
+    }
+
+    .empty-state{
+      min-height: 170px;
     }
   }
 
-  @media (max-width: 980px){
+  @media (max-width: 1100px){
+    .partners-page{
+      padding: 10px 10px 14px;
+    }
+
     .partners-shell{
-      position: static;
-      display: block;
-      padding: 92px 14px 18px;
-      overflow: visible;
-    }
-
-    .partners-sidebar{
-      margin-bottom: 16px;
-    }
-
-    .partners-main{
-      overflow: visible;
-      display: block;
-    }
-
-    .hero-block{
-      margin-bottom: 16px;
-    }
-  }
-
-  @media (max-width: 640px){
-    .kpi-grid{
       grid-template-columns: 1fr;
     }
 
-    .table-head{
-      flex-direction: column;
-      align-items: start;
+    .charts-grid{
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    html, body{
+      overflow-x: hidden;
+      overflow-y: auto;
+      height: auto;
+    }
+  }
+
+  @media (max-width: 760px){
+    .charts-grid{
+      grid-template-columns: 1fr;
+    }
+
+    .chart-box{
+      height: 200px;
+      min-height: 200px;
+      max-height: 200px;
+    }
+
+    .empty-state{
+      min-height: 200px;
     }
   }
 </style>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  const axisColor = 'rgba(255,255,255,0.72)';
+  const gridColor = 'rgba(255,255,255,0.08)';
+
+  function setFilterAndReload(key, value) {
+    const url = new URL(window.location.href);
+
+    if (value === null || value === undefined || value === '' || value === 'Tous les pays') {
+      url.searchParams.delete(key);
+    } else {
+      url.searchParams.set(key, value);
+    }
+
+    window.location.href = url.toString();
+  }
+
+  const defaultChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: false,
+    plugins: {
+      legend: {
+        labels: { color: axisColor, boxWidth: 10, font: { size: 11 } }
+      }
+    },
+    scales: {
+      x: {
+        ticks: { color: axisColor, font: { size: 10 }, maxRotation: 0, minRotation: 0 },
+        grid: { color: gridColor }
+      },
+      y: {
+        beginAtZero: true,
+        ticks: { color: axisColor, font: { size: 10 } },
+        grid: { color: gridColor }
+      }
+    }
+  };
+
+  const doughnutOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: false,
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: { color: axisColor, boxWidth: 10, font: { size: 10 } }
+      }
+    }
+  };
+
+  const countryChartLabels = {{ country_chart_labels|safe }};
+  const countryChartValues = {{ country_chart_values|safe }};
+
+  const participantsTrainingChartLabels = {{ participants_training_chart_labels|safe }};
+  const participantsTrainingChartValues = {{ participants_training_chart_values|safe }};
+
+  const partnerSessionsChartLabels = {{ partner_sessions_chart_labels|safe }};
+  const partnerSessionsChartValues = {{ partner_sessions_chart_values|safe }};
+  const partnerSessionsChartIds = {{ partner_sessions_chart_ids|safe }};
+
+  const partnerParticipantsChartLabels = {{ partner_participants_chart_labels|safe }};
+  const partnerParticipantsChartValues = {{ partner_participants_chart_values|safe }};
+  const partnerParticipantsChartIds = {{ partner_participants_chart_ids|safe }};
+
+  const partnerBreakdownLabels = {{ partner_breakdown_labels|safe }};
+  const partnerBreakdownParticipants = {{ partner_breakdown_participants|safe }};
+  const partnerBreakdownSessions = {{ partner_breakdown_sessions|safe }};
+
+  const partnersByCountryCanvas = document.getElementById('partnersByCountryChart');
+  if (partnersByCountryCanvas && countryChartLabels.length) {
+    new Chart(partnersByCountryCanvas, {
+      type: 'bar',
+      data: {
+        labels: countryChartLabels,
+        datasets: [{
+          label: 'Partenaires',
+          data: countryChartValues,
+          borderWidth: 1
+        }]
+      },
+      options: {
+        ...defaultChartOptions,
+        onClick: (evt, elements, chart) => {
+          if (!elements.length) return;
+          const index = elements[0].index;
+          const clickedCountry = chart.data.labels[index];
+          setFilterAndReload('country', clickedCountry);
+        }
+      }
+    });
+  }
+
+  const participantsByTrainingCanvas = document.getElementById('participantsByTrainingChart');
+  if (participantsByTrainingCanvas && participantsTrainingChartLabels.length) {
+    new Chart(participantsByTrainingCanvas, {
+      type: 'doughnut',
+      data: {
+        labels: participantsTrainingChartLabels,
+        datasets: [{
+          label: 'Participants',
+          data: participantsTrainingChartValues,
+          borderWidth: 1
+        }]
+      },
+      options: {
+        ...doughnutOptions,
+        onClick: (evt, elements, chart) => {
+          if (!elements.length) return;
+          const index = elements[0].index;
+          const clickedTraining = chart.data.labels[index];
+          setFilterAndReload('training', clickedTraining);
+        }
+      }
+    });
+  }
+
+  const sessionsByPartnerCanvas = document.getElementById('sessionsByPartnerChart');
+  if (sessionsByPartnerCanvas && partnerSessionsChartLabels.length) {
+    new Chart(sessionsByPartnerCanvas, {
+      type: 'bar',
+      data: {
+        labels: partnerSessionsChartLabels,
+        datasets: [{
+          label: 'Sessions',
+          data: partnerSessionsChartValues,
+          borderWidth: 1
+        }]
+      },
+      options: {
+        ...defaultChartOptions,
+        onClick: (evt, elements) => {
+          if (!elements.length) return;
+          const index = elements[0].index;
+          const clickedPartnerId = partnerSessionsChartIds[index];
+          setFilterAndReload('partner', clickedPartnerId);
+        }
+      }
+    });
+  }
+
+  const participantsByPartnerCanvas = document.getElementById('participantsByPartnerChart');
+  if (participantsByPartnerCanvas && partnerParticipantsChartLabels.length) {
+    new Chart(participantsByPartnerCanvas, {
+      type: 'bar',
+      data: {
+        labels: partnerParticipantsChartLabels,
+        datasets: [{
+          label: 'Participants',
+          data: partnerParticipantsChartValues,
+          borderWidth: 1
+        }]
+      },
+      options: {
+        ...defaultChartOptions,
+        onClick: (evt, elements) => {
+          if (!elements.length) return;
+          const index = elements[0].index;
+          const clickedPartnerId = partnerParticipantsChartIds[index];
+          setFilterAndReload('partner', clickedPartnerId);
+        }
+      }
+    });
+  }
+
+  const partnerBreakdownParticipantsCanvas = document.getElementById('partnerBreakdownParticipantsChart');
+  if (partnerBreakdownParticipantsCanvas && partnerBreakdownLabels.length) {
+    new Chart(partnerBreakdownParticipantsCanvas, {
+      type: 'doughnut',
+      data: {
+        labels: partnerBreakdownLabels,
+        datasets: [{
+          label: 'Participants',
+          data: partnerBreakdownParticipants,
+          borderWidth: 1
+        }]
+      },
+      options: {
+        ...doughnutOptions,
+        onClick: (evt, elements, chart) => {
+          if (!elements.length) return;
+          const index = elements[0].index;
+          const clickedTraining = chart.data.labels[index];
+          setFilterAndReload('training', clickedTraining);
+        }
+      }
+    });
+  }
+
+  const partnerBreakdownSessionsCanvas = document.getElementById('partnerBreakdownSessionsChart');
+  if (partnerBreakdownSessionsCanvas && partnerBreakdownLabels.length) {
+    new Chart(partnerBreakdownSessionsCanvas, {
+      type: 'bar',
+      data: {
+        labels: partnerBreakdownLabels,
+        datasets: [{
+          label: 'Sessions',
+          data: partnerBreakdownSessions,
+          borderWidth: 1
+        }]
+      },
+      options: {
+        ...defaultChartOptions,
+        onClick: (evt, elements, chart) => {
+          if (!elements.length) return;
+          const index = elements[0].index;
+          const clickedTraining = chart.data.labels[index];
+          setFilterAndReload('training', clickedTraining);
+        }
+      }
+    });
+  }
+</script>
 {% endblock %}

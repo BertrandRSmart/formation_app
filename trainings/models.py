@@ -578,3 +578,105 @@ class MercureInvoice(models.Model):
         if not due:
             return False
         return timezone.localdate() > due
+
+
+# ==================================================================================
+# PARTNERS - DETAILS
+# ===============================================================================
+
+from django.core.validators import MinValueValidator
+
+
+class PartnerContractPlan(models.Model):
+    PLAN_SILVER = "silver"
+    PLAN_GOLD = "gold"
+    PLAN_PLATINUM = "platinum"
+
+    PLAN_CHOICES = [
+        (PLAN_SILVER, "Silver"),
+        (PLAN_GOLD, "Gold"),
+        (PLAN_PLATINUM, "Platinum"),
+    ]
+
+    name = models.CharField(max_length=20, choices=PLAN_CHOICES, unique=True)
+    label = models.CharField(max_length=50, blank=True)
+    price_ht = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    is_active = models.BooleanField(default=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name = "Partner contract plan"
+        verbose_name_plural = "Partner contract plans"
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.label or self.get_name_display()
+
+
+class PartnerContractPlanSeat(models.Model):
+    plan = models.ForeignKey(
+        PartnerContractPlan,
+        on_delete=models.CASCADE,
+        related_name="seat_rules",
+    )
+    training = models.ForeignKey(
+        "Training",
+        on_delete=models.CASCADE,
+        related_name="partner_contract_rules",
+    )
+    included_seats = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        verbose_name = "Partner contract plan seat"
+        verbose_name_plural = "Partner contract plan seats"
+        unique_together = [("plan", "training")]
+        ordering = ["plan", "training__title"]
+
+    def __str__(self):
+        return f"{self.plan} — {self.training} ({self.included_seats})"
+
+
+class PartnerContract(models.Model):
+    STATUS_ACTIVE = "active"
+    STATUS_EXPIRED = "expired"
+    STATUS_DRAFT = "draft"
+
+    STATUS_CHOICES = [
+        (STATUS_ACTIVE, "Active"),
+        (STATUS_EXPIRED, "Expired"),
+        (STATUS_DRAFT, "Draft"),
+    ]
+
+    partner = models.ForeignKey(
+        "Client",
+        on_delete=models.CASCADE,
+        related_name="partner_contracts",
+        limit_choices_to={"is_partner": True},
+    )
+    plan = models.ForeignKey(
+        PartnerContractPlan,
+        on_delete=models.PROTECT,
+        related_name="partner_contracts",
+    )
+    start_date = models.DateField()
+    end_date = models.DateField(blank=True, null=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_ACTIVE)
+    price_ht_snapshot = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name = "Partner contract"
+        verbose_name_plural = "Partner contracts"
+        ordering = ["-start_date", "partner__name"]
+
+    def __str__(self):
+        return f"{self.partner} — {self.plan}"
+
+    @property
+    def effective_price_ht(self):
+        return self.price_ht_snapshot if self.price_ht_snapshot is not None else self.plan.price_ht
+
+    def save(self, *args, **kwargs):
+        if self.price_ht_snapshot is None and self.plan_id:
+            self.price_ht_snapshot = self.plan.price_ht
+        super().save(*args, **kwargs)

@@ -164,3 +164,71 @@ def generate_invitations_for_session(*, session: Session, lang: str, base_url: s
         pdf_files=pdf_files,
         emails_file=emails_filename,
     )
+
+def generate_invitation_for_registration(*, registration: Registration, lang: str, base_url: str) -> str:
+    """
+    Génère 1 seul PDF pour une inscription donnée.
+    Retourne le chemin absolu du PDF généré.
+    """
+    lang = (lang or "fr").lower().strip()
+    if lang not in ("fr", "en"):
+        lang = "fr"
+
+    session = registration.session
+    participant = registration.participant
+    template_name = f"trainings/invitations/convocation_{lang}.html"
+
+    config = _get_wkhtml_config()
+
+    reference = _safe_filename(session.reference or f"session_{session.id}")
+    folder_rel = f"convocations/{reference}"
+    folder_abs = os.path.join(str(settings.MEDIA_ROOT), folder_rel)
+    Path(folder_abs).mkdir(parents=True, exist_ok=True)
+
+    address = _location_address_only(session)
+    map_url = f"https://www.google.com/maps/search/?api=1&query={quote_plus(address)}" if address else ""
+
+    options = {
+        "encoding": "UTF-8",
+        "quiet": "",
+        "page-size": "A4",
+        "margin-top": "0mm",
+        "margin-right": "0mm",
+        "margin-bottom": "0mm",
+        "margin-left": "0mm",
+        "print-media-type": "",
+        "background": "",
+        "disable-smart-shrinking": "",
+        "dpi": "96",
+        "zoom": "1",
+        "enable-local-file-access": "",
+        "load-error-handling": "ignore",
+        "load-media-error-handling": "ignore",
+    }
+
+    schedule_am = "09:00-12:00"
+    schedule_pm = "13:30-16:30"
+
+    base_url = (base_url or "").rstrip("/") + "/"
+    logo_url = base_url.rstrip("/") + static("trainings/logo-ArgonOS.png")
+
+    ctx = {
+        "today": date.today(),
+        "session": session,
+        "participant": participant,
+        "schedule_am": schedule_am,
+        "schedule_pm": schedule_pm,
+        "location_address": address,
+        "map_url": map_url,
+        "logo_url": logo_url,
+    }
+
+    html = render_to_string(template_name, ctx)
+
+    last = _safe_filename(getattr(participant, "last_name", "") or "")
+    first = _safe_filename(getattr(participant, "first_name", "") or "")
+    pdf_name = f"Convocation_{last}_{first}_{lang.upper()}.pdf"
+    pdf_path = os.path.join(folder_abs, pdf_name)
+
+    pdfkit.from_string(html, pdf_path, configuration=config, options=options)
+    return pdf_path

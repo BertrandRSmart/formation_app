@@ -6,10 +6,12 @@
 <form method="post" action="{% url 'session_participant_add' session.id %}">
   {% csrf_token %}
 
+  <input type="hidden" name="force_prerequisite" id="forcePrerequisiteInput" value="">
+
   <div style="display:grid; gap:10px;">
     {{ p_form.as_p }}
 
-    <!-- ✅ Pré-requis (affiché/masqué par JS) -->
+    <!-- Pré-requis -->
     <div id="prereqBox" style="
       display:none;
       padding:10px 12px;
@@ -24,8 +26,9 @@
     </div>
   </div>
 
-  <div style="display:flex; gap:10px; margin-top:14px;">
+  <div style="display:flex; flex-direction:column; gap:10px; margin-top:14px;">
     <button id="saveBtn" type="submit" style="
+      width:100%;
       padding:10px 14px; border-radius:12px;
       border:1px solid rgba(124,58,237,0.45);
       background: rgba(124,58,237,0.18);
@@ -33,7 +36,18 @@
       Enregistrer
     </button>
 
+    <button id="forceBtn" type="submit" style="
+      display:none;
+      width:100%;
+      padding:10px 14px; border-radius:12px;
+      border:1px solid rgba(245,158,11,0.45);
+      background: rgba(245,158,11,0.18);
+      color:white; font-weight:900; cursor:pointer;">
+      Forcer l’inscription
+    </button>
+
     <button type="button" onclick="closeDrawer()" style="
+      width:100%;
       padding:10px 14px; border-radius:12px;
       border:1px solid rgba(255,255,255,0.12);
       background: rgba(255,255,255,0.06);
@@ -45,21 +59,25 @@
 
 <script>
 (function(){
-  // ---- helpers UI
   function setPrereqUI(show, ok, message){
     var box = document.getElementById('prereqBox');
     var icon = document.getElementById('prereqIcon');
     var msg  = document.getElementById('prereqMsg');
-    var btn  = document.getElementById('saveBtn');
+    var saveBtn  = document.getElementById('saveBtn');
+    var forceBtn = document.getElementById('forceBtn');
+    var forceInput = document.getElementById('forcePrerequisiteInput');
 
-    if(!box || !icon || !msg || !btn) return;
+    if(!box || !icon || !msg || !saveBtn || !forceBtn || !forceInput) return;
 
     box.style.display = show ? '' : 'none';
 
     if(!show){
-      btn.disabled = false;
-      btn.style.opacity = '1';
-      btn.style.cursor = 'pointer';
+      saveBtn.disabled = false;
+      saveBtn.style.opacity = '1';
+      saveBtn.style.cursor = 'pointer';
+
+      forceBtn.style.display = 'none';
+      forceInput.value = '';
       return;
     }
 
@@ -69,76 +87,88 @@
       icon.textContent = '✅';
       box.style.borderColor = 'rgba(34,197,94,0.40)';
       box.style.background  = 'rgba(34,197,94,0.10)';
-      btn.disabled = false;
-      btn.style.opacity = '1';
-      btn.style.cursor = 'pointer';
+
+      saveBtn.disabled = false;
+      saveBtn.style.opacity = '1';
+      saveBtn.style.cursor = 'pointer';
+
+      forceBtn.style.display = 'none';
+      forceInput.value = '';
     }else{
       icon.textContent = '⛔';
       box.style.borderColor = 'rgba(239,68,68,0.40)';
       box.style.background  = 'rgba(239,68,68,0.12)';
-      btn.disabled = true;              // ✅ BLOQUANT
-      btn.style.opacity = '.55';
-      btn.style.cursor = 'not-allowed';
+
+      saveBtn.disabled = true;
+      saveBtn.style.opacity = '.55';
+      saveBtn.style.cursor = 'not-allowed';
+
+      forceBtn.style.display = 'inline-flex';
     }
   }
 
-  // ---- trouver le champ email dans p_form
-  // Django génère souvent id="id_email". On tente plusieurs sélecteurs pour être robuste.
   var emailInput =
       document.querySelector('#id_email') ||
       document.querySelector('input[name="email"]') ||
       document.querySelector('input[type="email"]');
 
-  // si pas trouvé -> on ne fait rien
   if(!emailInput) return;
 
+  var forceBtn = document.getElementById('forceBtn');
+  var forceInput = document.getElementById('forcePrerequisiteInput');
   var sessionId = "{{ session.id }}";
 
-  // anti-spam requêtes
-  var lastValue = "";
   var timer = null;
+
+  if(forceBtn && forceInput){
+    forceBtn.addEventListener('click', function(){
+      forceInput.value = '1';
+    });
+  }
 
   function check(){
     var email = (emailInput.value || "").trim();
-    if(email === lastValue) return;
-    lastValue = email;
 
+    if(forceInput){
+      forceInput.value = '';
+    }
+
+    // Tant que l'email est vide : on masque l'alerte et le bouton forcer
     if(!email){
-      // pas d’email -> on masque l’encart et on laisse enregistrer (tu peux choisir de bloquer si email obligatoire)
       setPrereqUI(false, true, "");
       return;
     }
 
-    // état "loading"
     setPrereqUI(true, false, "Vérification du pré-requis Initiation…");
 
-    // ⚠️ URL API (à adapter si tu n'as pas encore ajouté cette route)
-    // recommandé : name="api_prereq_initiation" dans trainings/urls.py
-    var url = "{% url 'trainings:api_prereq_initiation' %}" + "?session_id=" + encodeURIComponent(sessionId) + "&email=" + encodeURIComponent(email);
+    var url = "{% url 'trainings:api_prereq_initiation' %}" +
+      "?session_id=" + encodeURIComponent(sessionId) +
+      "&email=" + encodeURIComponent(email);
 
     fetch(url, {headers: {"X-Requested-With":"XMLHttpRequest"}})
       .then(r => r.json())
       .then(data => {
-        // data: {needs_prereq: bool, ok: bool, message: str}
         if(!data || data.needs_prereq === false){
-          // prérequis non applicable => on masque l'encart, pas de blocage
           setPrereqUI(false, true, "");
           return;
         }
-        setPrereqUI(true, !!data.ok, data.message || (data.ok ? "✅ Pré-requis validé." : "⛔ Initiation requise."));
+
+        setPrereqUI(
+          true,
+          !!data.ok,
+          data.message || (data.ok ? "✅ Pré-requis validé." : "⛔ Initiation requise.")
+        );
       })
       .catch(() => {
-        // en cas d'erreur API: on bloque par prudence (bloquant)
         setPrereqUI(true, false, "Erreur de vérification. Impossible d’inscrire sans validation.");
       });
   }
 
   emailInput.addEventListener('input', function(){
     clearTimeout(timer);
-    timer = setTimeout(check, 350);
+    timer = setTimeout(check, 300);
   });
 
-  // check au chargement si email pré-rempli
   setTimeout(check, 50);
 })();
 </script>

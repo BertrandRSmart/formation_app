@@ -1,0 +1,510 @@
+{% extends "trainings/base.html" %}
+{% load static %}
+
+{% block title %}Détail des partenaires — BSmart Application{% endblock %}
+{% block body_class %}no-scroll{% endblock %}
+
+{% block content %}
+<div class="partners-detail-page">
+  <div class="partners-detail-shell">
+    <div class="detail-layout">
+
+    <!-- HAUT GAUCHE -->
+    <section class="glass detail-header area-header">
+      <div>
+        <div class="eyebrow">Partner Detail Hub</div>
+        <h1>Détail des partenaires</h1>
+        <p class="sub">
+          Suivi des contrats, quotas de sièges et historique des participants.
+        </p>
+      </div>
+
+      <form method="get" class="detail-filters">
+        <div class="filter-group">
+          <label for="partner">Partenaire</label>
+          <select name="partner" id="partner" onchange="this.form.submit()">
+            <option value="">Choisir un partenaire</option>
+            {% for p in partner_options %}
+              <option value="{{ p.id }}" {% if selected_partner_id == p.id|stringformat:"s" %}selected{% endif %}>
+                {{ p.name }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label for="training">Formation</label>
+          <select name="training" id="training" onchange="this.form.submit()">
+            <option value="">Toutes les formations</option>
+            {% for t in training_options %}
+              <option value="{{ t.title }}" {% if selected_training == t.title %}selected{% endif %}>
+                {{ t.title }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+      </form>
+    </section>
+
+    <!-- HAUT DROITE -->
+    <section class="glass partner-block area-partner">
+      {% if selected_partner %}
+        <div class="summary-head">
+          <div>
+            <div class="eyebrow">Partner</div>
+            <h2>{{ selected_partner.name }}</h2>
+            <div class="sub">
+              {% if selected_partner.country %}{{ selected_partner.country }}{% else %}Pays non renseigné{% endif %}
+            </div>
+          </div>
+
+          {% if active_contract %}
+            <div class="contract-badge">
+              {{ active_contract.plan.get_name_display }}
+            </div>
+          {% endif %}
+        </div>
+
+        {% if active_contract %}
+          <div class="kpi-grid compact-kpis">
+            <div class="kpi-card">
+              <div class="kpi-label">Contrat</div>
+              <div class="kpi-value small-value">{{ active_contract.plan.get_name_display }}</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Prix HT</div>
+              <div class="kpi-value small-value">{{ active_contract.effective_price_ht }} €</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Participants uniques</div>
+              <div class="kpi-value">{{ unique_participants_count }}</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Sièges consommés</div>
+              <div class="kpi-value">{{ total_consumed_seats }}</div>
+            </div>
+          </div>
+        {% else %}
+          <div class="empty-state">
+            Aucun contrat actif trouvé pour ce partenaire.
+          </div>
+        {% endif %}
+      {% else %}
+        <div class="empty-state">
+          Sélectionne un partenaire pour afficher son détail.
+        </div>
+      {% endif %}
+    </section>
+
+    <!-- BAS GAUCHE -->
+    <section class="glass quotas-block area-quotas">
+      <div class="block-head">
+        <div>
+          <div class="eyebrow">Contract entitlement</div>
+          <h3>Quotas par formation</h3>
+        </div>
+      </div>
+
+      {% if selected_partner and active_contract %}
+        <div class="quota-grid vertical-quota-grid">
+          {% for row in quota_rows %}
+            <div class="quota-card">
+              <div class="quota-title">{{ row.training_title }}</div>
+              <div class="quota-metrics">
+                <span>Inclus : <strong>{{ row.included_seats }}</strong></span>
+                <span>Consommés : <strong>{{ row.consumed_seats }}</strong></span>
+                <span>Restants : <strong>{{ row.remaining_seats }}</strong></span>
+              </div>
+              <div class="progress">
+                <div class="progress-bar" style="width: {% if row.usage_pct > 100 %}100{% else %}{{ row.usage_pct }}{% endif %}%"></div>
+              </div>
+            </div>
+          {% empty %}
+            <div class="empty-state">Aucune règle de quota définie pour ce contrat.</div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="empty-state">
+          Aucun quota affichable.
+        </div>
+      {% endif %}
+    </section>
+
+    <!-- BAS DROITE -->
+    <section class="glass table-block full-height area-table">
+      <div class="block-head sticky-head">
+        <div>
+          <div class="eyebrow">Participants</div>
+          <h3>Détail des participations</h3>
+        </div>
+      </div>
+
+      {% if selected_partner %}
+        <div class="table-wrap large-table-wrap">
+          <table class="detail-table">
+            <thead>
+              <tr>
+                <th>Participant</th>
+                <th>Email</th>
+                <th>Formation</th>
+                <th>Référence session</th>
+                <th>Date</th>
+                <th>Statut</th>
+                <th>Formateur</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in participation_rows %}
+                <tr>
+                  <td>{{ row.participant_name }}</td>
+                  <td>{{ row.participant_email|default:"—" }}</td>
+                  <td>{{ row.training_title }}</td>
+                  <td>{{ row.session_reference }}</td>
+                  <td>
+                    {% if row.session_date %}{{ row.session_date|date:"d/m/Y" }}{% else %}—{% endif %}
+                  </td>
+                  <td>{{ row.status }}</td>
+                  <td>{{ row.trainer_name }}</td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="7" class="table-empty">Aucune participation trouvée.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="empty-big">
+          Sélectionne un partenaire pour afficher le tableau des participants.
+        </div>
+      {% endif %}
+    </section>
+
+     
+  </div>
+</div>
+
+<style>
+  html, body{
+    height:100%;
+    margin:0;
+    overflow:hidden;
+  }
+
+  .partners-detail-page{
+    height:calc(100vh - 6px);
+    margin-top:0px;
+    padding: 0 8px 8px;
+    box-sizing:border-box;
+    color:rgba(255,255,255,.92);
+    background:
+      radial-gradient(900px 500px at 10% -10%, rgba(59,130,246,.18), transparent 55%),
+      radial-gradient(900px 500px at 100% 0%, rgba(124,58,237,.18), transparent 55%),
+      linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0)),
+      #0B0F14;
+    overflow:hidden;
+  }
+
+  .partners-detail-shell{
+    width:100%;
+    max-width:none;
+    height:100%;
+    margin:0;
+  }
+
+  .detail-layout{
+    height:100%;
+    display:grid;
+    grid-template-columns: 380px minmax(0, 1fr);
+    gap:10px;
+    overflow:hidden;
+  }
+
+  .left-stack{
+    min-height:0;
+    display:grid;
+    grid-template-rows: auto auto 1fr;
+    gap:10px;
+    overflow:hidden;
+  }
+
+  .right-panel{
+    min-width:0;
+    min-height:0;
+    overflow:hidden;
+  }
+
+  .glass{
+    border-radius:18px;
+    border:1px solid rgba(255,255,255,.08);
+    background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+    box-shadow:0 18px 45px rgba(0,0,0,.45);
+    backdrop-filter:blur(12px);
+    padding:12px;
+    min-height:0;
+    overflow:hidden;
+  }
+
+  .eyebrow{
+    font-size:10px;
+    text-transform:uppercase;
+    letter-spacing:.14em;
+    color:rgba(255,255,255,.5);
+    margin-bottom:4px;
+    font-weight:800;
+  }
+
+  .detail-header h1,
+  .partner-block h2,
+  .block-head h3{
+    margin:0;
+    font-weight:950;
+    line-height:1.05;
+  }
+
+  .detail-header h1{
+    font-size:20px;
+  }
+
+  .partner-block h2,
+  .block-head h3{
+    font-size:16px;
+  }
+
+  .sub{
+    color:rgba(255,255,255,.65);
+    font-size:12px;
+    margin-top:4px;
+    line-height:1.25;
+  }
+
+  .detail-header{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+
+  .detail-filters{
+    display:grid;
+    gap:8px;
+  }
+
+  .filter-group{
+    display:grid;
+    gap:5px;
+  }
+
+  .filter-group label{
+    font-size:11px;
+    font-weight:800;
+    color:rgba(255,255,255,.8);
+  }
+
+  .filter-group select{
+    min-height:38px;
+    border:1px solid rgba(255,255,255,.10);
+    background:rgba(255,255,255,.05);
+    color:white;
+    border-radius:12px;
+    padding:8px 10px;
+    width:100%;
+    font-size:13px;
+  }
+
+  .partner-block{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+
+  .summary-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:10px;
+  }
+
+  .contract-badge{
+    padding:7px 11px;
+    border-radius:999px;
+    font-weight:900;
+    font-size:11px;
+    border:1px solid rgba(124,58,237,.35);
+    background:rgba(124,58,237,.18);
+    white-space:nowrap;
+  }
+
+  .kpi-grid{
+    display:grid;
+    grid-template-columns:repeat(2, minmax(0, 1fr));
+    gap:8px;
+  }
+
+  .kpi-card,
+  .quota-card{
+    border-radius:14px;
+    padding:10px;
+    background:rgba(255,255,255,.04);
+    border:1px solid rgba(255,255,255,.08);
+    min-width:0;
+  }
+
+  .kpi-label{
+    font-size:10px;
+    color:rgba(255,255,255,.62);
+    margin-bottom:6px;
+    font-weight:700;
+  }
+
+  .kpi-value{
+    font-size:18px;
+    font-weight:950;
+    line-height:1.05;
+    word-break:break-word;
+  }
+
+  .small-value{
+    font-size:15px;
+  }
+
+  .quotas-block{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    min-height:0;
+  }
+
+  .block-head{
+    flex:0 0 auto;
+    margin-bottom:2px;
+  }
+
+  .vertical-quota-grid{
+    display:grid;
+    grid-template-columns:1fr;
+    gap:8px;
+    overflow:auto;
+    min-height:0;
+    padding-right:2px;
+  }
+
+  .quota-title{
+    font-size:13px;
+    font-weight:900;
+    margin-bottom:6px;
+  }
+
+  .quota-metrics{
+    display:grid;
+    gap:4px;
+    font-size:11px;
+    color:rgba(255,255,255,.78);
+    margin-bottom:8px;
+  }
+
+  .progress{
+    width:100%;
+    height:8px;
+    border-radius:999px;
+    background:rgba(255,255,255,.08);
+    overflow:hidden;
+  }
+
+  .progress-bar{
+    height:100%;
+    border-radius:999px;
+    background:linear-gradient(90deg, #7C3AED, #3B82F6);
+  }
+
+  .full-height{
+    height:100%;
+    display:flex;
+    flex-direction:column;
+    min-height:0;
+  }
+
+  .large-table-wrap{
+    flex:1 1 auto;
+    min-height:0;
+    overflow:auto;
+    border-radius:14px;
+    border:1px solid rgba(255,255,255,.08);
+    background:rgba(255,255,255,.03);
+  }
+
+  .detail-table{
+    width:100%;
+    border-collapse:collapse;
+  }
+
+  .detail-table th{
+    text-align:left;
+    padding:9px 10px;
+    font-size:10px;
+    color:rgba(255,255,255,.72);
+    background:rgba(16,18,24,.96);
+    position:sticky;
+    top:0;
+    z-index:2;
+    white-space:nowrap;
+  }
+
+  .detail-table td{
+    padding:8px 10px;
+    font-size:11px;
+    border-top:1px solid rgba(255,255,255,.06);
+    white-space:nowrap;
+  }
+
+  .detail-table tbody tr:hover{
+    background:rgba(255,255,255,.03);
+  }
+
+  .table-empty,
+  .empty-state,
+  .empty-big{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    color:rgba(255,255,255,.65);
+    padding:14px;
+    font-size:12px;
+    min-height:0;
+    height:100%;
+  }
+
+  @media (max-width: 1250px){
+    html, body{
+      overflow:auto;
+    }
+
+    .partners-detail-page{
+      height:calc(100vh - 10px);
+      margin-top:0;
+      padding:8px 10px 10px;
+      box-sizing:border-box;
+      color:rgba(255,255,255,.92);
+      background:
+        radial-gradient(900px 500px at 10% -10%, rgba(59,130,246,.18), transparent 55%),
+        radial-gradient(900px 500px at 100% 0%, rgba(124,58,237,.18), transparent 55%),
+        linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0)),
+        #0B0F14;
+      overflow:hidden;
+    }
+    .detail-layout{
+      height:auto;
+      grid-template-columns:1fr;
+    }
+
+    .left-stack{
+      grid-template-rows:auto;
+    }
+
+    .large-table-wrap{
+      max-height:520px;
+    }
+  }
+</style>
+{% endblock %}

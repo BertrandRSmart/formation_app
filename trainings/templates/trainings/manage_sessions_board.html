@@ -100,7 +100,6 @@
       border-radius: 999px;
     }
 
-    /* ✅ Mois : wrap (pas de scrollbar) */
     .monthbar{
       display:flex;
       gap:8px;
@@ -133,10 +132,9 @@
       background: rgba(124,58,237,0.18);
     }
 
-    /* ✅ 4 dropdown côte à côte */
     .filters-row{
       display:grid;
-      grid-template-columns: 1fr 1fr 1fr 1fr; /* ✅ 4 menus */
+      grid-template-columns: 1fr 1fr 1fr 1fr;
       gap:10px;
     }
 
@@ -258,7 +256,6 @@
 
       <div style="padding:14px 16px; display:grid; gap:10px; flex:0 0 auto;">
 
-        <!-- Recherche -->
         <form method="get" style="display:flex; gap:10px; align-items:center;">
           <input type="hidden" name="month" value="{{ month }}">
           <input type="hidden" name="client" value="{{ client_id }}">
@@ -270,16 +267,13 @@
                  placeholder="🔎 Réf / formation / client / formateur…">
           <button class="btn" type="submit">OK</button>
 
-          <!-- ✅ FIX: fermeture du href + '>' -->
           <a class="btn btn--ghost"
              href="{% url 'trainings:training_manage_home' %}?month={{ month|urlencode }}&client={{ client_id|urlencode }}&trainer={{ trainer_id|urlencode }}&product={{ product_id|urlencode }}&status={{ status|urlencode }}">
             Effacer
           </a>
         </form>
 
-        <!-- Mois -->
         <div class="monthbar">
-          <!-- ✅ FIX: fermeture du href + '>' -->
           <a class="pill pill--sm {% if not month %}pill--active{% endif %}"
              href="{% url 'trainings:training_manage_home' %}?client={{ client_id|urlencode }}&trainer={{ trainer_id|urlencode }}&product={{ product_id|urlencode }}&status={{ status|urlencode }}&q={{ q|urlencode }}">
             Tous
@@ -288,7 +282,6 @@
           {% for m in months %}
             {% with mv=m.value|default:m %}
               {% with mm=mv|slice:"5:7" %}
-                <!-- ✅ FIX: fermeture du href + '>' -->
                 <a class="pill pill--sm {% if month == mv %}pill--active{% endif %}"
                    href="{% url 'trainings:training_manage_home' %}?month={{ mv|urlencode }}&client={{ client_id|urlencode }}&trainer={{ trainer_id|urlencode }}&product={{ product_id|urlencode }}&status={{ status|urlencode }}&q={{ q|urlencode }}">
                   {% if m.label %}
@@ -302,10 +295,8 @@
           {% endfor %}
         </div>
 
-        <!-- ✅ 4 menus côte à côte -->
         <div class="filters-row">
 
-          <!-- Client -->
           <form method="get" style="margin:0;">
             <input type="hidden" name="month" value="{{ month }}">
             <input type="hidden" name="trainer" value="{{ trainer_id }}">
@@ -322,7 +313,6 @@
             </select>
           </form>
 
-          <!-- Produit -->
           <form method="get" style="margin:0;">
             <input type="hidden" name="month" value="{{ month }}">
             <input type="hidden" name="client" value="{{ client_id }}">
@@ -339,7 +329,6 @@
             </select>
           </form>
 
-          <!-- Formateur -->
           <form method="get" style="margin:0;">
             <input type="hidden" name="month" value="{{ month }}">
             <input type="hidden" name="client" value="{{ client_id }}">
@@ -356,7 +345,6 @@
             </select>
           </form>
 
-          <!-- Statut -->
           <form method="get" style="margin:0;">
             <input type="hidden" name="month" value="{{ month }}">
             <input type="hidden" name="client" value="{{ client_id }}">
@@ -375,10 +363,8 @@
 
       </div>
 
-      <!-- LISTE SESSIONS -->
       <div class="scroll" style="padding:12px; display:flex; flex-direction:column; gap:8px;">
         {% for s in sessions %}
-          <!-- ✅ FIX: fermeture du href + '>' -->
           <a class="srow {% if selected_session and selected_session.id == s.id %}srow--active{% endif %}"
              href="{% url 'trainings:training_manage_home' %}?month={{ month|urlencode }}&client={{ client_id|urlencode }}&trainer={{ trainer_id|urlencode }}&product={{ product_id|urlencode }}&status={{ status|urlencode }}&q={{ q|urlencode }}&session={{ s.id }}">
             <div style="min-width:0;">
@@ -431,7 +417,6 @@
           <div style="display:flex; gap:10px; align-items:center;">
             <a class="btn btn--ghost" href="{% url 'trainings:export_participants_csv' selected_session.id %}">⬇️ Export CSV</a>
 
-            <!-- ✅ FIX: garder product dans le lien -->
             <a class="btn"
                href="{% url 'trainings:training_manage_home' %}?month={{ month|urlencode }}&client={{ client_id|urlencode }}&trainer={{ trainer_id|urlencode }}&product={{ product_id|urlencode }}&status={{ status|urlencode }}&q={{ q|urlencode }}&session={{ selected_session.id }}&drawer=add-participant">
               ➕ Ajouter
@@ -461,7 +446,6 @@
                 <div class="pname">{{ reg.participant.last_name }} {{ reg.participant.first_name }}</div>
                 <div class="pemail">{{ reg.participant.email }}</div>
 
-                {# ✅ carré statut : rouge si pas final, vert si final #}
                 {% if reg.status in "PRESENT,ABSENT,CANCELED" %}
                   <span title="{{ reg.get_status_display }}" style="
                     width:12px; height:12px; border-radius:4px;
@@ -479,7 +463,6 @@
                 {% endif %}
               </div>
 
-              {# ✅ changer le statut (conserve ta structure) #}
               <form method="post"
                     action="{% url 'trainings:session_participant_set_status' selected_session.id reg.id %}"
                     style="margin:0; display:flex; gap:8px; align-items:center;">
@@ -493,8 +476,6 @@
                   <option value="PRESENT" {% if reg.status == "PRESENT" %}selected{% endif %}>Présent</option>
                   <option value="ABSENT" {% if reg.status == "ABSENT" %}selected{% endif %}>Absent</option>
                   <option value="CANCELED" {% if reg.status == "CANCELED" %}selected{% endif %}>Annulé</option>
-
-                  {# optionnel : si tu veux garder aussi invité/confirmé #}
                   <option value="INVITED" {% if reg.status == "INVITED" %}selected{% endif %}>Invité</option>
                   <option value="CONFIRMED" {% if reg.status == "CONFIRMED" %}selected{% endif %}>Confirmé</option>
                   <option value="REGISTERED" {% if reg.status == "REGISTERED" %}selected{% endif %}>Inscrit</option>
@@ -502,13 +483,27 @@
 
                 <button class="iconbtn" type="submit" title="Enregistrer statut">✅</button>
 
-                <a class="iconbtn" href="{% url 'trainings:session_participant_edit' selected_session.id reg.id %}" title="Modifier">✏️</a>
+                <a class="iconbtn"
+                  href="{% url 'trainings:session_participant_invitation' selected_session.id reg.id 'fr' %}"
+                  title="Convocation FR"
+                  target="_blank" rel="noopener">
+                  🇫🇷
+                </a>
 
-                <form method="post" action="{% url 'trainings:session_participant_delete' selected_session.id reg.id %}" style="margin:0;">
-                  {% csrf_token %}
-                  <button class="iconbtn iconbtn--danger" type="submit"
-                          onclick="return confirm('Retirer ce participant ?')" title="Retirer">🗑️</button>
-                </form>
+                <a class="iconbtn"
+                  href="{% url 'trainings:session_participant_invitation' selected_session.id reg.id 'en' %}"
+                  title="Convocation EN"
+                  target="_blank" rel="noopener">
+                  🇬🇧
+                </a>
+
+<a class="iconbtn" href="{% url 'trainings:session_participant_edit' selected_session.id reg.id %}" title="Modifier">✏️</a>
+              </form>
+
+              <form method="post" action="{% url 'trainings:session_participant_delete' selected_session.id reg.id %}" style="margin:0;">
+                {% csrf_token %}
+                <button class="iconbtn iconbtn--danger" type="submit"
+                        onclick="return confirm('Retirer ce participant ?')" title="Retirer">🗑️</button>
               </form>
             </div>
           {% empty %}
@@ -538,24 +533,46 @@
 
         <form method="post" action="{% url 'trainings:session_participant_add' selected_session.id %}">
           {% csrf_token %}
+
+          <input type="hidden" name="force_prerequisite" id="forcePrerequisiteInput" value="">
+
           {{ p_form.as_p }}
 
-          <!-- ✅ Pré-requis block -->
-          <div id="prereqBox" style="display:none; margin-top:10px; padding:10px 12px; border-radius:12px;
-              border:1px solid rgba(255,255,255,.12); background:rgba(0,0,0,.22);">
+          <div id="prereqBox" style="
+            display:none;
+            margin-top:10px;
+            padding:10px 12px;
+            border-radius:12px;
+            border:1px solid rgba(255,255,255,.12);
+            background:rgba(0,0,0,.22);
+          ">
             <div style="font-weight:950; font-size:12px; opacity:.85; margin-bottom:6px;">
               Pré-requis ArgonOS
             </div>
             <div id="prereqText" style="font-weight:950;"></div>
           </div>
 
-          <div style="display:flex; gap:10px; margin-top:14px;">
+          <div style="display:flex; flex-direction:column; gap:10px; margin-top:14px;">
             <button id="drawerSubmitBtn" class="xbtn" type="submit" style="
+              width:100%;
               border-color: rgba(124,58,237,0.45);
               background: rgba(124,58,237,0.18);
-            ">Enregistrer</button>
+            ">
+              Enregistrer
+            </button>
 
-            <button class="xbtn" type="button" onclick="closeDrawer('participantDrawer')">Annuler</button>
+            <button id="forceBtn" class="xbtn" type="submit" style="
+              display:none;
+              width:100%;
+              border-color: rgba(245,158,11,0.45);
+              background: rgba(245,158,11,0.18);
+            ">
+              Forcer l’inscription
+            </button>
+
+            <button class="xbtn" type="button" onclick="closeDrawer('participantDrawer')">
+              Annuler
+            </button>
           </div>
         </form>
       {% else %}
@@ -572,7 +589,6 @@
 <script>
   console.log("✅ manage_sessions_board extra_js chargé");
 
-  // Recherche participants
   (function(){
     var input = document.getElementById('pSearch');
     if(!input) return;
@@ -587,27 +603,27 @@
     });
   })();
 
-  // Auto-open drawer si drawer=add-participant
   document.addEventListener('DOMContentLoaded', function(){
     try{
       var url = new URL(window.location.href);
       if(url.searchParams.get('drawer') === 'add-participant'){
-        openDrawer('participantDrawer'); // supposée venir du base.html
+        openDrawer('participantDrawer');
       }
     }catch(e){}
   });
-    // ✅ Pré-requis ArgonOS : Initiation obligatoire avant DP1 / DE1 (bloquant)
+
   (function(){
     const selectedSessionId = "{{ selected_session.id|default:'' }}";
     if(!selectedSessionId) return;
 
-    const prereqBox  = document.getElementById("prereqBox");
-    const prereqText = document.getElementById("prereqText");
-    const submitBtn  = document.getElementById("drawerSubmitBtn");
-    if(!prereqBox || !prereqText || !submitBtn) return;
+    const prereqBox   = document.getElementById("prereqBox");
+    const prereqText  = document.getElementById("prereqText");
+    const submitBtn   = document.getElementById("drawerSubmitBtn");
+    const forceBtn    = document.getElementById("forceBtn");
+    const forceInput  = document.getElementById("forcePrerequisiteInput");
 
-    // ⚠️ On cherche un champ email dans p_form
-    // Essaye dans l'ordre : id_email, id_participant_email, input[type=email], input[name*=email]
+    if(!prereqBox || !prereqText || !submitBtn || !forceBtn || !forceInput) return;
+
     const emailInput =
       document.getElementById("id_email") ||
       document.getElementById("id_participant_email") ||
@@ -622,9 +638,13 @@
       if(!needs){
         prereqBox.style.display = "none";
         prereqText.textContent = "";
+
         submitBtn.disabled = false;
         submitBtn.style.opacity = "1";
         submitBtn.title = "";
+
+        forceBtn.style.display = "none";
+        forceInput.value = "";
         return;
       }
 
@@ -635,13 +655,23 @@
       submitBtn.disabled = !ok;
       submitBtn.style.opacity = ok ? "1" : "0.55";
       submitBtn.title = ok ? "" : "Pré-requis non validé : Initiation obligatoire";
+
+      if(ok){
+        forceBtn.style.display = "none";
+        forceInput.value = "";
+      } else {
+        forceBtn.style.display = "block";
+      }
     }
 
     async function checkPrereq(){
       const email = (emailInput.value || "").trim();
-      if(email.length < 5){
-        // on n'affiche le bloc que si "needs_prereq" = true -> on le saura via l'API
-        // mais si email vide, on peut déjà prévoir un état "pending" après 1er retour API
+
+      forceInput.value = "";
+
+      if(!email){
+        setState(false, true, "");
+        return;
       }
 
       try{
@@ -653,19 +683,16 @@
         const data = await r.json();
 
         const needs = !!data.needs_prereq;
-        if(needs && !email){
-          setState(true, false, "Email requis pour vérifier le pré-requis Initiation.");
-          return;
-        }
-
         setState(needs, !!data.ok, data.message || "");
       }catch(e){
-        // fallback : ne pas bloquer si l'API ne répond pas
         setState(false, true, "");
       }
     }
 
-    // check lors de l'ouverture du drawer
+    forceBtn.addEventListener("click", function(){
+      forceInput.value = "1";
+    });
+
     document.addEventListener("DOMContentLoaded", function(){
       try{
         const url = new URL(window.location.href);

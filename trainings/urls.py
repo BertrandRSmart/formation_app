@@ -111,7 +111,11 @@ urlpatterns = [
     path("formations/<int:session_id>/participants/add/", views_manage.session_participant_add, name="session_participant_add"),
     path("formations/<int:session_id>/participants/<int:registration_id>/edit/", views_manage.session_participant_edit, name="session_participant_edit"),
     path("formations/<int:session_id>/participants/<int:registration_id>/delete/", views_manage.session_participant_delete, name="session_participant_delete"),
-
+    path(
+        "formations/<int:session_id>/participants/<int:registration_id>/invitation/<str:lang>/",
+        views_manage.session_participant_invitation,
+        name="session_participant_invitation",
+    ),
     # =========================================================
     # Export CSV
     # =========================================================
@@ -164,4 +168,5 @@ urlpatterns = [
 
     path("partners/", views.partners_dashboard, name="partners_dashboard"),
     
+    path("partners/detail/", views.partners_detail, name="partners_detail"),
     ]

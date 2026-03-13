@@ -3,6 +3,7 @@ print("✅ LOADED trainings/views_manage.py")
 
 from datetime import date
 import csv
+import os
 
 from django.contrib import messages
 from django.db.models import Q, Count
@@ -14,7 +15,8 @@ from urllib.parse import urlencode
 from .models import Session, Registration, Client, Trainer, TrainingType, RegistrationStatus
 from .forms_manage import ParticipantForm, RegistrationMiniForm
 from .views import manager_required
-
+from django.http import FileResponse, Http404
+from .services.invitations import generate_invitation_for_registration
 
 # =========================================================
 # Helpers
@@ -199,22 +201,57 @@ def training_manage_home(request):
 # Participants
 # =========================================================
 
+
 @manager_required
 def session_participant_add(request, session_id):
-    session = get_object_or_404(Session, pk=session_id)
+    from .views import check_initiation_prereq  # import local pour éviter les soucis de circular import
+
+    session = get_object_or_404(
+        Session.objects.select_related("training", "training_type", "training__training_type"),
+        pk=session_id
+    )
 
     if request.method == "POST":
         p_form = ParticipantForm(request.POST)
+
         if p_form.is_valid():
-            participant = p_form.save()
-            Registration.objects.create(session=session, participant=participant)
-            messages.success(request, "Participant ajouté à la session ✅")
+            participant = p_form.save(commit=False)
+
+            # on lit le flag envoyé par le bouton "Forcer l’inscription"
+            force_prerequisite = (request.POST.get("force_prerequisite") == "1")
+
+            # vérification prérequis uniquement si on ne force pas
+            if not force_prerequisite:
+                ok, msg = check_initiation_prereq(session, participant.email)
+                if not ok:
+                    messages.error(request, msg)
+                    return _redirect_to_manage_home(request, session=session.id)
+
+            # on sauve le participant
+            participant.save()
+
+            # éviter les doublons d'inscription
+            reg, created = Registration.objects.get_or_create(
+                session=session,
+                participant=participant,
+                defaults={"status": RegistrationStatus.INVITED},
+            )
+
+            if created:
+                if force_prerequisite:
+                    messages.warning(
+                        request,
+                        "Participant ajouté avec dérogation de prérequis ⚠️"
+                    )
+                else:
+                    messages.success(request, "Participant ajouté à la session ✅")
+            else:
+                messages.info(request, "Ce participant est déjà inscrit à cette session.")
+
         else:
             messages.error(request, "Formulaire invalide. Vérifie les champs.")
 
-    # ✅ Revenir sur /formations/ en conservant filtres + session sélectionnée
     return _redirect_to_manage_home(request, session=session.id)
-
 
 @manager_required
 def session_participant_edit(request, session_id, registration_id):
@@ -300,3 +337,34 @@ def session_participant_set_status(request, session_id, registration_id):
     messages.success(request, "Statut mis à jour ✅")
 
     return _redirect_to_manage_home(request, session=session_id)
+
+@manager_required
+def session_participant_invitation(request, session_id, registration_id, lang):
+    session = get_object_or_404(Session, pk=session_id)
+    reg = get_object_or_404(
+        Registration.objects.select_related("participant", "session"),
+        pk=registration_id,
+        session=session,
+    )
+
+    lang = (lang or "fr").lower().strip()
+    if lang not in ("fr", "en"):
+        lang = "fr"
+
+    try:
+        pdf_path = generate_invitation_for_registration(
+            registration=reg,
+            lang=lang,
+            base_url=request.build_absolute_uri("/"),
+        )
+    except Exception as e:
+        messages.error(request, f"Erreur génération convocation : {e}")
+        return _redirect_to_manage_home(request, session=session.id)
+
+    if not os.path.exists(pdf_path):
+        raise Http404("PDF introuvable.")
+
+    filename = os.path.basename(pdf_path)
+    response = FileResponse(open(pdf_path, "rb"), content_type="application/pdf")
+    response["Content-Disposition"] = f'inline; filename="{filename}"'
+    return response

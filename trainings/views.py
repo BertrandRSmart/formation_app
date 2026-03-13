@@ -1,59 +1,55 @@
 from __future__ import annotations
 
+import glob
+import os
+from collections import defaultdict
 from datetime import date, timedelta
+from decimal import Decimal
+from functools import wraps
 
+import pdfkit
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
-from django.db.models import Count, Max, Q
-from django.http import JsonResponse, Http404
+from django.db.models import Count, DateField, DecimalField, ExpressionWrapper, F, IntegerField, Max, Q, Sum, Value
+from django.db.models.functions import Coalesce
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.encoding import smart_str
 from django.views.decorators.http import require_POST
-from django.db.models import Sum, Count, Value, DecimalField, Q, IntegerField
-from django.db.models.functions import Coalesce, TruncMonth
-from django.http import FileResponse
-from .models import MercureInvoice, MercureContract
-from django.db.models import F, ExpressionWrapper, DateField
 
 from trainings.services.invitations import generate_invitations_for_session
 
-
-import os
-from django.conf import settings
-from django.utils.encoding import smart_str
-
-from .models import MercureInvoice, MercureContract, MercureInvoiceStatus, MercureContractStatus
-
-from django.db.models.functions import Coalesce
-
-from .models import Session
-from .models import TrainingType  # si ton modèle existe bien
-
-from decimal import Decimal
-
-from .forms import BulkRegistrationForm, NewParticipantFormSet
-from .forms import MercureInvoiceForm, MercureContractForm
-
+from .forms import BulkRegistrationForm, MercureContractForm, MercureInvoiceForm, NewParticipantFormSet
 from .models import (
     Client,
-    Trainer,
-    Session,
-    Training,
+    MercureContract,
+    MercureContractStatus,
+    MercureInvoice,
+    MercureInvoiceStatus,
     Participant,
+    PartnerContract,
+    PartnerContractPlan,
+    PartnerContractPlanSeat,
     Registration,
     RegistrationStatus,
+    Session,
+    Trainer,
+    Training,
+    TrainingType,
 )
 
 from argonteam.models import (
-    OneToOneMeeting,
-    OneToOneObjective,
+    ArgonosModule,
     ObjectiveCategory,
     ObjectiveStatus,
-    OneToOneStatus,  # si utilisé ailleurs
-    ArgonosModule,
+    OneToOneMeeting,
+    OneToOneObjective,
+    OneToOneStatus,
     TrainerModuleMastery,
 )
 
@@ -72,7 +68,6 @@ def is_trainer_readonly(user) -> bool:
     """Retourne True si l'utilisateur est dans le groupe FORMATEURS."""
     return user.is_authenticated and user.groups.filter(name="FORMATEURS").exists()
 
-from functools import wraps
 
 def get_trainer_for_user(user):
     """
@@ -83,21 +78,19 @@ def get_trainer_for_user(user):
     if not user.is_authenticated:
         return None
 
-    # 1) Si Trainer a un champ 'user'
     try:
-        t = Trainer.objects.filter(user=user).first()
-        if t:
-            return t
+        trainer = Trainer.objects.filter(user=user).first()
+        if trainer:
+            return trainer
     except Exception:
         pass
 
-    # 2) Fallback email
     user_email = (getattr(user, "email", "") or "").strip()
     if user_email:
         try:
-            t = Trainer.objects.filter(email__iexact=user_email).first()
-            if t:
-                return t
+            trainer = Trainer.objects.filter(email__iexact=user_email).first()
+            if trainer:
+                return trainer
         except Exception:
             pass
 
@@ -112,7 +105,6 @@ def mercure_only_required(view_func):
     """
     @wraps(view_func)
     def _wrapped(request, *args, **kwargs):
-        # Managers -> OK
         if not is_trainer_readonly(request.user):
             return view_func(request, *args, **kwargs)
 
@@ -123,8 +115,10 @@ def mercure_only_required(view_func):
         raise PermissionDenied("Accès réservé aux formateurs Mercure et aux responsables.")
     return _wrapped
 
+
 def manager_required(view_func):
     """Bloque l'accès aux utilisateurs du groupe FORMATEURS."""
+    @wraps(view_func)
     def _wrapped(request, *args, **kwargs):
         if is_trainer_readonly(request.user):
             raise PermissionDenied("Accès réservé aux responsables.")
@@ -148,6 +142,26 @@ def _color_for_training(training_id: int) -> str:
     return palette[(training_id or 0) % len(palette)]
 
 
+def _week_bounds(d: date) -> tuple[date, date]:
+    """Bornes semaine ISO (lundi -> dimanche) pour la date d."""
+    monday = d - timedelta(days=d.weekday())
+    sunday = monday + timedelta(days=6)
+    return monday, sunday
+
+
+def _session_days_in_week(start: date | None, end: date | None, week_start: date, week_end: date) -> int:
+    """Nombre de jours inclusifs de chevauchement entre [start,end] et [week_start,week_end]."""
+    if not start:
+        return 0
+    if not end:
+        end = start
+    a = max(start, week_start)
+    b = min(end, week_end)
+    if b < a:
+        return 0
+    return (b - a).days + 1
+
+
 # =========================================================
 # Sync objectifs -> Tasks (projects app)
 # =========================================================
@@ -168,7 +182,7 @@ def _get_or_create_argonos_project() -> "Project | None":
 
 
 def _map_objective_status_to_task_status(obj_status: str) -> str:
-    """Mappe ObjectiveStatus -> Task.Status"""
+    """Mappe ObjectiveStatus -> Task.Status."""
     if Task is None:
         return "todo"
 
@@ -214,7 +228,7 @@ def _create_task_for_objective(objective: OneToOneObjective) -> None:
 
 
 def _sync_task_from_objective(objective: OneToOneObjective) -> None:
-    """Met à jour la task liée (si existe)."""
+    """Met à jour la task liée si elle existe."""
     if Task is None or not getattr(objective, "created_task_id", None):
         return
 
@@ -232,44 +246,20 @@ def _sync_task_from_objective(objective: OneToOneObjective) -> None:
 # =========================================================
 # Pages principales
 # =========================================================
-def _week_bounds(d: date) -> tuple[date, date]:
-    """Bornes semaine ISO (lundi -> dimanche) pour la date d."""
-    monday = d - timedelta(days=d.weekday())
-    sunday = monday + timedelta(days=6)
-    return monday, sunday
-
-
-def _session_days_in_week(start: date | None, end: date | None, week_start: date, week_end: date) -> int:
-    """Nombre de jours (inclusifs) de chevauchement entre [start,end] et [week_start,week_end]."""
-    if not start:
-        return 0
-    if not end:
-        end = start
-    a = max(start, week_start)
-    b = min(end, week_end)
-    if b < a:
-        return 0
-    return (b - a).days + 1
 
 @login_required
 def home_view(request):
     today = date.today()
     limit = today + timedelta(days=15)
 
-    # =========================
-    # 1) KPIs — Weekly Command Center
-    # =========================
     week_start, week_end = _week_bounds(today)
 
-    # Sessions de la semaine (base)
     week_sessions = (
         Session.objects
         .select_related("training", "training_type", "client")
         .filter(start_date__gte=week_start, start_date__lte=week_end)
     )
 
-    # KPI ArgonOS / Mercure
-    # ✅ On essaye training_type (souvent présent) ; fallback sur training.training_type si besoin
     week_argonos_count = (
         week_sessions.filter(
             Q(training_type__name__iexact="ArgonOS")
@@ -284,10 +274,8 @@ def home_view(request):
         ).count()
     )
 
-    # KPI Deadlines (Tasks) — si projects app dispo
     week_deadlines_count = None
     if Task is not None:
-        # status DONE selon ton enum Task.Status.DONE si dispo, sinon fallback string
         try:
             done_value = Task.Status.DONE
             week_deadlines_count = (
@@ -302,17 +290,14 @@ def home_view(request):
                 .count()
             )
 
-    # KPI Utilization — simple : jours planifiés cette semaine / 5 jours ouvrés
     planned_days = 0
     for start_date, end_date in week_sessions.values_list("start_date", "end_date"):
         planned_days += _session_days_in_week(start_date, end_date, week_start, week_end)
+
     working_days = 5
     week_utilization_pct = round((planned_days / working_days) * 100) if working_days else None
     utilization_target = 80
 
-    # =========================
-    # 2) Alertes convocations (inchangé)
-    # =========================
     invoices_alerts = MercureInvoice.objects.none()
 
     qs = Session.objects.select_related("training", "client").filter(
@@ -327,22 +312,14 @@ def home_view(request):
 
     convocations_alerts = qs.order_by("start_date")
 
-    
-
-    # =========================
-    # 3) Droits Mercure paiements (inchangé)
-    # =========================
     if not is_trainer_readonly(request.user):
         can_access_mercure = True
     else:
-        t = get_trainer_for_user(request.user)
+        trainer = get_trainer_for_user(request.user)
         can_access_mercure = bool(
-            t and (getattr(t, "product", "") or "").upper() == Trainer.PRODUCT_MERCURE
+            trainer and (getattr(trainer, "product", "") or "").upper() == Trainer.PRODUCT_MERCURE
         )
 
-    # =========================
-    # 4) Alertes factures Mercure (inchangé)
-    # =========================
     if can_access_mercure or request.user.is_staff:
         invoices_qs = (
             MercureInvoice.objects
@@ -358,20 +335,16 @@ def home_view(request):
             )
         )
 
-        # Si formateur readonly Mercure -> ses factures uniquement
         if is_trainer_readonly(request.user):
-            t = get_trainer_for_user(request.user)
-            if t:
-                invoices_qs = invoices_qs.filter(trainer=t)
+            trainer = get_trainer_for_user(request.user)
+            if trainer:
+                invoices_qs = invoices_qs.filter(trainer=trainer)
 
         invoices_alerts = invoices_qs.filter(
             due_date_db__gte=today,
             due_date_db__lte=limit,
         ).order_by("due_date_db")
 
-    # =========================
-    # 5) Compteurs + context (inchangé + KPIs ajoutés)
-    # =========================
     invoices_alerts_list = list(invoices_alerts)
     invoices_alerts_count = len(invoices_alerts_list)
 
@@ -382,8 +355,6 @@ def home_view(request):
 
     return render(request, "trainings/home.html", {
         "today": today,
-
-        # KPIs Weekly Command Center
         "week_start": week_start,
         "week_end": week_end,
         "week_argonos_count": week_argonos_count,
@@ -391,16 +362,11 @@ def home_view(request):
         "week_deadlines_count": week_deadlines_count if week_deadlines_count is not None else "—",
         "week_utilization_pct": week_utilization_pct,
         "utilization_target": utilization_target,
-
-        # datasets
         "convocations_alerts": convocations_alerts_list,
         "invoices_alerts": invoices_alerts_list,
-
-        # compteurs
         "convocations_alerts_count": convocations_alerts_count,
         "invoices_alerts_count": invoices_alerts_count,
         "alerts_total": alerts_total,
-
         "can_access_mercure": can_access_mercure,
     })
 
@@ -408,25 +374,26 @@ def home_view(request):
 @staff_member_required
 @require_POST
 def create_invitations(request, session_id: int):
-        s = get_object_or_404(
-            Session.objects.select_related("training", "client", "trainer", "room"),
-            pk=session_id,
+    session = get_object_or_404(
+        Session.objects.select_related("training", "client", "trainer", "room"),
+        pk=session_id,
+    )
+
+    lang = (request.POST.get("lang") or "fr").lower().strip()
+    base_url = request.build_absolute_uri("/")
+
+    try:
+        result = generate_invitations_for_session(session=session, lang=lang, base_url=base_url)
+        messages.success(
+            request,
+            f"✅ Convocations {lang.upper()} générées : {len(result.pdf_files)} PDF — {result.folder_rel}"
         )
+    except Exception as e:
+        messages.error(request, f"❌ Erreur convocations : {e}")
 
-        lang = (request.POST.get("lang") or "fr").lower().strip()
-        base_url = request.build_absolute_uri("/")
+    return redirect("trainings:home")
 
-        try:
-            result = generate_invitations_for_session(session=s, lang=lang, base_url=base_url)
-            messages.success(
-                request,
-                f"✅ Convocations {lang.upper()} générées : {len(result.pdf_files)} PDF — {result.folder_rel}"
-            )
-        except Exception as e:
-            messages.error(request, f"❌ Erreur convocations : {e}")
 
-        return redirect("trainings:home")    
-        
 @staff_member_required
 @require_POST
 def dismiss_mercure_invoice_alert(request, invoice_id: int):
@@ -435,11 +402,10 @@ def dismiss_mercure_invoice_alert(request, invoice_id: int):
     inv.save(update_fields=["payment_alert_closed"])
     return redirect("trainings:home")
 
+
 @login_required
 def team_home(request):
     return render(request, "trainings/team_home.html")
-
-
 
 
 @login_required
@@ -448,16 +414,15 @@ def agenda_view(request):
     return render(request, "trainings/agenda.html", {"today": today})
 
 
-
 @login_required
 def session_detail_view(request, session_id: int):
-    s = get_object_or_404(
+    session = get_object_or_404(
         Session.objects
         .select_related("training", "training_type", "client", "trainer", "backup_trainer", "room")
         .prefetch_related("registrations__participant"),
         id=session_id,
     )
-    return render(request, "trainings/session_detail.html", {"s": s})
+    return render(request, "trainings/session_detail.html", {"s": session})
 
 
 # =========================================================
@@ -480,11 +445,11 @@ def bulk_registrations(request):
                     cd.get("first_name"),
                     cd.get("last_name"),
                     cd.get("email"),
-                    cd.get("company_service")
+                    cd.get("company_service"),
                 ]):
                     continue
 
-                p, _created = Participant.objects.get_or_create(
+                participant, _created = Participant.objects.get_or_create(
                     email=cd["email"],
                     defaults={
                         "first_name": cd["first_name"],
@@ -494,16 +459,16 @@ def bulk_registrations(request):
                     },
                 )
 
-                if p.client_id is None:
-                    p.client = session.client
-                    p.save(update_fields=["client"])
+                if participant.client_id is None:
+                    participant.client = session.client
+                    participant.save(update_fields=["client"])
 
-                selected.append(p)
+                selected.append(participant)
 
-            for p in selected:
+            for participant in selected:
                 Registration.objects.get_or_create(
                     session=session,
-                    participant=p,
+                    participant=participant,
                     defaults={"status": RegistrationStatus.INVITED},
                 )
 
@@ -535,7 +500,7 @@ def bulk_registrations(request):
 
 @login_required
 def sessions_json(request):
-    """Renvoie les sessions pour FullCalendar (avec filtres)."""
+    """Renvoie les sessions pour FullCalendar avec filtres."""
 
     client_id = request.GET.get("client_id")
     trainer_id = request.GET.get("trainer_id")
@@ -556,9 +521,9 @@ def sessions_json(request):
         to_date = None
 
     qs = Session.objects.select_related(
-    "training", "training_type", "client", "trainer", "backup_trainer", "room"
+        "training", "training_type", "client", "trainer", "backup_trainer", "room"
     ).filter(start_date__isnull=False)
-    
+
     if client_id:
         qs = qs.filter(client_id=client_id)
     if trainer_id:
@@ -576,48 +541,47 @@ def sessions_json(request):
         qs = qs.filter(start_date__lte=to_date)
 
     events = []
-    for s in qs:
-        if not s.start_date:
+    for session in qs:
+        if not session.start_date:
             continue
 
-        if getattr(s, "on_client_site", False):
-            location = getattr(s, "client_address", "") or ""
+        if getattr(session, "on_client_site", False):
+            location = getattr(session, "client_address", "") or ""
         else:
-            location = s.room.name if getattr(s, "room", None) else ""
+            location = session.room.name if getattr(session, "room", None) else ""
 
-        end_date = getattr(s, "end_date", None) or s.start_date
+        end_date = getattr(session, "end_date", None) or session.start_date
         end_exclusive = end_date + timedelta(days=1)
 
-        title = s.reference or (s.training.title if s.training else "Session")
-        color = _color_for_training(s.training_id or 0)
+        title = session.reference or (session.training.title if session.training else "Session")
+        color = _color_for_training(session.training_id or 0)
 
         events.append({
-            "id": s.id,
+            "id": session.id,
             "title": title,
-            "start": s.start_date.isoformat(),
+            "start": session.start_date.isoformat(),
             "end": end_exclusive.isoformat(),
             "allDay": True,
             "backgroundColor": color,
             "borderColor": color,
-            "detail_url": f"/sessions/{s.id}/",
-            "reference": s.reference or "",
-            "work_environment": getattr(s, "work_environment", ""),
-            "client": s.client.name if s.client else "",
-            "training": s.training.title if s.training else "",
-            "training_type": s.training_type.name if getattr(s, "training_type", None) else "",
-            "trainer": f"{s.trainer.first_name} {s.trainer.last_name}".strip() if s.trainer else "",
+            "detail_url": f"/sessions/{session.id}/",
+            "reference": session.reference or "",
+            "work_environment": getattr(session, "work_environment", ""),
+            "client": session.client.name if session.client else "",
+            "training": session.training.title if session.training else "",
+            "training_type": session.training_type.name if getattr(session, "training_type", None) else "",
+            "trainer": f"{session.trainer.first_name} {session.trainer.last_name}".strip() if session.trainer else "",
             "backup_trainer": (
-                f"{s.backup_trainer.first_name} {s.backup_trainer.last_name}".strip()
-                if getattr(s, "backup_trainer", None) else ""
+                f"{session.backup_trainer.first_name} {session.backup_trainer.last_name}".strip()
+                if getattr(session, "backup_trainer", None) else ""
             ),
             "location": location,
-            "start_date": s.start_date.strftime("%d/%m/%Y") if s.start_date else "",
+            "start_date": session.start_date.strftime("%d/%m/%Y") if session.start_date else "",
             "end_date": end_date.strftime("%d/%m/%Y") if end_date else "",
-            "status": getattr(s, "status", ""),
+            "status": getattr(session, "status", ""),
         })
 
     return JsonResponse(events, safe=False)
-    
 
 
 @login_required
@@ -670,17 +634,17 @@ def trainings_legend_json(request):
 @staff_member_required
 @require_POST
 def dismiss_convocation_alert(request, session_id: int):
-    s = get_object_or_404(Session, pk=session_id)
+    session = get_object_or_404(Session, pk=session_id)
     try:
-        s.convocation_alert_closed = True
-        s.save(update_fields=["convocation_alert_closed"])
+        session.convocation_alert_closed = True
+        session.save(update_fields=["convocation_alert_closed"])
     except Exception:
         pass
     return redirect("trainings:home")
 
 
 # =========================================================
-# Dashboard (manager only) - existant
+# Dashboard manager
 # =========================================================
 
 @login_required
@@ -702,9 +666,8 @@ def dashboard_view(request):
     })
 
 
-
 # =========================================================
-# Team (liste)
+# Team
 # =========================================================
 
 @login_required
@@ -778,7 +741,7 @@ def team_argonos(request):
             .filter(trainer=selected, week_start=this_week_start)
             .first()
         )
-        can_create_this_week = (this_week_meeting is None)
+        can_create_this_week = this_week_meeting is None
 
         if this_week_meeting:
             this_week_objectives = this_week_meeting.objectives.all().order_by("-created_at")
@@ -806,17 +769,14 @@ def team_argonos(request):
         "trainers": trainers,
         "selected": selected,
         "tab": tab,
-
         "meetings": meetings,
         "objectives_open": objectives_open,
         "objectives_done": objectives_done,
         "recent_sessions": recent_sessions,
-
         "this_week_start": this_week_start,
         "this_week_meeting": this_week_meeting,
         "this_week_objectives": this_week_objectives,
         "can_create_this_week": can_create_this_week,
-
         "module_rows": module_rows,
         "modules_count": modules_count,
     })
@@ -877,7 +837,7 @@ def add_objective_this_week_argonos(request):
 
     due_date = request.POST.get("due_date") or None
     description = (request.POST.get("description") or "").strip()
-    actionable = (request.POST.get("actionable") == "on")
+    actionable = request.POST.get("actionable") == "on"
 
     objective = OneToOneObjective.objects.create(
         trainer=trainer,
@@ -890,7 +850,6 @@ def add_objective_this_week_argonos(request):
         due_date=due_date,
     )
 
-    # ✅ correction du bug : obj -> objective
     _create_task_for_objective(objective)
 
     messages.success(request, "Objectif ajouté ✅")
@@ -898,41 +857,41 @@ def add_objective_this_week_argonos(request):
 
 
 # =========================================================
-# Objectifs ArgonOS : toggle / edit / delete
+# Objectifs ArgonOS
 # =========================================================
 
 @require_POST
 @login_required
 def argonos_objective_toggle(request, objective_id: int):
-    o = get_object_or_404(OneToOneObjective, pk=objective_id)
+    objective = get_object_or_404(OneToOneObjective, pk=objective_id)
 
-    if getattr(o.trainer, "product", "") != "ARGONOS":
+    if getattr(objective.trainer, "product", "") != "ARGONOS":
         messages.error(request, "Objectif non ArgonOS.")
         return redirect("trainings:team_argonos")
 
-    if o.status == ObjectiveStatus.DONE:
-        o.status = ObjectiveStatus.TODO
+    if objective.status == ObjectiveStatus.DONE:
+        objective.status = ObjectiveStatus.TODO
         messages.info(request, "Objectif rouvert ↩️")
     else:
-        o.status = ObjectiveStatus.DONE
+        objective.status = ObjectiveStatus.DONE
         messages.success(request, "Objectif terminé ✅")
 
-    o.save(update_fields=["status"])
-    _sync_task_from_objective(o)
-    return redirect(f"{reverse('trainings:team_argonos')}?trainer={o.trainer_id}&tab=1to1")
+    objective.save(update_fields=["status"])
+    _sync_task_from_objective(objective)
+    return redirect(f"{reverse('trainings:team_argonos')}?trainer={objective.trainer_id}&tab=1to1")
 
 
 @require_POST
 @login_required
 def argonos_objective_delete(request, objective_id: int):
-    o = get_object_or_404(OneToOneObjective, pk=objective_id)
+    objective = get_object_or_404(OneToOneObjective, pk=objective_id)
 
-    if getattr(o.trainer, "product", "") != "ARGONOS":
+    if getattr(objective.trainer, "product", "") != "ARGONOS":
         messages.error(request, "Objectif non ArgonOS.")
         return redirect("trainings:team_argonos")
 
-    trainer_id = o.trainer_id
-    o.delete()
+    trainer_id = objective.trainer_id
+    objective.delete()
 
     messages.success(request, "Objectif supprimé 🗑️")
     return redirect(f"{reverse('trainings:team_argonos')}?trainer={trainer_id}&tab=1to1")
@@ -940,9 +899,9 @@ def argonos_objective_delete(request, objective_id: int):
 
 @login_required
 def argonos_objective_edit(request, objective_id: int):
-    o = get_object_or_404(OneToOneObjective, pk=objective_id)
+    objective = get_object_or_404(OneToOneObjective, pk=objective_id)
 
-    if getattr(o.trainer, "product", "") != "ARGONOS":
+    if getattr(objective.trainer, "product", "") != "ARGONOS":
         messages.error(request, "Objectif non ArgonOS.")
         return redirect("trainings:team_argonos")
 
@@ -950,30 +909,30 @@ def argonos_objective_edit(request, objective_id: int):
         title = (request.POST.get("title") or "").strip()
         if not title:
             messages.error(request, "Titre obligatoire.")
-            return redirect(reverse("trainings:argonos_objective_edit", args=[o.id]))
+            return redirect(reverse("trainings:argonos_objective_edit", args=[objective.id]))
 
-        category = (request.POST.get("category") or o.category).strip()
+        category = (request.POST.get("category") or objective.category).strip()
         valid_categories = {c[0] for c in ObjectiveCategory.choices}
         if category not in valid_categories:
-            category = o.category
+            category = objective.category
 
         due_date = request.POST.get("due_date") or None
         if due_date == "":
             due_date = None
 
-        o.title = title
-        o.category = category
-        o.due_date = due_date
-        o.actionable = request.POST.get("actionable") == "on"
-        o.description = (request.POST.get("description") or "").strip()
-        o.save()
+        objective.title = title
+        objective.category = category
+        objective.due_date = due_date
+        objective.actionable = request.POST.get("actionable") == "on"
+        objective.description = (request.POST.get("description") or "").strip()
+        objective.save()
 
         messages.success(request, "Objectif modifié ✏️")
-        _sync_task_from_objective(o)
-        return redirect(f"{reverse('trainings:team_argonos')}?trainer={o.trainer_id}&tab=1to1")
+        _sync_task_from_objective(objective)
+        return redirect(f"{reverse('trainings:team_argonos')}?trainer={objective.trainer_id}&tab=1to1")
 
     return render(request, "trainings/argon_edit_objective.html", {
-        "o": o,
+        "o": objective,
         "category_choices": ObjectiveCategory.choices,
     })
 
@@ -1065,23 +1024,35 @@ def argonos_manager_dashboard(request):
     kpi_overdue = obj_qs.filter(due_date__lt=today).exclude(status=ObjectiveStatus.DONE).count()
     kpi_due_soon = obj_qs.filter(due_date__gte=today, due_date__lte=soon_limit).exclude(status=ObjectiveStatus.DONE).count()
 
-    per_trainer = (
-        trainers.annotate(
-            objectives_total=Count("one_to_one_objectives", distinct=True),
-            objectives_open=Count("one_to_one_objectives", filter=~Q(one_to_one_objectives__status=ObjectiveStatus.DONE), distinct=True),
-            objectives_done=Count("one_to_one_objectives", filter=Q(one_to_one_objectives__status=ObjectiveStatus.DONE), distinct=True),
-            objectives_blocked=Count("one_to_one_objectives", filter=Q(one_to_one_objectives__status=ObjectiveStatus.BLOCKED), distinct=True),
-            objectives_overdue=Count(
-                "one_to_one_objectives",
-                filter=Q(one_to_one_objectives__due_date__lt=today) & ~Q(one_to_one_objectives__status=ObjectiveStatus.DONE),
-                distinct=True,
-            ),
-            objectives_due_soon=Count(
-                "one_to_one_objectives",
-                filter=Q(one_to_one_objectives__due_date__gte=today) & Q(one_to_one_objectives__due_date__lte=soon_limit) & ~Q(one_to_one_objectives__status=ObjectiveStatus.DONE),
-                distinct=True,
-            ),
-        )
+    per_trainer = trainers.annotate(
+        objectives_total=Count("one_to_one_objectives", distinct=True),
+        objectives_open=Count(
+            "one_to_one_objectives",
+            filter=~Q(one_to_one_objectives__status=ObjectiveStatus.DONE),
+            distinct=True,
+        ),
+        objectives_done=Count(
+            "one_to_one_objectives",
+            filter=Q(one_to_one_objectives__status=ObjectiveStatus.DONE),
+            distinct=True,
+        ),
+        objectives_blocked=Count(
+            "one_to_one_objectives",
+            filter=Q(one_to_one_objectives__status=ObjectiveStatus.BLOCKED),
+            distinct=True,
+        ),
+        objectives_overdue=Count(
+            "one_to_one_objectives",
+            filter=Q(one_to_one_objectives__due_date__lt=today) & ~Q(one_to_one_objectives__status=ObjectiveStatus.DONE),
+            distinct=True,
+        ),
+        objectives_due_soon=Count(
+            "one_to_one_objectives",
+            filter=Q(one_to_one_objectives__due_date__gte=today)
+            & Q(one_to_one_objectives__due_date__lte=soon_limit)
+            & ~Q(one_to_one_objectives__status=ObjectiveStatus.DONE),
+            distinct=True,
+        ),
     )
 
     modules_active = ArgonosModule.objects.filter(is_active=True)
@@ -1095,11 +1066,11 @@ def argonos_manager_dashboard(request):
     validated_map = {row["trainer_id"]: row["validated"] for row in validated_by_trainer}
 
     rows = []
-    for t in per_trainer:
-        validated = validated_map.get(t.id, 0)
+    for trainer in per_trainer:
+        validated = validated_map.get(trainer.id, 0)
         ratio = round((validated / modules_active_count) * 100) if modules_active_count else None
         rows.append({
-            "trainer": t,
+            "trainer": trainer,
             "modules_validated": validated,
             "modules_total": modules_active_count,
             "modules_ratio": ratio,
@@ -1110,27 +1081,25 @@ def argonos_manager_dashboard(request):
         "soon_limit": soon_limit,
         "filter_type": filter_type,
         "filtered_objectives": filtered_objectives,
-
         "kpi_total": kpi_total,
         "kpi_open": kpi_open,
         "kpi_done": kpi_done,
         "kpi_blocked": kpi_blocked,
         "kpi_overdue": kpi_overdue,
         "kpi_due_soon": kpi_due_soon,
-
         "rows": rows,
     })
 
-# ==============================================================
-# Dashboard CA (filtres + clic histogramme)
-# ==============================================================
+
+# =========================================================
+# Dashboard CA
+# =========================================================
 
 @login_required
 @manager_required
 def dashboard_ca_view(request):
     today = timezone.localdate()
-    training_types = TrainingType.objects.order_by("name")
-    # --- Choix filtres (UI) ---
+
     PERIOD_CHOICES = [
         ("all", "Tout"),
         ("year", "Année (en cours)"),
@@ -1146,55 +1115,36 @@ def dashboard_ca_view(request):
 
     training_types = TrainingType.objects.order_by("name")
 
-    # ----------------------------
-    # 1) Lire les filtres (GET)
-    # ----------------------------
-    training_type_id = (request.GET.get("training_type") or "").strip()  # ex: "3"
-    period = (request.GET.get("period") or "all").strip()               # all|year|quarter|month
-    view_mode = (request.GET.get("view") or "all").strip()              # all|realise|previsionnel
-
-    # ✅ clic histogramme : month=YYYY-MM
+    training_type_id = (request.GET.get("training_type") or "").strip()
+    period = (request.GET.get("period") or "all").strip()
+    view_mode = (request.GET.get("view") or "all").strip()
     month_str = (request.GET.get("month") or "").strip()
 
-    # ----------------------------
-    # 2) Base queryset + ca_date (end_date sinon start_date)
-    # ----------------------------
     qs = (
         Session.objects
         .select_related("training", "training_type", "client")
         .annotate(ca_date=Coalesce("end_date", "start_date"))
     )
 
-    # ----------------------------
-    # 3) Filtre: produit (TrainingType)
-    # ----------------------------
     if training_type_id.isdigit():
         tid = int(training_type_id)
-        qs = qs.filter(
-            Q(training_type_id=tid) | Q(training__training_type_id=tid)
-        )
+        qs = qs.filter(Q(training_type_id=tid) | Q(training__training_type_id=tid))
 
-    # ----------------------------
-    # 4) Filtre: période (bornes sur ca_date)
-    # ----------------------------
     start_bound = None
     end_bound = None
 
     if period == "year":
         start_bound = date(today.year, 1, 1)
         end_bound = date(today.year + 1, 1, 1)
-
     elif period == "quarter":
         q = (today.month - 1) // 3 + 1
         start_month = 3 * (q - 1) + 1
         start_bound = date(today.year, start_month, 1)
-
         end_month = start_month + 3
         if end_month <= 12:
             end_bound = date(today.year, end_month, 1)
         else:
             end_bound = date(today.year + 1, end_month - 12, 1)
-
     elif period == "month":
         start_bound = date(today.year, today.month, 1)
         if today.month == 12:
@@ -1205,18 +1155,11 @@ def dashboard_ca_view(request):
     if start_bound and end_bound:
         qs = qs.filter(ca_date__gte=start_bound, ca_date__lt=end_bound)
 
-    # ----------------------------
-    # 5) Filtre: vue (réalisé / prévisionnel)
-    # ----------------------------
     if view_mode == "realise":
         qs = qs.filter(ca_date__lte=today)
     elif view_mode == "previsionnel":
         qs = qs.filter(ca_date__gt=today)
 
-    # ----------------------------
-    # 6) Filtre: clic histogramme (mois exact)
-    # ----------------------------
-    # Exemple: month=2026-03 => ca_date__year=2026, ca_date__month=3
     if month_str:
         try:
             y_str, m_str = month_str.split("-")
@@ -1227,25 +1170,19 @@ def dashboard_ca_view(request):
         except Exception:
             pass
 
-    # ----------------------------
-    # 7) KPI CA
-    # ----------------------------
-    ZERO_DEC = Value(Decimal("0.00"), output_field=DecimalField(max_digits=12, decimal_places=2))
+    zero_dec = Value(Decimal("0.00"), output_field=DecimalField(max_digits=12, decimal_places=2))
 
-    ca_total = qs.aggregate(v=Coalesce(Sum("price_ht"), ZERO_DEC))["v"]
-    ca_realise = qs.filter(ca_date__lte=today).aggregate(v=Coalesce(Sum("price_ht"), ZERO_DEC))["v"]
-    ca_previsionnel = qs.filter(ca_date__gt=today).aggregate(v=Coalesce(Sum("price_ht"), ZERO_DEC))["v"]
+    ca_total = qs.aggregate(v=Coalesce(Sum("price_ht"), zero_dec))["v"]
+    ca_realise = qs.filter(ca_date__lte=today).aggregate(v=Coalesce(Sum("price_ht"), zero_dec))["v"]
+    ca_previsionnel = qs.filter(ca_date__gt=today).aggregate(v=Coalesce(Sum("price_ht"), zero_dec))["v"]
 
-    # ----------------------------
-    # 8) Graphe 1 : CA par mois (sur le qs filtré)
-    # ----------------------------
     month_map: dict[str, Decimal] = {}
-    for s in qs.exclude(ca_date__isnull=True):
-        d = getattr(s, "ca_date", None)
+    for session in qs.exclude(ca_date__isnull=True):
+        d = getattr(session, "ca_date", None)
         if not d:
             continue
         key = d.strftime("%Y-%m")
-        month_map[key] = month_map.get(key, Decimal("0.00")) + (s.price_ht or Decimal("0.00"))
+        month_map[key] = month_map.get(key, Decimal("0.00")) + (session.price_ht or Decimal("0.00"))
 
     labels_month = []
     values_month = []
@@ -1253,123 +1190,49 @@ def dashboard_ca_view(request):
         labels_month.append(k)
         values_month.append(float(month_map[k]))
 
-    # ----------------------------
-    # 9) Graphe 2 : répartition produit (sur le qs filtré)
-    # ----------------------------
     by_type = (
         qs.values("training_type__name")
-        .annotate(total=Coalesce(Sum("price_ht"), ZERO_DEC))
+        .annotate(total=Coalesce(Sum("price_ht"), zero_dec))
         .order_by("-total")
     )
     labels_type = [row["training_type__name"] or "Sans type" for row in by_type]
     values_type = [float(row["total"] or 0) for row in by_type]
 
-    # ----------------------------
-    # 10) KPI Sessions + table
-    # ----------------------------
     total_sessions = qs.count()
     status_rows = qs.values("status").annotate(c=Count("id")).order_by("-c")
 
     status_counts = []
-    for r in status_rows:
-        raw = (r["status"] or "").strip()
-        status_counts.append({"label": raw if raw else "—", "count": r["c"]})
+    for row in status_rows:
+        raw = (row["status"] or "").strip()
+        status_counts.append({"label": raw if raw else "—", "count": row["c"]})
 
     sessions = qs.order_by("-ca_date", "-start_date")
 
     return render(request, "trainings/dashboard_ca.html", {
         "today": today,
         "sessions": sessions,
-
         "ca_total": ca_total,
         "ca_realise": ca_realise,
         "ca_previsionnel": ca_previsionnel,
-
         "labels_month": labels_month,
         "values_month": values_month,
         "labels_type": labels_type,
         "values_type": values_type,
-
         "total_sessions": total_sessions,
         "status_counts": status_counts,
-
-        # état filtres (utile pour l’UI + bouton reset)
-        "f_training_type": training_type_id,
-        "f_period": period,
-        "f_view": view_mode,
-        "f_month": month_str,
-      
-
-        # dropdowns
         "training_types": training_types,
         "period_choices": PERIOD_CHOICES,
         "view_choices": VIEW_CHOICES,
-
-        # keep selected
         "f_training_type": training_type_id,
         "f_period": period,
         "f_view": view_mode,
         "f_month": month_str,
-   
     })
 
-# =======================================================
+
+# =========================================================
 # Gestion des prestations Mercure
-# =======================================================
-
-def get_trainer_for_user(user):
-    """
-    Retrouve le Trainer associé à l'utilisateur.
-    - Essaye Trainer.user (si ce champ existe)
-    - Sinon fallback sur email
-    Ne plante jamais si le champ user n'existe pas.
-    """
-    if not user.is_authenticated:
-        return None
-
-    # ✅ 1) Si Trainer a un champ 'user'
-    try:
-        t = Trainer.objects.filter(user=user).first()
-        if t:
-            return t
-    except Exception:
-        # pas de champ user -> on ignore
-        pass
-
-    # ✅ 2) Fallback email (si Trainer.email existe et user.email renseigné)
-    user_email = (getattr(user, "email", "") or "").strip()
-    if user_email:
-        try:
-            t = Trainer.objects.filter(email__iexact=user_email).first()
-            if t:
-                return t
-        except Exception:
-            pass
-
-    return None
-
-
-from functools import wraps
-
-def mercure_only_required(view_func):
-    @wraps(view_func)
-    def _wrapped(request, *args, **kwargs):
-        # Managers -> OK
-        if not is_trainer_readonly(request.user):
-            return view_func(request, *args, **kwargs)
-
-        # Formateurs -> seulement Mercure
-        trainer = get_trainer_for_user(request.user)
-        if trainer and (getattr(trainer, "product", "") or "").upper() == Trainer.PRODUCT_MERCURE:
-            return view_func(request, *args, **kwargs)
-
-        raise PermissionDenied("Accès réservé aux formateurs Mercure et aux responsables.")
-    return _wrapped
-
-
-@login_required
-@mercure_only_required
-
+# =========================================================
 
 @login_required
 @mercure_only_required
@@ -1377,15 +1240,12 @@ def dashboard_mercure_paiements_view(request):
     today = timezone.localdate()
     trainer = get_trainer_for_user(request.user)
 
-    # ✅ Liste des formateurs Mercure (pour le filtre)
     mercure_trainers = Trainer.objects.filter(
         product=Trainer.PRODUCT_MERCURE
     ).order_by("last_name", "first_name")
 
-    # ✅ Lire filtre GET (uniquement utile pour manager)
     selected_trainer_id = (request.GET.get("trainer") or "").strip()
 
-    # Base queryset
     invoices_qs = (
         MercureInvoice.objects
         .select_related("session", "session__client", "session__training", "trainer")
@@ -1398,89 +1258,45 @@ def dashboard_mercure_paiements_view(request):
         .all()
     )
 
-    # ✅ Filtre formateur (GET) — managers uniquement, Mercure only
-    selected_trainer_id = (request.GET.get("trainer") or "").strip()
-
-    # Si formateur Mercure (readonly), on force ses lignes
     if is_trainer_readonly(request.user) and trainer:
         invoices_qs = invoices_qs.filter(trainer=trainer)
         contracts_qs = contracts_qs.filter(trainer=trainer)
         selected_trainer_id = str(trainer.id)
-
-    # Sinon manager : appliquer filtre si choisi
     elif selected_trainer_id.isdigit():
         tid = int(selected_trainer_id)
-        if mercure_trainers.filter(id=tid).exists():  # sécurité: Mercure only
-            invoices_qs = invoices_qs.filter(trainer_id=tid)
-            contracts_qs = contracts_qs.filter(trainer_id=tid)
-        else:
-            selected_trainer_id = ""
-            
-    # ✅ Cas 1 : formateur readonly => on force ses lignes
-    if is_trainer_readonly(request.user) and trainer:
-        invoices_qs = invoices_qs.filter(trainer=trainer)
-        contracts_qs = contracts_qs.filter(trainer=trainer)
-        selected_trainer_id = str(trainer.id)  # pour pré-sélectionner l’UI
-
-    # ✅ Cas 2 : manager => applique le filtre choisi (Mercure only)
-    elif selected_trainer_id.isdigit():
-        tid = int(selected_trainer_id)
-        # sécurité : n'autoriser que les formateurs Mercure dans ce filtre
         if mercure_trainers.filter(id=tid).exists():
             invoices_qs = invoices_qs.filter(trainer_id=tid)
             contracts_qs = contracts_qs.filter(trainer_id=tid)
         else:
-            selected_trainer_id = ""  # invalide -> reset
+            selected_trainer_id = ""
 
-    # KPIs
-    ZERO = Value(Decimal("0.00"), output_field=DecimalField(max_digits=12, decimal_places=2))
+    zero = Value(Decimal("0.00"), output_field=DecimalField(max_digits=12, decimal_places=2))
 
-    total_facture = invoices_qs.aggregate(v=Coalesce(Sum("amount_ht"), ZERO))["v"]
-    total_paye = invoices_qs.filter(status=MercureInvoiceStatus.PAID).aggregate(v=Coalesce(Sum("amount_ht"), ZERO))["v"]
-    total_non_paye = invoices_qs.exclude(status=MercureInvoiceStatus.PAID).aggregate(v=Coalesce(Sum("amount_ht"), ZERO))["v"]
+    total_facture = invoices_qs.aggregate(v=Coalesce(Sum("amount_ht"), zero))["v"]
+    total_paye = invoices_qs.filter(status=MercureInvoiceStatus.PAID).aggregate(v=Coalesce(Sum("amount_ht"), zero))["v"]
+    total_non_paye = invoices_qs.exclude(status=MercureInvoiceStatus.PAID).aggregate(v=Coalesce(Sum("amount_ht"), zero))["v"]
 
-    # Overdue (via property => Python)
     invoices_list = list(invoices_qs.order_by("-received_date", "-created_at"))
     overdue_count = sum(1 for inv in invoices_list if inv.is_overdue)
 
-    # Contrats "due soon" (via property => Python)
     contracts_list = list(contracts_qs.order_by("session__start_date"))
     due_soon_count = sum(1 for c in contracts_list if c.is_due_soon)
 
     return render(request, "trainings/dashboard_mercure_paiements.html", {
         "today": today,
-
-        # datasets
         "invoices": invoices_list,
         "contracts": contracts_list,
-
-        # KPIs
         "kpi_total_facture": total_facture,
         "kpi_total_paye": total_paye,
         "kpi_total_non_paye": total_non_paye,
         "kpi_overdue_count": overdue_count,
         "kpi_contract_due_soon": due_soon_count,
-
-        # contexte
         "trainer": trainer,
-        "is_manager": (not is_trainer_readonly(request.user)),
-
-        # ✅ filtres UI
+        "is_manager": not is_trainer_readonly(request.user),
         "mercure_trainers": mercure_trainers,
         "f_trainer": selected_trainer_id,
     })
-# trainings/views.py
-from django.contrib import messages
-from django.shortcuts import redirect, render
-from django.utils import timezone
 
-from .forms import MercureInvoiceForm, MercureContractForm
-from .models import Trainer
-
-# ⚠️ on réutilise tes helpers existants :
-# - mercure_only_required
-# - get_trainer_for_user
-# - is_trainer_readonly
 
 @login_required
 @mercure_only_required
@@ -1489,33 +1305,25 @@ def mercure_invoice_create_view(request):
     trainer = get_trainer_for_user(request.user)
 
     initial = {}
-    # Pré-remplir trainer si formateur Mercure
     if is_trainer_readonly(request.user) and trainer:
         initial["trainer"] = trainer
 
-    # Pré-remplir session si ?session=ID
     sid = request.GET.get("session")
     if sid and sid.isdigit():
         initial["session"] = int(sid)
 
     if request.method == "POST":
         form = MercureInvoiceForm(request.POST)
-        # si formateur readonly, forcer trainer côté serveur
-        if is_trainer_readonly(request.user) and trainer:
-            obj = form.save(commit=False)
-            obj.trainer = trainer
-            obj.save()
-            messages.success(request, "Facture enregistrée ✅")
-            return redirect("trainings:dashboard_mercure_paiements")
 
         if form.is_valid():
-            form.save()
+            obj = form.save(commit=False)
+            if is_trainer_readonly(request.user) and trainer:
+                obj.trainer = trainer
+            obj.save()
             messages.success(request, "Facture enregistrée ✅")
             return redirect("trainings:dashboard_mercure_paiements")
     else:
         form = MercureInvoiceForm(initial=initial)
-
-        # si readonly : empêcher de changer trainer côté UI
         if is_trainer_readonly(request.user) and trainer:
             form.fields["trainer"].disabled = True
 
@@ -1544,15 +1352,11 @@ def mercure_contract_create_view(request):
     if request.method == "POST":
         form = MercureContractForm(request.POST)
 
-        if is_trainer_readonly(request.user) and trainer:
-            obj = form.save(commit=False)
-            obj.trainer = trainer
-            obj.save()
-            messages.success(request, "Contrat enregistré ✅")
-            return redirect("trainings:dashboard_mercure_paiements")
-
         if form.is_valid():
-            form.save()
+            obj = form.save(commit=False)
+            if is_trainer_readonly(request.user) and trainer:
+                obj.trainer = trainer
+            obj.save()
             messages.success(request, "Contrat enregistré ✅")
             return redirect("trainings:dashboard_mercure_paiements")
     else:
@@ -1567,11 +1371,6 @@ def mercure_contract_create_view(request):
         "trainer": trainer,
     })
 
-import os
-import glob
-from django.conf import settings
-from django.http import FileResponse, Http404
-from django.utils.encoding import smart_str
 
 @login_required
 @mercure_only_required
@@ -1584,19 +1383,17 @@ def mercure_invoice_open_view(request, invoice_id: int):
 
     path = os.path.normpath(raw)
 
-    # Optionnel : limiter à une base autorisée
     base_dir = getattr(settings, "MERCURE_INVOICES_BASE_DIR", None)
     if base_dir:
         base_norm = os.path.normpath(base_dir)
         if not path.lower().startswith(base_norm.lower()):
             raise Http404("Chemin non autorisé.")
 
-    # ✅ Si c'est un dossier -> on prend le 1er PDF trouvé
     if os.path.isdir(path):
         try:
             pdfs = sorted(glob.glob(os.path.join(path, "*.pdf")))
         except PermissionError:
-            raise Http404("Accès refusé au dossier de facture (droits insuffisants).")
+            raise Http404("Accès refusé au dossier de facture.")
 
         if not pdfs:
             raise Http404("Aucun PDF trouvé dans le dossier de facture.")
@@ -1604,7 +1401,6 @@ def mercure_invoice_open_view(request, invoice_id: int):
     else:
         file_path = path
 
-    # ✅ Vérif existence + accès
     if not os.path.exists(file_path):
         raise Http404("Fichier introuvable sur le serveur.")
 
@@ -1614,7 +1410,7 @@ def mercure_invoice_open_view(request, invoice_id: int):
         resp["Content-Disposition"] = f'inline; filename="{smart_str(filename)}"'
         return resp
     except PermissionError:
-        raise Http404("Accès refusé au fichier de facture (droits insuffisants).")
+        raise Http404("Accès refusé au fichier de facture.")
 
 
 @login_required
@@ -1625,7 +1421,6 @@ def mercure_invoice_detail_view(request, invoice_id: int):
         pk=invoice_id,
     )
 
-    # ✅ Sécurité : si formateur readonly, uniquement ses lignes
     me = get_trainer_for_user(request.user)
     if is_trainer_readonly(request.user) and me and inv.trainer_id != me.id:
         raise PermissionDenied("Accès réservé.")
@@ -1639,63 +1434,43 @@ def mercure_invoice_detail_view(request, invoice_id: int):
 @login_required
 @mercure_only_required
 def mercure_contract_detail_view(request, contract_id: int):
-    c = get_object_or_404(
+    contract = get_object_or_404(
         MercureContract.objects.select_related("session", "session__client", "session__training", "trainer"),
         pk=contract_id,
     )
 
     me = get_trainer_for_user(request.user)
-    if is_trainer_readonly(request.user) and me and c.trainer_id != me.id:
+    if is_trainer_readonly(request.user) and me and contract.trainer_id != me.id:
         raise PermissionDenied("Accès réservé.")
 
     return render(request, "trainings/mercure_contract_detail.html", {
-        "c": c,
+        "c": contract,
         "today": timezone.localdate(),
     })
 
-import pdfkit
-from django.conf import settings
-from django.http import HttpResponse
-from django.contrib.auth.decorators import login_required
 
 @login_required
 def test_pdf(request):
-    html = "<h1>Test PDF OK</h1><p>PDF via wkhtmltopdf.</p>"
-    config = pdfkit.configuration(wkhtmltopdf=settings.WKHTMLTOPDF_CMD)
-    pdf = pdfkit.from_string(html, False, configuration=config)
-    resp = HttpResponse(pdf, content_type="application/pdf")
-    resp["Content-Disposition"] = 'inline; filename="test.pdf"'
-    return resp
-
-from django.conf import settings
-from django.http import HttpResponse
-from django.contrib.auth.decorators import login_required
-
-import pdfkit
-
-
-@login_required
-def test_pdf(request):
-    html = """
+    html = f"""
     <!doctype html>
     <html>
     <head>
       <meta charset="utf-8">
       <style>
-        body { font-family: Arial, sans-serif; padding: 24px; }
-        h1 { margin: 0 0 10px; }
-        .box { border:1px solid #ddd; padding:12px; border-radius:10px; }
+        body {{ font-family: Arial, sans-serif; padding: 24px; }}
+        h1 {{ margin: 0 0 10px; }}
+        .box {{ border:1px solid #ddd; padding:12px; border-radius:10px; }}
       </style>
     </head>
     <body>
       <h1>Test PDF OK ✅</h1>
       <div class="box">
         <p>Si tu lis ceci dans un PDF, wkhtmltopdf + pdfkit fonctionnent.</p>
-        <p><strong>URL :</strong> %s</p>
+        <p><strong>URL :</strong> {request.build_absolute_uri("/")}</p>
       </div>
     </body>
     </html>
-    """ % request.build_absolute_uri("/")
+    """
 
     cmd = getattr(settings, "WKHTMLTOPDF_CMD", "").strip()
     if not cmd:
@@ -1705,7 +1480,7 @@ def test_pdf(request):
     try:
         pdf = pdfkit.from_string(html, False, configuration=config, options={
             "encoding": "UTF-8",
-            "quiet": ""
+            "quiet": "",
         })
     except OSError as e:
         return HttpResponse(f"wkhtmltopdf introuvable/erreur: {e}", status=500)
@@ -1714,67 +1489,54 @@ def test_pdf(request):
     resp["Content-Disposition"] = 'inline; filename="test.pdf"'
     return resp
 
+
 # =========================================================
-# Pré-requis ArgonOS (Initiation obligatoire avant DP1/DE1)
+# Pré-requis ArgonOS
 # =========================================================
 
-def _session_product_name(s: Session) -> str:
-    """Retourne ARGONOS / MERCURE / '' en essayant plusieurs champs."""
-    # session.training_type (FK) peut exister
+def _session_product_name(session: Session) -> str:
     try:
-        if getattr(s, "training_type", None) and getattr(s.training_type, "name", None):
-            return (s.training_type.name or "").upper()
+        if getattr(session, "training_type", None) and getattr(session.training_type, "name", None):
+            return (session.training_type.name or "").upper()
     except Exception:
         pass
 
-    # fallback training.training_type
     try:
-        if getattr(s, "training", None) and getattr(s.training, "training_type", None):
-            return (s.training.training_type.name or "").upper()
+        if getattr(session, "training", None) and getattr(session.training, "training_type", None):
+            return (session.training.training_type.name or "").upper()
     except Exception:
         pass
 
     return ""
 
 
-def _session_training_title(s: Session) -> str:
+def _session_training_title(session: Session) -> str:
     try:
-        if getattr(s, "training", None) and getattr(s.training, "title", None):
-            return (s.training.title or "")
+        if getattr(session, "training", None) and getattr(session.training, "title", None):
+            return session.training.title or ""
     except Exception:
         pass
     return ""
 
 
-def _needs_initiation_prereq_for_session(s: Session) -> bool:
-    """
-    True si la session est ArgonOS et que la formation est DP1 ou DE1.
-    Ajuste les mots-clés selon tes titres exacts.
-    """
-    product = _session_product_name(s)
+def _needs_initiation_prereq_for_session(session: Session) -> bool:
+    product = _session_product_name(session)
     if product != "ARGONOS":
         return False
 
-    title = _session_training_title(s).upper()
+    title = _session_training_title(session).upper()
 
     is_dp = "DATA PRÉPARATION" in title or "DATA PREPARATION" in title
     is_de = "DATA EXPLORATION" in title
-
-    # heuristique "niveau 1"
     is_lvl1 = ("NIVEAU 1" in title) or ("NIV 1" in title) or ("N1" in title) or ("LEVEL 1" in title)
 
-    return (is_lvl1 and (is_dp or is_de))
+    return is_lvl1 and (is_dp or is_de)
 
 
 def check_initiation_prereq(session: Session, email: str) -> tuple[bool, str]:
-    """
-    Vérifie que le participant (email) a déjà été PRESENT à une session 'Initiation' ArgonOS.
-    Retour (ok, message).
-    """
     if not session:
         return False, "Session introuvable."
 
-    # Si la session ne nécessite pas le pré-requis -> OK
     if not _needs_initiation_prereq_for_session(session):
         return True, "Pré-requis non applicable."
 
@@ -1782,16 +1544,11 @@ def check_initiation_prereq(session: Session, email: str) -> tuple[bool, str]:
     if not email:
         return False, "Email requis pour vérifier le pré-requis."
 
-    # retrouver participant
-    p = Participant.objects.filter(email__iexact=email).first()
-    if not p:
-        return False, "Participant inconnu : crée-le d'abord (ou vérifie l'email)."
+    participant = Participant.objects.filter(email__iexact=email).first()
+    if not participant:
+        return False, "Participant inconnu : crée-le d'abord."
 
-    # chercher une présence sur une session Initiation ArgonOS
-    # On privilégie status PRESENT (réellement participé)
     initiation_q = Q(session__training__title__icontains="initiation")
-
-    # ArgonOS : via session.training_type OU training.training_type
     argonos_q = (
         Q(session__training_type__name__iexact="ARGONOS")
         | Q(session__training__training_type__name__iexact="ARGONOS")
@@ -1799,7 +1556,7 @@ def check_initiation_prereq(session: Session, email: str) -> tuple[bool, str]:
 
     attended = (
         Registration.objects
-        .filter(participant=p)
+        .filter(participant=participant)
         .filter(initiation_q)
         .filter(argonos_q)
         .filter(status=RegistrationStatus.PRESENT)
@@ -1813,33 +1570,37 @@ def check_initiation_prereq(session: Session, email: str) -> tuple[bool, str]:
 
 @login_required
 def api_prereq_initiation(request):
-    """
-    API appelée depuis le drawer : renvoie
-    - needs_prereq: bool
-    - ok: bool
-    - message: str
-    """
     sid = (request.GET.get("session_id") or "").strip()
     email = (request.GET.get("email") or "").strip()
 
     if not sid.isdigit():
         return JsonResponse({"needs_prereq": False, "ok": True, "message": ""})
 
-    s = Session.objects.select_related("training", "training_type", "training__training_type").filter(pk=int(sid)).first()
-    if not s:
+    session = (
+        Session.objects.select_related("training", "training_type", "training__training_type")
+        .filter(pk=int(sid))
+        .first()
+    )
+    if not session:
         return JsonResponse({"needs_prereq": False, "ok": False, "message": "Session introuvable."})
 
-    needs = _needs_initiation_prereq_for_session(s)
+    needs = _needs_initiation_prereq_for_session(session)
     if not needs:
         return JsonResponse({"needs_prereq": False, "ok": True, "message": ""})
 
-    ok, msg = check_initiation_prereq(s, email)
+    ok, msg = check_initiation_prereq(session, email)
     return JsonResponse({"needs_prereq": True, "ok": ok, "message": msg})
 
 
+# =========================================================
+# Partners dashboard
+# =========================================================
+
+@login_required
 def partners_dashboard(request):
     partner_id = (request.GET.get("partner") or "").strip()
     country = (request.GET.get("country") or "").strip()
+    training = (request.GET.get("training") or "").strip()
 
     partners_qs = Client.objects.filter(is_partner=True)
 
@@ -1848,10 +1609,7 @@ def partners_dashboard(request):
 
     selected_partner = None
     if partner_id.isdigit():
-        selected_partner = Client.objects.filter(
-            pk=int(partner_id),
-            is_partner=True,
-        ).first()
+        selected_partner = Client.objects.filter(pk=int(partner_id), is_partner=True).first()
 
     sessions_qs = (
         Session.objects
@@ -1865,6 +1623,9 @@ def partners_dashboard(request):
 
     if selected_partner:
         sessions_qs = sessions_qs.filter(client=selected_partner)
+
+    if training:
+        sessions_qs = sessions_qs.filter(training__title=training)
 
     total_partners = partners_qs.count() if not selected_partner else 1
 
@@ -1881,13 +1642,13 @@ def partners_dashboard(request):
         total=Coalesce(Sum("present_count"), Value(0), output_field=IntegerField())
     )["total"]
 
-    participants_by_type = (
-        sessions_qs.values("training_type__name")
+    participants_by_training = (
+        sessions_qs.values("training__title")
         .annotate(
             participants=Coalesce(Sum("present_count"), Value(0), output_field=IntegerField()),
             sessions=Count("id"),
         )
-        .order_by("training_type__name")
+        .order_by("training__title")
     )
 
     partners_by_country = (
@@ -1896,6 +1657,70 @@ def partners_dashboard(request):
         .annotate(total=Count("id"))
         .order_by("country")
     )
+
+    country_chart_labels = [row["country"] or "Non renseigné" for row in partners_by_country]
+    country_chart_values = [row["total"] for row in partners_by_country]
+
+    participants_training_chart_labels = [
+        row["training__title"] or "Sans formation"
+        for row in participants_by_training
+    ]
+    participants_training_chart_values = [row["participants"] or 0 for row in participants_by_training]
+
+    sessions_by_partner = Session.objects.filter(client__is_partner=True).select_related("client")
+    if country:
+        sessions_by_partner = sessions_by_partner.filter(client__country=country)
+    if training:
+        sessions_by_partner = sessions_by_partner.filter(training__title=training)
+
+    sessions_by_partner = (
+        sessions_by_partner
+        .values("client__id", "client__name")
+        .annotate(total=Count("id"))
+        .order_by("-total", "client__name")
+    )
+
+    partner_sessions_chart_labels = [row["client__name"] or "Partenaire" for row in sessions_by_partner]
+    partner_sessions_chart_values = [row["total"] for row in sessions_by_partner]
+    partner_sessions_chart_ids = [row["client__id"] for row in sessions_by_partner]
+
+    participants_by_partner = Session.objects.filter(client__is_partner=True)
+    if country:
+        participants_by_partner = participants_by_partner.filter(client__country=country)
+    if training:
+        participants_by_partner = participants_by_partner.filter(training__title=training)
+
+    participants_by_partner = (
+        participants_by_partner
+        .values("client__id", "client__name")
+        .annotate(
+            participants=Coalesce(Sum("present_count"), Value(0), output_field=IntegerField())
+        )
+        .order_by("-participants", "client__name")
+    )
+
+    partner_participants_chart_labels = [row["client__name"] or "Partenaire" for row in participants_by_partner]
+    partner_participants_chart_values = [row["participants"] or 0 for row in participants_by_partner]
+    partner_participants_chart_ids = [row["client__id"] for row in participants_by_partner]
+
+    selected_partner_breakdown = []
+    if selected_partner:
+        breakdown_qs = Session.objects.filter(client=selected_partner)
+        if training:
+            breakdown_qs = breakdown_qs.filter(training__title=training)
+
+        selected_partner_breakdown = list(
+            breakdown_qs.values("training__title")
+            .annotate(
+                participants=Coalesce(Sum("present_count"), Value(0), output_field=IntegerField()),
+                sessions=Count("id"),
+            )
+            .order_by("training__title")
+        )
+
+    partner_breakdown_labels = [row["training__title"] or "Sans formation" for row in selected_partner_breakdown]
+    partner_breakdown_participants = [row["participants"] or 0 for row in selected_partner_breakdown]
+    partner_breakdown_sessions = [row["sessions"] or 0 for row in selected_partner_breakdown]
 
     partner_options = Client.objects.filter(is_partner=True).order_by("name")
 
@@ -1913,12 +1738,183 @@ def partners_dashboard(request):
         "selected_partner": selected_partner,
         "selected_partner_id": partner_id,
         "selected_country": country,
+        "selected_training": training,
         "total_partners": total_partners,
         "countries_count": countries_count,
         "sessions_count": sessions_count,
         "participants_total": participants_total,
-        "participants_by_type": participants_by_type,
+        "participants_by_training": participants_by_training,
         "partners_by_country": partners_by_country,
         "sessions": sessions_qs,
+        "country_chart_labels": country_chart_labels,
+        "country_chart_values": country_chart_values,
+        "participants_training_chart_labels": participants_training_chart_labels,
+        "participants_training_chart_values": participants_training_chart_values,
+        "partner_sessions_chart_labels": partner_sessions_chart_labels,
+        "partner_sessions_chart_values": partner_sessions_chart_values,
+        "partner_sessions_chart_ids": partner_sessions_chart_ids,
+        "partner_participants_chart_labels": partner_participants_chart_labels,
+        "partner_participants_chart_values": partner_participants_chart_values,
+        "partner_participants_chart_ids": partner_participants_chart_ids,
+        "selected_partner_breakdown": selected_partner_breakdown,
+        "partner_breakdown_labels": partner_breakdown_labels,
+        "partner_breakdown_participants": partner_breakdown_participants,
+        "partner_breakdown_sessions": partner_breakdown_sessions,
     }
     return render(request, "trainings/partners_dashboard.html", context)
+
+
+# =========================================================
+# Partners detail
+# =========================================================
+
+@login_required
+def partners_detail(request):
+    partner_id = (request.GET.get("partner") or "").strip()
+    training_filter = (request.GET.get("training") or "").strip()
+
+    partner_options = Client.objects.filter(is_partner=True).order_by("name")
+    selected_partner = None
+    active_contract = None
+
+    quota_rows = []
+    participation_rows = []
+    participant_summary = []
+    unique_participants_count = 0
+    total_consumed_seats = 0
+
+    if partner_id.isdigit():
+        selected_partner = Client.objects.filter(pk=int(partner_id), is_partner=True).first()
+
+    if selected_partner:
+        active_contract = (
+            PartnerContract.objects
+            .select_related("plan", "partner")
+            .filter(partner=selected_partner, status=PartnerContract.STATUS_ACTIVE)
+            .order_by("-start_date")
+            .first()
+        )
+
+        sessions_qs = (
+            Session.objects
+            .select_related("client", "training", "trainer")
+            .filter(client=selected_partner)
+            .order_by("-start_date", "-id")
+        )
+
+        if active_contract:
+            sessions_qs = sessions_qs.filter(start_date__gte=active_contract.start_date)
+            if active_contract.end_date:
+                sessions_qs = sessions_qs.filter(start_date__lte=active_contract.end_date)
+
+        if training_filter:
+            sessions_qs = sessions_qs.filter(training__title=training_filter)
+
+        registrations_qs = (
+            Registration.objects
+            .select_related(
+                "participant",
+                "session",
+                "session__training",
+                "session__client",
+                "session__trainer",
+            )
+            .filter(session__in=sessions_qs)
+            .order_by(
+                "participant__last_name",
+                "participant__first_name",
+                "-session__start_date",
+            )
+        )
+
+        consumed_by_training_id = defaultdict(int)
+        participant_map = defaultdict(list)
+        unique_participant_ids = set()
+
+        registrations_list = list(registrations_qs)
+
+        for reg in registrations_list:
+            participant = reg.participant
+            session = reg.session
+            training = getattr(session, "training", None)
+
+            participation_rows.append({
+                "participant_name": f"{participant.first_name} {participant.last_name}".strip(),
+                "participant_email": participant.email,
+                "training_title": training.title if training else "—",
+                "session_reference": session.reference or "—",
+                "session_date": session.start_date,
+                "session_end_date": session.end_date,
+                "status": reg.status,
+                "trainer_name": (
+                    f"{session.trainer.first_name} {session.trainer.last_name}".strip()
+                    if session.trainer else "—"
+                ),
+            })
+
+            unique_participant_ids.add(participant.id)
+
+            participant_map[participant.id].append({
+                "training_title": training.title if training else "—",
+                "session_reference": session.reference or "—",
+                "session_date": session.start_date,
+                "status": reg.status,
+            })
+
+            if reg.status == RegistrationStatus.PRESENT and training:
+                consumed_by_training_id[training.id] += 1
+                total_consumed_seats += 1
+
+        unique_participants_count = len(unique_participant_ids)
+
+        for participant_id, items in participant_map.items():
+            first_item = items[0]
+            reg = next((r for r in registrations_list if r.participant_id == participant_id), None)
+            if reg:
+                participant_summary.append({
+                    "participant_name": f"{reg.participant.first_name} {reg.participant.last_name}".strip(),
+                    "participant_email": reg.participant.email,
+                    "attended_count": len(items),
+                    "latest_training": first_item["training_title"],
+                    "latest_session_reference": first_item["session_reference"],
+                    "history": items,
+                })
+
+        if active_contract:
+            seat_rules = (
+                active_contract.plan.seat_rules
+                .select_related("training")
+                .order_by("training__title")
+            )
+
+            for rule in seat_rules:
+                consumed = consumed_by_training_id.get(rule.training_id, 0)
+                remaining = rule.included_seats - consumed
+                quota_rows.append({
+                    "training_title": rule.training.title,
+                    "included_seats": rule.included_seats,
+                    "consumed_seats": consumed,
+                    "remaining_seats": remaining,
+                    "usage_pct": round((consumed / rule.included_seats) * 100) if rule.included_seats else 0,
+                })
+
+    training_options = (
+        Training.objects
+        .filter(session__client__is_partner=True)
+        .distinct()
+        .order_by("title")
+    )
+
+    return render(request, "trainings/partners_detail.html", {
+        "partner_options": partner_options,
+        "training_options": training_options,
+        "selected_partner_id": partner_id,
+        "selected_training": training_filter,
+        "selected_partner": selected_partner,
+        "active_contract": active_contract,
+        "quota_rows": quota_rows,
+        "participation_rows": participation_rows,
+        "participant_summary": participant_summary,
+        "unique_participants_count": unique_participants_count,
+        "total_consumed_seats": total_consumed_seats,
+    })

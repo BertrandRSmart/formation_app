@@ -21,6 +21,9 @@ from .models import (
     Referrer,
     Participant,
     Registration,
+    PartnerContractPlan,
+    PartnerContractPlanSeat,
+    PartnerContract,
 )
 
 # ---------------------------------------------------------
@@ -343,3 +346,29 @@ class MercureInvoiceAdmin(admin.ModelAdmin):
     list_display = ("reference", "trainer", "session", "amount_ht", "received_date", "status", "paid_date")
     list_filter = ("status", "trainer")
     search_fields = ("reference", "session__reference", "trainer__first_name", "trainer__last_name")
+
+
+
+# ================================================================
+# Gestion partners
+# ================================================================
+
+
+class PartnerContractPlanSeatInline(admin.TabularInline):
+    model = PartnerContractPlanSeat
+    extra = 1
+
+
+@admin.register(PartnerContractPlan)
+class PartnerContractPlanAdmin(admin.ModelAdmin):
+    list_display = ("name", "label", "price_ht", "is_active")
+    list_filter = ("is_active", "name")
+    search_fields = ("name", "label")
+    inlines = [PartnerContractPlanSeatInline]
+
+
+@admin.register(PartnerContract)
+class PartnerContractAdmin(admin.ModelAdmin):
+    list_display = ("partner", "plan", "status", "start_date", "end_date", "price_ht_snapshot")
+    list_filter = ("status", "plan")
+    search_fields = ("partner__name",)
