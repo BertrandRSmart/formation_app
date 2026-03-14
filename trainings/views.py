@@ -2354,6 +2354,7 @@ def trainer_workload_dashboard(request):
 # =========================
 # Control center
 # =========================
+
 @login_required
 @manager_required
 def control_center_view(request):
@@ -2611,6 +2612,7 @@ def control_center_view(request):
     # Partners / clients
     # =========================
     partners_active = Client.objects.filter(is_partner=True).count()
+
     sessions_partners_month = Session.objects.filter(
         client__is_partner=True,
         start_date__isnull=False,
@@ -2622,6 +2624,21 @@ def control_center_view(request):
     # Alerts center
     # =========================
     alert_items = []
+
+    pricing_issues_collective = Session.objects.filter(
+        billing_mode=SessionBillingMode.COLLECTIVE,
+        training_price_ht=Decimal("0.00"),
+    ).count()
+
+    pricing_issues_individual = Session.objects.filter(
+        billing_mode=SessionBillingMode.INDIVIDUAL,
+        applied_participant_price_ht__isnull=True,
+    ).count()
+
+    abroad_missing_travel = Session.objects.filter(
+        is_abroad=True,
+        travel_fee_ht=Decimal("0.00"),
+    ).count()
 
     for s in convocation_alerts[:4]:
         alert_items.append({
@@ -2662,21 +2679,6 @@ def control_center_view(request):
             "meta": "Charge mensuelle au-dessus de 100%",
             "url": reverse("trainings:trainer_workload_dashboard"),
         })
-
-        pricing_issues_collective = Session.objects.filter(
-        billing_mode=SessionBillingMode.COLLECTIVE,
-        training_price_ht=Decimal("0.00"),
-    ).count()
-
-    pricing_issues_individual = Session.objects.filter(
-        billing_mode=SessionBillingMode.INDIVIDUAL,
-        applied_participant_price_ht__isnull=True,
-    ).count()
-
-    abroad_missing_travel = Session.objects.filter(
-        is_abroad=True,
-        travel_fee_ht=Decimal("0.00"),
-    ).count()
 
     if pricing_issues_collective:
         alert_items.append({
