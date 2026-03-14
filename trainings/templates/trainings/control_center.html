@@ -1,0 +1,740 @@
+{% extends "trainings/base.html" %}
+{% block title %}Business Control Center{% endblock %}
+{% block body_class %}no-scroll{% endblock %}
+
+{% block content %}
+<div style="
+  position: fixed;
+  inset: 0;
+  padding: 92px 18px 18px;
+  box-sizing: border-box;
+  overflow: hidden;
+  color: rgba(255,255,255,0.92);
+  background:
+    radial-gradient(1200px 600px at 18% -10%, rgba(21,96,130,0.25), transparent 55%),
+    radial-gradient(1000px 600px at 86% 10%, rgba(168,85,247,0.14), transparent 55%),
+    linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.00)),
+    #0B0F14;
+">
+
+  <style>
+    .cc-shell{
+      display:grid;
+      grid-template-rows:auto auto 1fr;
+      gap:16px;
+      height:100%;
+      min-height:0;
+    }
+
+    .cc-panel{
+      border-radius:20px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border:1px solid rgba(255,255,255,.10);
+      box-shadow: 0 18px 45px rgba(0,0,0,.35);
+      backdrop-filter: blur(10px);
+      min-height:0;
+      overflow:hidden;
+    }
+
+    .cc-hero{
+      position:relative;
+      padding:22px 24px;
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:18px;
+      flex-wrap:wrap;
+      overflow:hidden;
+    }
+
+    .cc-hero::before{
+      content:"";
+      position:absolute;
+      right:-80px;
+      top:-80px;
+      width:240px;
+      height:240px;
+      border-radius:50%;
+      background: radial-gradient(circle, rgba(59,130,246,.22), transparent 65%);
+      pointer-events:none;
+      filter: blur(8px);
+    }
+
+    .cc-hero::after{
+      content:"";
+      position:absolute;
+      left:-60px;
+      bottom:-120px;
+      width:260px;
+      height:260px;
+      border-radius:50%;
+      background: radial-gradient(circle, rgba(168,85,247,.16), transparent 65%);
+      pointer-events:none;
+      filter: blur(10px);
+    }
+
+    .cc-title{
+      position:relative;
+      z-index:1;
+      margin:0;
+      font-size:30px;
+      font-weight:950;
+      letter-spacing:.2px;
+    }
+
+    .cc-sub{
+      position:relative;
+      z-index:1;
+      margin-top:8px;
+      color:rgba(255,255,255,.66);
+      font-size:13px;
+      line-height:1.45;
+      max-width:760px;
+    }
+
+    .cc-pills{
+      position:relative;
+      z-index:1;
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+
+    .cc-pill{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      padding:8px 12px;
+      border-radius:999px;
+      font-size:12px;
+      font-weight:900;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.06);
+      white-space:nowrap;
+      color:rgba(255,255,255,.88);
+    }
+
+    .cc-kpis{
+      display:grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap:14px;
+    }
+
+    .cc-kpi{
+      position:relative;
+      display:block;
+      text-decoration:none;
+      color:inherit;
+      padding:16px 18px;
+      border-radius:20px;
+      min-height:138px;
+      overflow:hidden;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border:1px solid rgba(255,255,255,.10);
+      box-shadow: 0 18px 45px rgba(0,0,0,.28);
+      transition:
+        transform .18s ease,
+        box-shadow .18s ease,
+        border-color .18s ease,
+        background .18s ease;
+      backdrop-filter: blur(10px);
+    }
+
+    .cc-kpi::before{
+      content:"";
+      position:absolute;
+      right:-26px;
+      bottom:-34px;
+      width:120px;
+      height:120px;
+      border-radius:50%;
+      filter:blur(14px);
+      opacity:.22;
+      pointer-events:none;
+    }
+
+    .cc-kpi:hover{
+      transform: translateY(-4px);
+      border-color: rgba(255,255,255,.16);
+      box-shadow: 0 22px 50px rgba(0,0,0,.34);
+    }
+
+    .cc-kpi-top{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:10px;
+      margin-bottom:14px;
+    }
+
+    .cc-kpi-label{
+      font-size:12px;
+      font-weight:800;
+      color:rgba(255,255,255,.64);
+      text-transform:uppercase;
+      letter-spacing:.5px;
+      line-height:1.35;
+    }
+
+    .cc-kpi-arrow{
+      width:30px;
+      height:30px;
+      border-radius:10px;
+      display:grid;
+      place-items:center;
+      font-size:14px;
+      font-weight:900;
+      background: rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.10);
+      color:rgba(255,255,255,.76);
+      flex:0 0 auto;
+      transition: transform .18s ease, background .18s ease;
+    }
+
+    .cc-kpi:hover .cc-kpi-arrow{
+      transform: translate(2px,-2px);
+      background: rgba(255,255,255,.10);
+    }
+
+    .cc-kpi-value{
+      font-size:30px;
+      font-weight:950;
+      line-height:1;
+      margin-bottom:8px;
+      color:rgba(255,255,255,.98);
+    }
+
+    .cc-kpi-sub{
+      font-size:12px;
+      color:rgba(255,255,255,.62);
+      line-height:1.45;
+      max-width:90%;
+    }
+
+    .cc-kpi--blue::before{ background: rgba(59,130,246,.96); }
+    .cc-kpi--violet::before{ background: rgba(168,85,247,.96); }
+    .cc-kpi--green::before{ background: rgba(16,185,129,.96); }
+    .cc-kpi--amber::before{ background: rgba(245,158,11,.96); }
+    .cc-kpi--red::before{ background: rgba(239,68,68,.96); }
+    .cc-kpi--cyan::before{ background: rgba(6,182,212,.96); }
+
+    .cc-grid{
+      display:grid;
+      grid-template-columns: 1.15fr 1fr;
+      gap:16px;
+      min-height:0;
+    }
+
+    .cc-left,
+    .cc-right{
+      display:grid;
+      gap:16px;
+      min-height:0;
+    }
+
+    .cc-right{
+      grid-template-rows: 1fr 1fr;
+    }
+
+    .cc-section{
+      display:flex;
+      flex-direction:column;
+      min-height:0;
+    }
+
+    .cc-head{
+      padding:14px 16px;
+      border-bottom:1px solid rgba(255,255,255,.08);
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+    }
+
+    .cc-head h2{
+      margin:0;
+      font-size:15px;
+      font-weight:950;
+      letter-spacing:.2px;
+    }
+
+    .cc-body{
+      padding:14px;
+      overflow:auto;
+      min-height:0;
+    }
+
+    .cc-item{
+      border:1px solid rgba(255,255,255,.08);
+      background: rgba(0,0,0,.18);
+      border-radius:14px;
+      padding:12px;
+      margin-bottom:10px;
+      transition: border-color .18s ease, transform .18s ease, background .18s ease;
+    }
+
+    .cc-link{
+      text-decoration:none;
+      color:inherit;
+      display:block;
+    }
+
+    .cc-link:hover .cc-item{
+      transform: translateY(-1px);
+      border-color: rgba(255,255,255,.14);
+      background: rgba(255,255,255,.05);
+    }
+
+    .cc-item-title{
+      font-weight:950;
+      font-size:13px;
+      color:white;
+    }
+
+    .cc-item-meta{
+      font-size:12px;
+      color:rgba(255,255,255,.68);
+      margin-top:4px;
+      line-height:1.45;
+    }
+
+    .cc-row{
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      align-items:flex-start;
+    }
+
+    .cc-badge{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      padding:5px 10px;
+      border-radius:999px;
+      font-size:11px;
+      font-weight:900;
+      border:1px solid rgba(255,255,255,.10);
+      white-space:nowrap;
+    }
+
+    .cc-badge.ok{
+      color:#A7F3D0;
+      background: rgba(16,185,129,.16);
+      border-color: rgba(16,185,129,.34);
+    }
+
+    .cc-badge.under{
+      color:#BFDBFE;
+      background: rgba(59,130,246,.14);
+      border-color: rgba(59,130,246,.34);
+    }
+
+    .cc-badge.warn{
+      color:#FDE68A;
+      background: rgba(245,158,11,.14);
+      border-color: rgba(245,158,11,.34);
+    }
+
+        .cc-chip{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      padding:4px 8px;
+      border-radius:999px;
+      font-size:11px;
+      font-weight:900;
+      border:1px solid rgba(255,255,255,.10);
+      white-space:nowrap;
+    }
+
+    .cc-chip--violet{
+      color:#E9D5FF;
+      background: rgba(124,58,237,.16);
+      border-color: rgba(124,58,237,.34);
+    }
+
+    .cc-chip--blue{
+      color:#BFDBFE;
+      background: rgba(59,130,246,.14);
+      border-color: rgba(59,130,246,.34);
+    }
+
+    .cc-chip--gold{
+      color:#FDE68A;
+      background: rgba(245,158,11,.14);
+      border-color: rgba(245,158,11,.34);
+    }
+
+    .cc-chip--cyan{
+      color:#A5F3FC;
+      background: rgba(6,182,212,.14);
+      border-color: rgba(6,182,212,.34);
+    }
+
+    .cc-chip-row{
+      display:flex;
+      gap:6px;
+      flex-wrap:wrap;
+      margin-top:6px;
+    }
+
+    .cc-price{
+      margin-top:6px;
+      font-size:12px;
+      color:rgba(255,255,255,.76);
+      font-weight:900;
+    }
+    
+    .cc-badge.over,
+    .cc-badge.high{
+      color:#FCA5A5;
+      background: rgba(239,68,68,.14);
+      border-color: rgba(239,68,68,.34);
+    }
+
+    .cc-badge.medium{
+      color:#FDE68A;
+      background: rgba(245,158,11,.14);
+      border-color: rgba(245,158,11,.34);
+    }
+
+    .cc-badge.low{
+      color:#BFDBFE;
+      background: rgba(59,130,246,.14);
+      border-color: rgba(59,130,246,.34);
+    }
+
+    .cc-mini-label{
+      margin-top:14px;
+      font-size:12px;
+      font-weight:900;
+      opacity:.74;
+      letter-spacing:.03em;
+    }
+
+    @media (max-width: 1450px){
+      .cc-kpis{ grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .cc-grid{ grid-template-columns: 1fr; }
+      .cc-right{ grid-template-rows: auto auto; }
+    }
+
+    @media (max-width: 860px){
+      .cc-kpis{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .cc-title{ font-size:24px; }
+      .cc-sub{ font-size:12px; }
+    }
+
+    @media (max-width: 560px){
+      .cc-kpis{ grid-template-columns: 1fr; }
+      .cc-kpi{ min-height:126px; }
+      .cc-kpi-value{ font-size:28px; }
+    }
+  </style>
+
+  <div class="cc-shell">
+
+    <section class="cc-panel">
+      <div class="cc-hero">
+        <div>
+          <h1 class="cc-title">🚀 Business Control Center</h1>
+          <div class="cc-sub">
+            Pilotage global de l’activité formation, équipe et delivery · {{ today|date:"d/m/Y" }}
+          </div>
+        </div>
+
+        <div class="cc-pills">
+          <span class="cc-pill">Alertes : {{ alerts_count }}</span>
+          <span class="cc-pill">Charge équipe : {{ team_load_avg }}%</span>
+          <span class="cc-pill">Sessions mois : {{ sessions_month }}</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="cc-kpis">
+
+      <a href="{% url 'trainings:agenda' %}" class="cc-kpi cc-kpi--blue">
+        <div class="cc-kpi-top">
+          <div class="cc-kpi-label">Sessions du mois</div>
+          <span class="cc-kpi-arrow">↗</span>
+        </div>
+        <div class="cc-kpi-value">{{ sessions_month }}</div>
+        <div class="cc-kpi-sub">Accéder au planning et au volume mensuel</div>
+      </a>
+
+      <a href="{% url 'trainings:dashboard_ca' %}" class="cc-kpi cc-kpi--green">
+        <div class="cc-kpi-top">
+          <div class="cc-kpi-label">CA réalisé</div>
+          <span class="cc-kpi-arrow">↗</span>
+        </div>
+        <div class="cc-kpi-value">{{ ca_realise }}</div>
+        <div class="cc-kpi-sub">Suivre les sessions clôturées et la performance</div>
+      </a>
+
+      <a href="{% url 'trainings:dashboard_ca' %}" class="cc-kpi cc-kpi--violet">
+        <div class="cc-kpi-top">
+          <div class="cc-kpi-label">CA prévisionnel</div>
+          <span class="cc-kpi-arrow">↗</span>
+        </div>
+        <div class="cc-kpi-value">{{ ca_previsionnel }}</div>
+        <div class="cc-kpi-sub">Visualiser le potentiel des sessions futures</div>
+      </a>
+
+      <a href="{% url 'trainings:trainer_workload_dashboard' %}" class="cc-kpi cc-kpi--amber">
+        <div class="cc-kpi-top">
+          <div class="cc-kpi-label">Charge équipe</div>
+          <span class="cc-kpi-arrow">↗</span>
+        </div>
+        <div class="cc-kpi-value">{{ team_load_avg }}%</div>
+        <div class="cc-kpi-sub">Ouvrir le plan de charge et le suivi formateurs</div>
+      </a>
+
+      <a href="{% url 'trainings:training_manage_home' %}?month={{ today|date:'Y-m' }}" class="cc-kpi cc-kpi--cyan">
+        <div class="cc-kpi-top">
+          <div class="cc-kpi-label">Satisfaction du mois</div>
+          <span class="cc-kpi-arrow">↗</span>
+        </div>
+        <div class="cc-kpi-value">
+          {% if satisfaction_avg != None %}{{ satisfaction_avg }}/20{% else %}—{% endif %}
+        </div>
+        <div class="cc-kpi-sub">Moyenne client sur les sessions du mois en cours</div>
+      </a>
+
+      <a href="{% url 'trainings:home' %}" class="cc-kpi cc-kpi--red">
+        <div class="cc-kpi-top">
+          <div class="cc-kpi-label">Alertes ouvertes</div>
+          <span class="cc-kpi-arrow">↗</span>
+        </div>
+        <div class="cc-kpi-value">{{ alerts_count }}</div>
+        <div class="cc-kpi-sub">Accéder aux points de vigilance prioritaires</div>
+      </a>
+
+    </section>
+
+    <section class="cc-grid">
+
+      <div class="cc-left">
+
+        <div class="cc-panel cc-section">
+          <div class="cc-head">
+            <h2>📦 Operations Pulse</h2>
+            <a class="cc-pill" href="{% url 'trainings:home' %}">Ouvrir</a>
+          </div>
+          <div class="cc-body">
+
+            <div class="cc-item">
+              <div class="cc-row">
+                <div>
+                  <div class="cc-item-title">Convocations proches</div>
+                  <div class="cc-item-meta">{{ convocation_alerts|length }} session(s) à surveiller sur 7 jours</div>
+                </div>
+                <span class="cc-badge medium">{{ convocation_alerts|length }}</span>
+              </div>
+            </div>
+
+            <div class="cc-item">
+              <div class="cc-row">
+                <div>
+                  <div class="cc-item-title">Bilans à envoyer</div>
+                  <div class="cc-item-meta">Sessions clôturées sans rapport envoyé</div>
+                </div>
+                <span class="cc-badge warn">{{ pending_reports_count }}</span>
+              </div>
+            </div>
+
+            <div class="cc-item">
+              <div class="cc-row">
+                <div>
+                  <div class="cc-item-title">Feuilles compta à envoyer</div>
+                  <div class="cc-item-meta">Suivi administratif à finaliser</div>
+                </div>
+                <span class="cc-badge warn">{{ pending_accounting_count }}</span>
+              </div>
+            </div>
+
+            <div class="cc-mini-label">Prochaines sessions</div>
+
+            {% for s in upcoming_sessions %}
+              <a class="cc-link" href="{% url 'trainings:session_detail' s.id %}">
+                <div class="cc-item">
+                  <div class="cc-item-title">{{ s.reference|default:"Session" }}{% if s.training %} — {{ s.training }}{% endif %}</div>
+                  <div class="cc-item-meta">
+                    {{ s.client }} · {{ s.start_date|date:"d/m/Y" }}
+                    {% if s.trainer %} · {{ s.trainer.first_name }} {{ s.trainer.last_name }}{% endif %}
+                  </div>
+
+                  <div class="cc-chip-row">
+                    {% if s.billing_mode == "COLLECTIVE" %}
+                      <span class="cc-chip cc-chip--violet">Collectif</span>
+                    {% elif s.billing_mode == "INDIVIDUAL" %}
+                      <span class="cc-chip cc-chip--blue">Individuel</span>
+                    {% endif %}
+
+                    {% if s.client and s.client.is_partner %}
+                      <span class="cc-chip cc-chip--gold">Partenaire</span>
+                    {% endif %}
+
+                    {% if s.is_abroad %}
+                      <span class="cc-chip cc-chip--cyan">Étranger</span>
+                    {% endif %}
+                  </div>
+
+                  <div class="cc-price">
+                    Formation : {{ s.training_price_ht|floatformat:2 }} €
+                    {% if s.travel_fee_ht %}
+                      · Déplacements : {{ s.travel_fee_ht|floatformat:2 }} €
+                    {% endif %}
+                  </div>
+                </div>
+              </a>
+            {% empty %}
+              <div class="cc-item-meta">Aucune session à venir.</div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="cc-panel cc-section">
+          <div class="cc-head">
+            <h2>🚨 Alert Center</h2>
+            <a class="cc-pill" href="{% url 'trainings:home' %}">Traiter</a>
+          </div>
+          <div class="cc-body">
+            {% for alert in alert_items %}
+              <a class="cc-link" href="{{ alert.url }}">
+                <div class="cc-item">
+                  <div class="cc-row">
+                    <div>
+                      <div class="cc-item-title">{{ alert.label }}</div>
+                      <div class="cc-item-meta">{{ alert.meta }}</div>
+                    </div>
+                    <span class="cc-badge {{ alert.level }}">{{ alert.level|upper }}</span>
+                  </div>
+                </div>
+              </a>
+            {% empty %}
+              <div class="cc-item">
+                <div class="cc-item-title">Aucune alerte critique</div>
+                <div class="cc-item-meta">La situation semble stable.</div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+
+      </div>
+
+      <div class="cc-right">
+
+        <div class="cc-panel cc-section">
+          <div class="cc-head">
+            <h2>👥 Team Control</h2>
+            <a class="cc-pill" href="{% url 'trainings:trainer_workload_dashboard' %}">Plan de charge</a>
+          </div>
+          <div class="cc-body">
+            {% for row in trainer_rows %}
+              <div class="cc-item">
+                <div class="cc-row">
+                  <div>
+                    <div class="cc-item-title">{{ row.trainer.first_name }} {{ row.trainer.last_name }}</div>
+                    <div class="cc-item-meta">
+                      {{ row.trainer.product }} · projets {{ row.project_assignments_count }} · objectifs {{ row.open_objectives_count }}
+                    </div>
+                  </div>
+
+                  {% if row.status_label == "OK" %}
+                    <span class="cc-badge ok">{{ row.load_rate }}%</span>
+                  {% elif row.status_label == "Sous-charge" %}
+                    <span class="cc-badge under">{{ row.load_rate }}%</span>
+                  {% elif row.status_label == "Tension" %}
+                    <span class="cc-badge warn">{{ row.load_rate }}%</span>
+                  {% else %}
+                    <span class="cc-badge over">{{ row.load_rate }}%</span>
+                  {% endif %}
+                </div>
+              </div>
+            {% empty %}
+              <div class="cc-item-meta">Aucune donnée équipe.</div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="cc-panel cc-section">
+          <div class="cc-head">
+            <h2>🧩 Project & Partner Watch</h2>
+            <a class="cc-pill" href="/projects/gestion-projets/">Projects</a>
+          </div>
+          <div class="cc-body">
+
+            <div class="cc-item">
+              <div class="cc-row">
+                <div>
+                  <div class="cc-item-title">Projets actifs</div>
+                  <div class="cc-item-meta">Portefeuille en cours</div>
+                </div>
+                <span class="cc-badge ok">{{ projects_active }}</span>
+              </div>
+            </div>
+
+            <div class="cc-item">
+              <div class="cc-row">
+                <div>
+                  <div class="cc-item-title">Tâches ouvertes</div>
+                  <div class="cc-item-meta">Charge projet encore non terminée</div>
+                </div>
+                <span class="cc-badge warn">{{ tasks_open }}</span>
+              </div>
+            </div>
+
+            <div class="cc-item">
+              <div class="cc-row">
+                <div>
+                  <div class="cc-item-title">Tâches bloquées</div>
+                  <div class="cc-item-meta">Points de friction projet</div>
+                </div>
+                <span class="cc-badge over">{{ tasks_blocked }}</span>
+              </div>
+            </div>
+
+            <div class="cc-item">
+              <div class="cc-row">
+                <div>
+                  <div class="cc-item-title">Partenaires actifs</div>
+                  <div class="cc-item-meta">Comptes partenaires suivis</div>
+                </div>
+                <span class="cc-badge ok">{{ partners_active }}</span>
+              </div>
+            </div>
+
+            <div class="cc-item">
+              <div class="cc-row">
+                <div>
+                  <div class="cc-item-title">Sessions partenaires du mois</div>
+                  <div class="cc-item-meta">Volume partner sur la période</div>
+                </div>
+                <span class="cc-badge medium">{{ sessions_partners_month }}</span>
+              </div>
+            </div>
+
+            <div class="cc-mini-label">Projets sensibles</div>
+
+            {% for p in hot_projects %}
+              <a class="cc-link" href="/projects/projects/{{ p.id }}/">
+                <div class="cc-item">
+                  <div class="cc-item-title">{{ p.name }}</div>
+                  <div class="cc-item-meta">
+                    ouvertes {{ p.tasks_open_count }} · bloquées {{ p.tasks_blocked_count }} · total {{ p.tasks_total_count }}
+                  </div>
+                </div>
+              </a>
+            {% empty %}
+              <div class="cc-item-meta">Aucun projet sensible détecté.</div>
+            {% endfor %}
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+  </div>
+</div>
+{% endblock %}

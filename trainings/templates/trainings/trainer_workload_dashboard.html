@@ -1,0 +1,451 @@
+{% extends "trainings/base.html" %}
+{% load static %}
+
+{% block title %}Plan de charge — BSmart Application{% endblock %}
+{% block body_class %}no-scroll{% endblock %}
+
+{% block content %}
+<div style="
+  position: fixed;
+  inset: 0;
+  padding: 92px 18px 18px;
+  box-sizing: border-box;
+  overflow: hidden;
+  color: rgba(255,255,255,0.92);
+  background:
+    radial-gradient(1200px 600px at 18% -10%, rgba(21,96,130,0.25), transparent 55%),
+    radial-gradient(1000px 600px at 86% 10%, rgba(168,85,247,0.14), transparent 55%),
+    linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.00)),
+    #0B0F14;
+">
+
+  <style>
+    .wl-shell{
+      display:grid;
+      grid-template-rows: auto auto 1fr;
+      gap:16px;
+      height:100%;
+      min-height:0;
+    }
+
+    .wl-panel{
+      border-radius:18px;
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border:1px solid rgba(255,255,255,.10);
+      box-shadow: 0 18px 45px rgba(0,0,0,.35);
+      backdrop-filter: blur(10px);
+      min-height:0;
+    }
+
+    .wl-top{
+      padding:18px 20px;
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:16px;
+      flex-wrap:wrap;
+    }
+
+    .wl-title{
+      margin:0;
+      font-size:28px;
+      font-weight:950;
+      letter-spacing:.2px;
+    }
+
+    .wl-sub{
+      margin-top:6px;
+      color:rgba(255,255,255,.66);
+      font-size:13px;
+    }
+
+    .wl-form{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:end;
+    }
+
+    .wl-field{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      min-width:150px;
+    }
+
+    .wl-field label{
+      font-size:12px;
+      font-weight:800;
+      color:rgba(255,255,255,.72);
+      letter-spacing:.2px;
+    }
+
+    .wl-field input,
+    .wl-field select{
+      height:42px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.06);
+      color:white;
+      padding:0 12px;
+      outline:none;
+    }
+
+    .wl-btn{
+      height:42px;
+      padding:0 16px;
+      border-radius:12px;
+      border:1px solid rgba(59,130,246,.45);
+      background: linear-gradient(180deg, rgba(59,130,246,.30), rgba(59,130,246,.18));
+      color:white;
+      font-weight:900;
+      cursor:pointer;
+    }
+
+    .wl-kpis{
+      display:grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap:14px;
+    }
+
+    .wl-kpi{
+      padding:16px 18px;
+      border-radius:18px;
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border:1px solid rgba(255,255,255,.10);
+      box-shadow: 0 18px 45px rgba(0,0,0,.28);
+      min-width:0;
+    }
+
+    .wl-kpi-label{
+      font-size:12px;
+      font-weight:800;
+      color:rgba(255,255,255,.64);
+      text-transform:uppercase;
+      letter-spacing:.5px;
+      margin-bottom:8px;
+    }
+
+    .wl-kpi-value{
+      font-size:28px;
+      font-weight:950;
+      line-height:1;
+      margin-bottom:6px;
+    }
+
+    .wl-kpi-sub{
+      font-size:12px;
+      color:rgba(255,255,255,.62);
+    }
+
+    .wl-table-wrap{
+      padding:14px;
+      height:100%;
+      min-height:0;
+      overflow:auto;
+    }
+
+    .wl-table{
+      width:100%;
+      border-collapse:separate;
+      border-spacing:0;
+      min-width:1360px;
+    }
+
+    .wl-table thead th{
+      position:sticky;
+      top:0;
+      z-index:3;
+      text-align:left;
+      padding:14px 14px;
+      font-size:12px;
+      text-transform:uppercase;
+      letter-spacing:.5px;
+      color:rgba(255,255,255,.62);
+      background: rgba(11,15,20,.94);
+      border-bottom:1px solid rgba(255,255,255,.08);
+      backdrop-filter: blur(8px);
+    }
+
+    .wl-table tbody td{
+      padding:14px 14px;
+      border-bottom:1px solid rgba(255,255,255,.06);
+      vertical-align:middle;
+      font-size:14px;
+    }
+
+    .wl-table tbody tr:hover{
+      background: rgba(255,255,255,.035);
+    }
+
+    .wl-trainer{
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+    }
+
+    .wl-trainer-name{
+      font-weight:900;
+      color:white;
+    }
+
+    .wl-trainer-meta{
+      font-size:12px;
+      color:rgba(255,255,255,.62);
+    }
+
+    .wl-badge{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      padding:6px 10px;
+      border-radius:999px;
+      font-size:12px;
+      font-weight:900;
+      border:1px solid rgba(255,255,255,.10);
+      white-space:nowrap;
+    }
+
+    .wl-badge.ok{
+      color:#A7F3D0;
+      background: rgba(16,185,129,.16);
+      border-color: rgba(16,185,129,.34);
+    }
+
+    .wl-badge.under{
+      color:#BFDBFE;
+      background: rgba(59,130,246,.14);
+      border-color: rgba(59,130,246,.34);
+    }
+
+    .wl-badge.warn{
+      color:#FDE68A;
+      background: rgba(245,158,11,.14);
+      border-color: rgba(245,158,11,.34);
+    }
+
+    .wl-badge.over{
+      color:#FCA5A5;
+      background: rgba(239,68,68,.14);
+      border-color: rgba(239,68,68,.34);
+    }
+
+    .wl-rate{
+      min-width:120px;
+    }
+
+    .wl-progress{
+      width:100%;
+      height:8px;
+      border-radius:999px;
+      background: rgba(255,255,255,.08);
+      overflow:hidden;
+      margin-top:8px;
+    }
+
+    .wl-progress > span{
+      display:block;
+      height:100%;
+      border-radius:999px;
+      background: linear-gradient(90deg, #3B82F6, #A855F7);
+    }
+
+    .wl-muted{
+      color:rgba(255,255,255,.62);
+    }
+
+    @media (max-width: 1500px){
+      .wl-kpis{ grid-template-columns: repeat(4, minmax(0,1fr)); }
+    }
+
+    @media (max-width: 980px){
+      .wl-kpis{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+      .wl-top{ padding:16px; }
+      .wl-title{ font-size:24px; }
+    }
+
+    @media (max-width: 560px){
+      .wl-kpis{ grid-template-columns: 1fr; }
+    }
+  </style>
+
+  <div class="wl-shell">
+
+    <section class="wl-panel">
+      <div class="wl-top">
+        <div>
+          <h1 class="wl-title">Plan de charge formateurs</h1>
+          <div class="wl-sub">
+            Période analysée : <strong>{{ month_start|date:"d/m/Y" }}</strong> → <strong>{{ month_end|date:"d/m/Y" }}</strong>
+            · {{ month_working_days }} jours ouvrés
+          </div>
+        </div>
+
+        <form method="get" class="wl-form">
+          <div class="wl-field">
+            <label for="month">Mois</label>
+            <input type="month" id="month" name="month" value="{{ selected_month }}">
+          </div>
+
+          <div class="wl-field">
+            <label for="product">Produit</label>
+            <select id="product" name="product">
+              <option value="">Tous</option>
+              <option value="ARGONOS" {% if selected_product == "ARGONOS" %}selected{% endif %}>ArgonOS</option>
+              <option value="MERCURE" {% if selected_product == "MERCURE" %}selected{% endif %}>Mercure</option>
+            </select>
+          </div>
+
+          <div class="wl-field">
+            <label for="trainer">Formateur</label>
+            <select id="trainer" name="trainer">
+              <option value="">Tous les formateurs</option>
+              {% for t in trainer_options %}
+                <option value="{{ t.id }}" {% if selected_trainer_id == t.id|stringformat:"s" %}selected{% endif %}>
+                  {{ t.first_name }} {{ t.last_name }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <button class="wl-btn" type="submit">Appliquer</button>
+        </form>
+      </div>
+    </section>
+
+    <section class="wl-kpis">
+      <div class="wl-kpi">
+        <div class="wl-kpi-label">Capacité nette équipe</div>
+        <div class="wl-kpi-value">{{ kpi_total_capacity_net }}</div>
+        <div class="wl-kpi-sub">Capacité théorique : {{ kpi_total_capacity }}</div>
+      </div>
+
+      <div class="wl-kpi">
+        <div class="wl-kpi-label">Charges projets</div>
+        <div class="wl-kpi-value">{{ kpi_total_project }}</div>
+        <div class="wl-kpi-sub">Affectations issues des tâches</div>
+      </div>
+
+      <div class="wl-kpi">
+        <div class="wl-kpi-label">Charge totale</div>
+        <div class="wl-kpi-value">{{ kpi_total_load }}</div>
+        <div class="wl-kpi-sub">Sessions + backup + annexes + projets</div>
+      </div>
+
+      <div class="wl-kpi">
+        <div class="wl-kpi-label">Taux équipe</div>
+        <div class="wl-kpi-value">{{ kpi_team_load_rate }}%</div>
+        <div class="wl-kpi-sub">Vision consolidée du mois</div>
+      </div>
+
+      <div class="wl-kpi">
+        <div class="wl-kpi-label">Surcharges</div>
+        <div class="wl-kpi-value">{{ kpi_overload_count }}</div>
+        <div class="wl-kpi-sub">Au-dessus de 100%</div>
+      </div>
+
+      <div class="wl-kpi">
+        <div class="wl-kpi-label">Tensions</div>
+        <div class="wl-kpi-value">{{ kpi_tension_count }}</div>
+        <div class="wl-kpi-sub">Entre 85% et 100%</div>
+      </div>
+
+      <div class="wl-kpi">
+        <div class="wl-kpi-label">Sous-charge</div>
+        <div class="wl-kpi-value">{{ kpi_underload_count }}</div>
+        <div class="wl-kpi-sub">Sous 50%</div>
+      </div>
+    </section>
+
+    <section class="wl-panel" style="min-height:0;">
+      <div class="wl-table-wrap">
+        <table class="wl-table">
+          <thead>
+            <tr>
+              <th>Formateur</th>
+              <th>Capacité théorique</th>
+              <th>Absences</th>
+              <th>Capacité nette</th>
+              <th>Sessions</th>
+              <th>Backup</th>
+              <th>Charges annexes</th>
+              <th>Projets / tâches</th>
+              <th>Charge totale</th>
+              <th>Taux</th>
+              <th>Statut</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in rows %}
+              <tr>
+                <td>
+                  <div class="wl-trainer">
+                    <div class="wl-trainer-name">
+                      {{ row.trainer.first_name }} {{ row.trainer.last_name }}
+                    </div>
+                    <div class="wl-trainer-meta">
+                      {{ row.trainer.product }} · dispo {{ row.trainer.workload_percent }}%
+                    </div>
+                  </div>
+                </td>
+
+                <td>{{ row.capacity_theoretical }}</td>
+                <td>{{ row.absence_days }}</td>
+                <td><strong>{{ row.capacity_net }}</strong></td>
+
+                <td>
+                  {{ row.primary_days }}
+                  <span class="wl-muted">({{ row.primary_sessions_count }} session{{ row.primary_sessions_count|pluralize }})</span>
+                </td>
+
+                <td>
+                  {{ row.backup_days }}
+                  <span class="wl-muted">({{ row.backup_sessions_count }})</span>
+                </td>
+
+                <td>
+                  {{ row.extra_days }}
+                  <span class="wl-muted">({{ row.extra_entries_count }})</span>
+                </td>
+
+                <td>
+                  {{ row.project_days }}
+                  <span class="wl-muted">({{ row.project_assignments_count }})</span>
+                </td>
+
+                <td><strong>{{ row.total_load }}</strong></td>
+
+                <td class="wl-rate">
+                  <div><strong>{{ row.load_rate }}%</strong></div>
+                  <div class="wl-progress">
+                    <span style="width:{% if row.load_rate > 140 %}140{% else %}{{ row.load_rate }}{% endif %}%"></span>
+                  </div>
+                </td>
+
+                <td>
+                  {% if row.status_label == "OK" %}
+                    <span class="wl-badge ok">OK</span>
+                  {% elif row.status_label == "Sous-charge" %}
+                    <span class="wl-badge under">Sous-charge</span>
+                  {% elif row.status_label == "Tension" %}
+                    <span class="wl-badge warn">Tension</span>
+                  {% else %}
+                    <span class="wl-badge over">Surcharge</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="11" style="padding:24px; text-align:center; color:rgba(255,255,255,.62);">
+                  Aucun formateur trouvé pour ces filtres.
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </div>
+</div>
+{% endblock %}

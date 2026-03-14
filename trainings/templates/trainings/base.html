@@ -377,10 +377,43 @@
 
       <nav class="bsmart-nav">
         <a class="{% if request.path == '/' %}is-active{% endif %}" href="/">Home</a>
-        <a class="{% if request.path|slice:':8' == '/agenda/' %}is-active{% endif %}" href="/agenda/">Calendar</a>
-        <a class="{% if request.path|slice:':11' == '/dashboard/' %}is-active{% endif %}" href="/dashboard/">Dashboard</a>
+
+        <a class="{% if request.path|slice:':8' == '/agenda/' %}is-active{% endif %}" href="/agenda/">
+          Calendar
+        </a>
+
+        <a class="{% if request.path|slice:':11' == '/dashboard/' and request.path|slice:':16' != '/dashboard/work' %}is-active{% endif %}" href="/dashboard/">
+          Dashboard
+        </a>
+
+        <a class="{% if request.path|slice:':16' == '/control-center/' %}is-active{% endif %}"
+          href="{% url 'trainings:control_center' %}">
+          🚀 Control Center
+        </a>
+
         <a class="{% if request.path|slice:':10' == '/partners/' %}is-active{% endif %}"
-          href="{% url 'trainings:partners_dashboard' %}">Partenaires</a>
+          href="{% url 'trainings:partners_dashboard' %}">
+          Partenaires
+        </a>
+
+        {% if request.user.is_staff %}
+          <a class="{% if request.path|slice:':28' == '/trainer-eval/internal-evaluations/' %}is-active{% endif %}"
+            href="{% url 'trainer_eval:internal_eval_list' %}">
+            Trainer Ops
+          </a>
+        {% endif %}
+
+        <a class="{% if request.path|slice:':6' == '/team/' %}is-active{% endif %}"
+          href="/team/?product=ARGONOS">
+          Teams
+        </a>
+
+        {% if request.user.is_staff %}
+          <a href="/admin/">Admin</a>
+        {% endif %}
+
+        <a href="/accounts/logout/">Sign out</a>
+      </nav>
 
         {% if request.user.is_staff %}
           <a class="{% if request.path|slice:':28' == '/trainer-eval/internal-evaluations/' %}is-active{% endif %}"

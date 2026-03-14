@@ -238,6 +238,9 @@ def session_participant_add(request, session_id):
             )
 
             if created:
+                reg.save()  # force le calcul initial
+                session.recalculate_prices(save=True)
+
                 if force_prerequisite:
                     messages.warning(
                         request,
@@ -246,6 +249,7 @@ def session_participant_add(request, session_id):
                 else:
                     messages.success(request, "Participant ajouté à la session ✅")
             else:
+                session.recalculate_prices(save=True)
                 messages.info(request, "Ce participant est déjà inscrit à cette session.")
 
         else:
@@ -268,7 +272,8 @@ def session_participant_edit(request, session_id, registration_id):
 
         if p_form.is_valid() and r_form.is_valid():
             p_form.save()
-            r_form.save()
+            reg = r_form.save()
+            session.recalculate_prices(save=True)
             messages.success(request, "Participant mis à jour ✅")
             return _redirect_to_manage_home(request, session=session.id)
 
@@ -292,6 +297,7 @@ def session_participant_delete(request, session_id, registration_id):
     session = get_object_or_404(Session, pk=session_id)
     reg = get_object_or_404(Registration, pk=registration_id, session=session)
     reg.delete()
+    session.recalculate_prices(save=True)
     messages.success(request, "Participant retiré de la session ✅")
 
     return _redirect_to_manage_home(request, session=session.id)
@@ -333,7 +339,17 @@ def session_participant_set_status(request, session_id, registration_id):
         return _redirect_to_manage_home(request, session=session_id)
 
     reg.status = status
-    reg.save(update_fields=["status"])
+
+    if status == RegistrationStatus.CANCELED and not reg.canceled_at:
+        reg.canceled_at = date.today()
+
+    if status != RegistrationStatus.CANCELED:
+        reg.canceled_at = None
+
+    reg.save()
+    session = reg.session
+    session.recalculate_prices(save=True)
+
     messages.success(request, "Statut mis à jour ✅")
 
     return _redirect_to_manage_home(request, session=session_id)

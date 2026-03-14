@@ -125,7 +125,8 @@ urlpatterns = [
     # Dashboard CA
     # =========================================================
     path("dashboard/ca/", views.dashboard_ca_view, name="dashboard_ca"),
-
+    path("dashboard/workload/", views.trainer_workload_dashboard, name="trainer_workload_dashboard"),
+    
 
     # =========================================================
     # Dashboard suivi prestations équipes Mercure
@@ -169,4 +170,5 @@ urlpatterns = [
     path("partners/", views.partners_dashboard, name="partners_dashboard"),
     
     path("partners/detail/", views.partners_detail, name="partners_detail"),
+    path("control-center/", views.control_center_view, name="control_center"),
     ]

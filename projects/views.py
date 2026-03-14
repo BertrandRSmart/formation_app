@@ -1,19 +1,18 @@
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
 from django.db.models import Count, Q
-
-from .models import Project, Task, ProjectCategory
-from .forms import TaskForm
 from django.urls import reverse
-from django.views.decorators.http import require_POST
-
+from django.views.decorators.http import require_POST, require_GET
 from django.http import JsonResponse
-from django.views.decorators.http import require_GET
+
+from .models import Project, Task, ProjectCategory, TaskAssignment
+from .forms import TaskForm, TaskAssignmentForm
 
 
 # =========================================================
-# ✅ Kanban (Gestion des tâches)
+# Kanban - constantes
 # =========================================================
+
 KANBAN_STATUSES = [
     ("todo", "TODO"),
     ("doing", "En cours"),
@@ -22,16 +21,9 @@ KANBAN_STATUSES = [
 ]
 
 
-def _task_accessor_name() -> str:
-    """
-    Retourne le nom d'accès inverse Project -> Task.
-    Exemples : "tasks" (si related_name="tasks") ou "task_set" (par défaut).
-    """
-    for f in Project._meta.get_fields():
-        if f.is_relation and f.one_to_many and getattr(f, "related_model", None) == Task:
-            return f.get_accessor_name()
-    return "task_set"
-
+# =========================================================
+# Vue globale des tâches
+# =========================================================
 
 @login_required
 def projects_home(request):
@@ -42,10 +34,21 @@ def projects_home(request):
 
     categories = ProjectCategory.objects.all().order_by("name")
 
-    projects_qs = Project.objects.all()
-    tasks_qs = Task.objects.select_related("project").all()
+    projects_qs = (
+        Project.objects
+        .select_related("category")
+        .annotate(
+            todo_count=Count("tasks", filter=Q(tasks__status="todo")),
+            doing_count=Count("tasks", filter=Q(tasks__status="doing")),
+            blocked_count=Count("tasks", filter=Q(tasks__status="blocked")),
+            done_count=Count("tasks", filter=Q(tasks__status="done")),
+            total_count=Count("tasks"),
+        )
+        .order_by("name")
+    )
 
-    # ✅ filtre catégorie (PROJETS + TÂCHES)
+    tasks_qs = Task.objects.select_related("project", "project__category", "assignee").all()
+
     if cat_id:
         projects_qs = projects_qs.filter(category_id=cat_id)
         tasks_qs = tasks_qs.filter(project__category_id=cat_id)
@@ -58,28 +61,22 @@ def projects_home(request):
 
     if priority:
         try:
-            tasks_qs = tasks_qs.filter(priority=priority)
+            tasks_qs = tasks_qs.filter(priority=int(priority))
         except Exception:
             pass
 
     columns = {key: [] for key, _ in KANBAN_STATUSES}
-    for t in tasks_qs.order_by("project__name", "id"):
+    for t in tasks_qs.order_by("project__name", "order", "id"):
         columns.get(t.status, columns["todo"]).append(t)
 
     kanban_cols = [(key, label, columns.get(key, [])) for key, label in KANBAN_STATUSES]
 
-    projects = projects_qs.annotate(
-        todo_count=Count("tasks", filter=Q(tasks__status="todo")),
-        doing_count=Count("tasks", filter=Q(tasks__status="doing")),
-        blocked_count=Count("tasks", filter=Q(tasks__status="blocked")),
-        done_count=Count("tasks", filter=Q(tasks__status="done")),
-        total_count=Count("tasks"),
-    ).order_by("name")
-
-    selected_project = projects_qs.filter(id=project_id).first() if project_id else None
+    selected_project = None
+    if project_id.isdigit():
+        selected_project = Project.objects.filter(id=int(project_id)).first()
 
     return render(request, "projects/projects_home.html", {
-        "projects": projects,
+        "projects": projects_qs,
         "selected_project": selected_project,
         "project_id": project_id,
         "q": q,
@@ -91,46 +88,94 @@ def projects_home(request):
 
 
 # =========================================================
-# ✅ Page "Gestion des projets"
+# Vue projets
 # =========================================================
+
 @login_required
 def projects_kanban(request):
-    projects_qs = Project.objects.all().order_by("name")
+    cat_id = (request.GET.get("cat") or "").strip()
+    q = (request.GET.get("q") or "").strip()
 
-    raw = Task.objects.values("project_id", "status").annotate(c=Count("id"))
-    counts = {}
-    for r in raw:
-        pid = r["project_id"]
-        st = r["status"]
-        counts.setdefault(pid, {"TODO": 0, "IN_PROGRESS": 0, "BLOCKED": 0, "DONE": 0})
-        if st in counts[pid]:
-            counts[pid][st] = r["c"]
+    categories = ProjectCategory.objects.all().order_by("name")
+
+    projects_qs = (
+        Project.objects
+        .select_related("category", "owner")
+        .annotate(
+            todo_count=Count("tasks", filter=Q(tasks__status="todo")),
+            doing_count=Count("tasks", filter=Q(tasks__status="doing")),
+            blocked_count=Count("tasks", filter=Q(tasks__status="blocked")),
+            done_count=Count("tasks", filter=Q(tasks__status="done")),
+            total_count=Count("tasks"),
+        )
+        .order_by("name")
+    )
+
+    if cat_id:
+        projects_qs = projects_qs.filter(category_id=cat_id)
+
+    if q:
+        projects_qs = projects_qs.filter(name__icontains=q)
 
     projects = list(projects_qs)
-    for p in projects:
-        d = counts.get(p.id, {"TODO": 0, "IN_PROGRESS": 0, "BLOCKED": 0, "DONE": 0})
-        p.todo_count = d["TODO"]
-        p.doing_count = d["IN_PROGRESS"]
-        p.blocked_count = d["BLOCKED"]
-        p.done_count = d["DONE"]
-        p.total_count = p.todo_count + p.doing_count + p.blocked_count + p.done_count
 
-    return render(request, "projects/projects_kanban.html", {"projects": projects})
+    return render(request, "projects/projects_kanban.html", {
+        "projects": projects,
+        "categories": categories,
+        "cat_id": cat_id,
+        "q": q,
+    })
 
 
 # =========================================================
-# ✅ Actions tâches (stubs)
+# Détail projet
 # =========================================================
+
+@login_required
+def project_detail(request, project_id: int):
+    project = get_object_or_404(
+        Project.objects.select_related("category", "owner"),
+        id=project_id,
+    )
+
+    tasks_qs = (
+        Task.objects
+        .select_related("project", "assignee")
+        .prefetch_related("assignments__trainer")
+        .filter(project=project)
+        .order_by("order", "id")
+    )
+
+    columns = {key: [] for key, _ in KANBAN_STATUSES}
+    for t in tasks_qs:
+        columns.get(t.status, columns["todo"]).append(t)
+
+    kanban_cols = [(key, label, columns.get(key, [])) for key, label in KANBAN_STATUSES]
+
+    return render(request, "projects/project_detail.html", {
+        "project": project,
+        "tasks": tasks_qs,
+        "kanban_cols": kanban_cols,
+    })
+
+
+# =========================================================
+# Actions tâches
+# =========================================================
+
 @login_required
 def task_create(request):
     if request.method == "POST":
         form = TaskForm(request.POST)
         if form.is_valid():
             task = form.save()
-            # optionnel: revenir filtré sur le projet de la tâche créée
+
+            next_url = request.POST.get("next_url", "").strip()
+            if next_url:
+                return redirect(next_url)
+
             return redirect(f"{reverse('projects:projects_home')}?project={task.project_id}")
     else:
-        # pré-remplir le projet si on vient du kanban filtré
         initial = {}
         project_id = request.GET.get("project")
         if project_id:
@@ -148,12 +193,20 @@ def task_edit(request, task_id):
         form = TaskForm(request.POST, instance=task)
         if form.is_valid():
             task = form.save()
+
+            next_url = request.POST.get("next_url", "").strip()
+            if next_url:
+                return redirect(next_url)
+
             return redirect(f"{reverse('projects:projects_home')}?project={task.project_id}")
     else:
         form = TaskForm(instance=task)
 
-    return render(request, "projects/task_form.html", {"form": form, "mode": "edit", "task": task})
-
+    return render(request, "projects/task_form.html", {
+        "form": form,
+        "mode": "edit",
+        "task": task,
+    })
 
 
 @login_required
@@ -161,10 +214,10 @@ def task_edit(request, task_id):
 def task_move(request, task_id):
     task = get_object_or_404(Task, id=task_id)
 
-    direction = request.POST.get("direction")  # "left" ou "right"
+    direction = request.POST.get("direction")
+    source = (request.POST.get("source") or "").strip()
 
-    # ordre des colonnes (doit correspondre à tes statuts en DB)
-    order = [key for key, _ in KANBAN_STATUSES]  # ["todo","doing","blocked","done"]
+    order = [key for key, _ in KANBAN_STATUSES]
 
     try:
         idx = order.index(task.status)
@@ -179,12 +232,16 @@ def task_move(request, task_id):
     task.status = order[idx]
     task.save(update_fields=["status", "updated_at"])
 
-    # retour au kanban en conservant les filtres
+    if source == "project_detail":
+        return redirect("projects:project_detail", project_id=task.project_id)
+
     url = reverse("projects:projects_home")
     params = []
+
     q = (request.GET.get("q") or "").strip()
     priority = (request.GET.get("priority") or "").strip()
     project_id = (request.GET.get("project") or "").strip()
+    cat_id = (request.GET.get("cat") or "").strip()
 
     if q:
         params.append(f"q={q}")
@@ -192,27 +249,102 @@ def task_move(request, task_id):
         params.append(f"priority={priority}")
     if project_id:
         params.append(f"project={project_id}")
+    if cat_id:
+        params.append(f"cat={cat_id}")
 
     if params:
         url += "?" + "&".join(params)
 
     return redirect(url)
 
+
 @login_required
 @require_POST
 def task_delete(request, task_id):
     task = get_object_or_404(Task, id=task_id)
     project_id = task.project_id
+    source = (request.POST.get("source") or "").strip()
     task.delete()
 
-    # Retour au kanban en gardant le filtre projet si possible
+    if source == "project_detail":
+        return redirect("projects:project_detail", project_id=project_id)
+
     url = reverse("projects:projects_home")
     if project_id:
         url += f"?project={project_id}"
     return redirect(url)
 
 
+# =========================================================
+# Affectations de tâches
+# =========================================================
+
+@login_required
+def task_assignment_create(request, task_id: int):
+    task = get_object_or_404(
+        Task.objects.select_related("project"),
+        id=task_id,
+    )
+
+    if request.method == "POST":
+        form = TaskAssignmentForm(request.POST)
+        if form.is_valid():
+            assignment = form.save(commit=False)
+            assignment.task = task
+            assignment.created_by = request.user
+            assignment.save()
+            return redirect("projects:project_detail", project_id=task.project_id)
+    else:
+        form = TaskAssignmentForm(initial={"task": task})
+
+    return render(request, "projects/task_assignment_form.html", {
+        "form": form,
+        "task": task,
+        "project": task.project,
+        "mode": "create",
+    })
+
+
+@login_required
+def task_assignment_edit(request, assignment_id: int):
+    assignment = get_object_or_404(
+        TaskAssignment.objects.select_related("task", "task__project", "trainer"),
+        id=assignment_id,
+    )
+
+    if request.method == "POST":
+        form = TaskAssignmentForm(request.POST, instance=assignment)
+        if form.is_valid():
+            updated = form.save(commit=False)
+            updated.task = assignment.task
+            updated.save()
+            return redirect("projects:project_detail", project_id=assignment.task.project_id)
+    else:
+        form = TaskAssignmentForm(instance=assignment)
+
+    return render(request, "projects/task_assignment_form.html", {
+        "form": form,
+        "assignment": assignment,
+        "task": assignment.task,
+        "project": assignment.task.project,
+        "mode": "edit",
+    })
+
+
+@login_required
+@require_POST
+def task_assignment_delete(request, assignment_id: int):
+    assignment = get_object_or_404(
+        TaskAssignment.objects.select_related("task", "task__project"),
+        id=assignment_id,
+    )
+    project_id = assignment.task.project_id
+    assignment.delete()
+    return redirect("projects:project_detail", project_id=project_id)
+
+
 @require_GET
+@login_required
 def task_quick(request, task_id: int):
     t = get_object_or_404(
         Task.objects.select_related("project", "assignee"),
@@ -228,4 +360,5 @@ def task_quick(request, task_id: int):
         "assignee": t.assignee.username if t.assignee else None,
         "due_date": t.due_date.strftime("%d/%m/%Y") if t.due_date else None,
         "description": t.description or "",
+        "estimated_days": float(t.estimated_days or 0),
     })

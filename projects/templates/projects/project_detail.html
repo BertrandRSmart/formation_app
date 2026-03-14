@@ -1,54 +1,412 @@
 {% extends "trainings/base.html" %}
-{% block title %}{{ project.name }} — Projet{% endblock %}
+{% block title %}Projet — {{ project.name }}{% endblock %}
+{% block body_class %}no-scroll{% endblock %}
 
 {% block content %}
-<div style="padding:92px 18px; color:white;">
+<div style="
+  position: fixed;
+  top: 90px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 18px;
+  box-sizing: border-box;
+  overflow: hidden;
+  color: rgba(255,255,255,0.92);
+  background:
+    radial-gradient(1200px 600px at 18% -10%, rgba(21,96,130,0.25), transparent 55%),
+    radial-gradient(1000px 600px at 86% 10%, rgba(255,137,233,0.14), transparent 55%),
+    linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.00)),
+    #0B0F14;
+">
+  <style>
+    .pd-wrap{ height:100%; display:grid; grid-template-rows:auto auto 1fr; gap:12px; min-height:0; }
 
-  <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px;">
-    <div>
-      <h1 style="margin:0;">📌 {{ project.name }}</h1>
-      <div class="small" style="margin-top:6px;">
-        Catégorie : {{ project.category.name }}
+    .pd-panel{
+      border-radius:18px;
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border:1px solid rgba(255,255,255,.08);
+      box-shadow: 0 18px 45px rgba(0,0,0,.55);
+      min-height:0;
+    }
+
+    .pd-head{
+      padding:16px 18px;
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:16px;
+      flex-wrap:wrap;
+    }
+
+    .pd-title{ margin:0; font-size:24px; font-weight:950; }
+    .pd-sub{ margin-top:6px; opacity:.72; font-size:13px; }
+
+    .pd-actions{ display:flex; gap:8px; flex-wrap:wrap; }
+    .pd-btn{
+      text-decoration:none;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06);
+      color:white;
+      font-weight:900;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      white-space:nowrap;
+    }
+    .pd-btn.primary{
+      border-color: rgba(124,58,237,.45);
+      background: rgba(124,58,237,.18);
+    }
+
+    .pd-kpis{
+      display:grid;
+      grid-template-columns: repeat(5, minmax(0,1fr));
+      gap:12px;
+    }
+    @media(max-width: 1100px){ .pd-kpis{ grid-template-columns: repeat(2, minmax(0,1fr)); } }
+    @media(max-width: 680px){ .pd-kpis{ grid-template-columns: 1fr; } }
+
+    .pd-kpi{
+      padding:14px 16px;
+      border-radius:18px;
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border:1px solid rgba(255,255,255,.08);
+      box-shadow: 0 18px 45px rgba(0,0,0,.28);
+    }
+    .pd-kpi-label{
+      font-size:12px;
+      font-weight:800;
+      text-transform:uppercase;
+      letter-spacing:.4px;
+      color:rgba(255,255,255,.62);
+      margin-bottom:8px;
+    }
+    .pd-kpi-value{
+      font-size:24px;
+      font-weight:950;
+      line-height:1;
+    }
+
+    .pd-badges{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+    .pd-badge{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding:5px 9px;
+      border-radius:999px;
+      font-size:12px;
+      font-weight:950;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.16);
+    }
+
+    .pd-board{
+      display:grid;
+      grid-template-columns: repeat(4, minmax(0,1fr));
+      gap:12px;
+      height:100%;
+      min-height:0;
+    }
+    @media(max-width: 1100px){ .pd-board{ grid-template-columns: 1fr 1fr; } }
+    @media(max-width: 720px){ .pd-board{ grid-template-columns: 1fr; } }
+
+    .pd-col{
+      border-radius:18px;
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border:1px solid rgba(255,255,255,.07);
+      box-shadow: 0 18px 45px rgba(0,0,0,.35);
+      display:flex;
+      flex-direction:column;
+      min-height:0;
+      overflow:hidden;
+    }
+
+    .pd-col-h{
+      padding:12px 14px;
+      border-bottom:1px solid rgba(255,255,255,.08);
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      font-weight:950;
+      font-size:13px;
+      flex:0 0 auto;
+    }
+
+    .pd-col-body{
+      padding:10px;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      overflow:auto;
+      min-height:0;
+    }
+
+    .pd-card{
+      padding:12px;
+      border-radius:16px;
+      background:rgba(0,0,0,.22);
+      border:1px solid rgba(255,255,255,.10);
+    }
+
+    .pd-card-title{
+      font-weight:950;
+      font-size:13px;
+      margin-bottom:4px;
+    }
+
+    .pd-card-meta{
+      opacity:.74;
+      font-size:12px;
+      line-height:1.45;
+    }
+
+    .pd-card-actions{
+      display:flex;
+      gap:6px;
+      flex-wrap:wrap;
+      margin-top:10px;
+    }
+
+    .pd-mini{
+      padding:7px 9px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(255,255,255,.06);
+      color:white;
+      font-weight:900;
+      text-decoration:none;
+      font-size:12px;
+      line-height:1;
+      cursor:pointer;
+    }
+
+    .pd-empty{
+      opacity:.6;
+      font-size:13px;
+      padding:6px;
+    }
+
+    .pd-progress{
+      width:180px;
+      max-width:100%;
+      height:8px;
+      border-radius:999px;
+      background: rgba(255,255,255,.08);
+      overflow:hidden;
+      margin-top:10px;
+    }
+    .pd-progress > span{
+      display:block;
+      height:100%;
+      background: linear-gradient(90deg, #3B82F6, #A855F7);
+      border-radius:999px;
+    }
+
+    .pd-assignments{
+      margin-top:10px;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+
+    .pd-assignment{
+      padding:8px 10px;
+      border-radius:12px;
+      background: rgba(255,255,255,.04);
+      border:1px solid rgba(255,255,255,.08);
+    }
+
+    .pd-assignment-name{
+      font-size:12px;
+      font-weight:950;
+      color:white;
+    }
+
+    .pd-assignment-meta{
+      margin-top:3px;
+      font-size:12px;
+      color:rgba(255,255,255,.72);
+      line-height:1.4;
+    }
+
+    .pd-assignment-actions{
+      margin-top:6px;
+      display:flex;
+      gap:6px;
+      flex-wrap:wrap;
+    }
+  </style>
+
+  <div class="pd-wrap">
+
+    <section class="pd-panel">
+      <div class="pd-head">
+        <div>
+          <div style="opacity:.68; font-size:12px; font-weight:900; letter-spacing:.35px; text-transform:uppercase;">
+            Projet
+          </div>
+          <h1 class="pd-title">{{ project.name }}</h1>
+          <div class="pd-sub">
+            {% if project.category %}{{ project.category.name }} · {% endif %}
+            Statut : {{ project.get_status_display }}
+            {% if project.target_date %} · Échéance : {{ project.target_date|date:"d/m/Y" }}{% endif %}
+          </div>
+
+          <div class="pd-badges">
+            {% if project.category %}
+              <span class="pd-badge">🗂️ {{ project.category.name }}</span>
+            {% endif %}
+            <span class="pd-badge">📌 {{ project.get_status_display }}</span>
+            <span class="pd-badge">📋 {{ project.tasks_total }} tâche{{ project.tasks_total|pluralize }}</span>
+            <span class="pd-badge">✅ {{ project.tasks_done }} terminée{{ project.tasks_done|pluralize }}</span>
+            <span class="pd-badge">⏱️ {{ project.estimated_days }} j estimés</span>
+          </div>
+
+          <div class="pd-progress">
+            <span style="width: {{ project.progress_percent }}%;"></span>
+          </div>
+          <div style="margin-top:6px; font-size:12px; opacity:.72;">
+            Avancement : {{ project.progress_percent }}%
+          </div>
+        </div>
+
+        <div class="pd-actions">
+          <a class="pd-btn" href="{% url 'projects:projects_kanban' %}">← Retour projets</a>
+          <a class="pd-btn" href="{% url 'projects:projects_home' %}?project={{ project.id }}">Vue tâches globale</a>
+          <a class="pd-btn primary" href="{% url 'projects:task_create' %}?project={{ project.id }}">➕ Nouvelle tâche</a>
+        </div>
       </div>
-    </div>
+    </section>
 
-    <div style="display:flex; gap:10px;">
-      <a class="btn2 btn2--primary" href="{% url 'project_update' project.id %}">
-        Modifier
-      </a>
-      <a class="btn2" href="{% url 'projects_list' %}">
-        ← Liste
-      </a>
-    </div>
-  </div>
+    <section class="pd-kpis">
+      <div class="pd-kpi">
+        <div class="pd-kpi-label">Charge projet</div>
+        <div class="pd-kpi-value">{{ project.estimated_days }}</div>
+      </div>
+      <div class="pd-kpi">
+        <div class="pd-kpi-label">Échéance</div>
+        <div class="pd-kpi-value">
+          {% if project.target_date %}{{ project.target_date|date:"d/m" }}{% else %}—{% endif %}
+        </div>
+      </div>
+      <div class="pd-kpi">
+        <div class="pd-kpi-label">À faire</div>
+        <div class="pd-kpi-value">{{ kanban_cols.0.2|length }}</div>
+      </div>
+      <div class="pd-kpi">
+        <div class="pd-kpi-label">En cours</div>
+        <div class="pd-kpi-value">{{ kanban_cols.1.2|length }}</div>
+      </div>
+      <div class="pd-kpi">
+        <div class="pd-kpi-label">Terminées</div>
+        <div class="pd-kpi-value">{{ kanban_cols.3.2|length }}</div>
+      </div>
+    </section>
 
-  <div class="alert-item" style="margin-top:16px;">
-    <div style="font-weight:950; margin-bottom:6px;">Description</div>
-    {% if project.description %}
-      {{ project.description|linebreaksbr }}
-    {% else %}
-      <div class="small">Aucune description.</div>
-    {% endif %}
-  </div>
+    <section class="pd-panel" style="padding:12px; min-height:0;">
+      <div class="pd-board">
+        {% for key, label, col in kanban_cols %}
+          <div class="pd-col">
+            <div class="pd-col-h">
+              <span>
+                {% if key == "todo" %}🟦 {{ label }}
+                {% elif key == "doing" %}🟨 {{ label }}
+                {% elif key == "blocked" %}🟥 {{ label }}
+                {% elif key == "done" %}🟩 {{ label }}
+                {% else %}{{ label }}{% endif %}
+              </span>
+              <span style="opacity:.7;">{{ col|length }}</span>
+            </div>
 
-  <div style="margin-top:20px;">
-    <h2 style="margin-bottom:10px;">🗂️ Tâches liées</h2>
+            <div class="pd-col-body">
+              {% for t in col %}
+                <div class="pd-card">
+                  <div class="pd-card-title">{{ t.title }}</div>
 
-    {% if tasks %}
-      <div style="display:flex; flex-direction:column; gap:8px;">
-        {% for t in tasks %}
-          <div class="alert-item">
-            <strong>{{ t.title }}</strong>
-            <div class="small">{{ t.get_status_display }}</div>
+                  <div class="pd-card-meta">
+                    {% if t.description %}
+                      {{ t.description|truncatechars:120 }}<br>
+                    {% endif %}
+                    Priorité : {{ t.priority }}
+                    {% if t.planned_start_date %}<br>Début prévu : {{ t.planned_start_date|date:"d/m/Y" }}{% endif %}
+                    {% if t.due_date %}<br>Échéance : {{ t.due_date|date:"d/m/Y" }}{% endif %}
+                    {% if t.estimated_days %}<br>Charge estimée : {{ t.estimated_days }} j{% endif %}
+                    {% if t.assignee %}<br>Assigné : {{ t.assignee.username }}{% endif %}
+                  </div>
+
+                  <div class="pd-card-actions">
+                    <form method="post" action="{% url 'projects:task_move' t.id %}" style="margin:0;">
+                      {% csrf_token %}
+                      <input type="hidden" name="direction" value="left">
+                      <input type="hidden" name="source" value="project_detail">
+                      <button type="submit" class="pd-mini">←</button>
+                    </form>
+
+                    <form method="post" action="{% url 'projects:task_move' t.id %}" style="margin:0;">
+                      {% csrf_token %}
+                      <input type="hidden" name="direction" value="right">
+                      <input type="hidden" name="source" value="project_detail">
+                      <button type="submit" class="pd-mini">→</button>
+                    </form>
+
+                    <a class="pd-mini" href="{% url 'projects:task_edit' t.id %}">✏️ Modifier</a>
+                    <a class="pd-mini" href="{% url 'projects:task_assignment_create' t.id %}">👥 Affecter</a>
+
+                    <form method="post" action="{% url 'projects:task_delete' t.id %}" style="margin:0;">
+                      {% csrf_token %}
+                      <input type="hidden" name="source" value="project_detail">
+                      <button type="submit" class="pd-mini">🗑️</button>
+                    </form>
+                  </div>
+
+                  {% if t.assignments.all %}
+                    <div class="pd-assignments">
+                      {% for a in t.assignments.all %}
+                        <div class="pd-assignment">
+                          <div class="pd-assignment-name">
+                            {{ a.trainer.first_name }} {{ a.trainer.last_name }}
+                          </div>
+
+                          <div class="pd-assignment-meta">
+                            {{ a.planned_days }} j
+                            {% if a.start_date %} · {{ a.start_date|date:"d/m/Y" }}{% endif %}
+                            {% if a.end_date %} → {{ a.end_date|date:"d/m/Y" }}{% endif %}
+                            {% if a.status %} · {{ a.get_status_display }}{% endif %}
+                            {% if a.is_visible_in_one_to_one %} · visible 1 to 1{% endif %}
+                          </div>
+
+                          {% if a.notes %}
+                            <div class="pd-assignment-meta" style="margin-top:4px;">
+                              {{ a.notes }}
+                            </div>
+                          {% endif %}
+
+                          <div class="pd-assignment-actions">
+                            <a class="pd-mini" href="{% url 'projects:task_assignment_edit' a.id %}">✏️ Affectation</a>
+
+                            <form method="post" action="{% url 'projects:task_assignment_delete' a.id %}" style="margin:0;">
+                              {% csrf_token %}
+                              <button type="submit" class="pd-mini">🗑️</button>
+                            </form>
+                          </div>
+                        </div>
+                      {% endfor %}
+                    </div>
+                  {% endif %}
+                </div>
+              {% empty %}
+                <div class="pd-empty">Aucune tâche.</div>
+              {% endfor %}
+            </div>
           </div>
         {% endfor %}
       </div>
-    {% else %}
-      <div class="alert-item">
-        Aucune tâche pour ce projet.
-      </div>
-    {% endif %}
-  </div>
+    </section>
 
+  </div>
 </div>
 {% endblock %}

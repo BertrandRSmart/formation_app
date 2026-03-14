@@ -17,6 +17,8 @@ from .models import (
     TrainingType,
     Training,
     Trainer,
+    TrainerAbsence,
+    TrainerWorkloadEntry,
     Session,
     Referrer,
     Participant,
@@ -40,8 +42,73 @@ class ClientAdmin(admin.ModelAdmin):
 # ---------------------------------------------------------
 admin.site.register(Room)
 admin.site.register(TrainingType)
-admin.site.register(Training)
-admin.site.register(Registration)
+
+@admin.register(Registration)
+class RegistrationAdmin(admin.ModelAdmin):
+    list_display = (
+        "session",
+        "participant",
+        "status",
+        "is_free",
+        "billing_rate_percent",
+        "applied_unit_price_ht",
+        "billed_amount_ht",
+        "canceled_at",
+        "created_at",
+    )
+    list_filter = (
+        "status",
+        "is_free",
+        "billing_rate_percent",
+        "session__billing_mode",
+        "session__training_type",
+    )
+    search_fields = (
+        "participant__first_name",
+        "participant__last_name",
+        "participant__email",
+        "session__reference",
+        "session__training__title",
+    )
+
+@admin.register(Training)
+class TrainingAdmin(admin.ModelAdmin):
+    list_display = (
+        "title",
+        "training_type",
+        "session_price_ht",
+        "participant_price_ht",
+        "partner_session_price_ht",
+        "partner_participant_price_ht",
+    )
+    list_filter = ("training_type",)
+    search_fields = ("title", "training_type__name")
+
+    fieldsets = (
+        ("Informations générales", {
+            "fields": (
+                "title",
+                "training_type",
+                "default_days",
+                "color",
+            )
+        }),
+        ("Tarification standard", {
+            "fields": (
+                "session_price_ht",
+                "participant_price_ht",
+            )
+        }),
+        ("Tarification partenaire", {
+            "fields": (
+                "partner_session_price_ht",
+                "partner_participant_price_ht",
+            )
+        }),
+    )
+
+
+
 
 # ---------------------------------------------------------
 # Action admin - Convocations (PDF session + email participants)
@@ -81,8 +148,16 @@ class ReferrerAdmin(admin.ModelAdmin):
 # ---------------------------------------------------------
 @admin.register(Trainer)
 class TrainerAdmin(admin.ModelAdmin):
-    list_display = ("last_name", "first_name", "email", "product")  # adapte si tes champs ont d'autres noms
-    list_filter = ("product",)
+    list_display = (
+        "last_name",
+        "first_name",
+        "email",
+        "product",
+        "platform",
+        "is_active",
+        "workload_percent",
+    )
+    list_filter = ("product", "platform", "is_active")
     search_fields = ("last_name", "first_name", "email")
 
 
@@ -155,18 +230,65 @@ class ParticipantAdmin(ImportExportModelAdmin):
 class SessionAdminForm(forms.ModelForm):
     class Meta:
         model = Session
-        exclude = ("expected_participants", "present_count", "participants_count")
+        exclude = ("expected_participants", "present_count")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # Filtrer les trainings selon le training_type (fiable en édition)
+        # Filtrer les trainings selon le training_type (édition)
         if self.instance and self.instance.pk and self.instance.training_type_id:
             self.fields["training"].queryset = Training.objects.filter(
                 training_type_id=self.instance.training_type_id
             )
 
+        # Rendre ces champs indicatifs dans l'admin
+        for fname in (
+            "applied_session_price_ht",
+            "applied_participant_price_ht",
+            "training_price_ht",
+            "price_ht",
+        ):
+            if fname in self.fields:
+                self.fields[fname].required = False
+                self.fields[fname].widget.attrs["readonly"] = True
+                self.fields[fname].widget.attrs["style"] = (
+                    "background:rgba(255,255,255,.06);"
+                    "color:#fff;"
+                    "font-weight:900;"
+                )
+
+    def clean(self):
+        cleaned = super().clean()
+
+        training = cleaned.get("training")
+        client = cleaned.get("client")
+        billing_mode = cleaned.get("billing_mode")
+        travel_fee_ht = cleaned.get("travel_fee_ht") or Decimal("0.00")
+
+        if training:
+            is_partner = bool(client and getattr(client, "is_partner", False))
+
+            cleaned["applied_session_price_ht"] = training.get_session_price_ht(
+                is_partner=is_partner
+            )
+            cleaned["applied_participant_price_ht"] = training.get_participant_price_ht(
+                is_partner=is_partner
+            )
+
+            if billing_mode == "COLLECTIVE":
+                training_price = cleaned["applied_session_price_ht"] or Decimal("0.00")
+                cleaned["training_price_ht"] = training_price
+                cleaned["price_ht"] = training_price + travel_fee_ht
+            elif billing_mode == "INDIVIDUAL":
+                # en individuel, le total formation se recalculera sur les inscriptions
+                existing_training_price = cleaned.get("training_price_ht") or Decimal("0.00")
+                cleaned["training_price_ht"] = existing_training_price
+                cleaned["price_ht"] = existing_training_price + travel_fee_ht
+
+        return cleaned
+
 @admin.register(Session)
+
 class SessionAdmin(admin.ModelAdmin):
     form = SessionAdminForm
 
@@ -177,6 +299,8 @@ class SessionAdmin(admin.ModelAdmin):
         "training_type",
         "training",
         "client",
+        "billing_mode",
+        "is_abroad",
         "start_date",
         "end_date",
         "trainer",
@@ -188,12 +312,17 @@ class SessionAdmin(admin.ModelAdmin):
         "presence_gauge",
         "client_satisfaction",
         "bulk_registrations_link",
+        "training_price_ht",
+        "travel_fee_ht",
         "price_ht",
     )
 
     list_filter = (
         "training_type",
         "client",
+        "client__is_partner",
+        "billing_mode",
+        "is_abroad",
         "trainer",
         "room",
         "on_client_site",
@@ -231,6 +360,19 @@ class SessionAdmin(admin.ModelAdmin):
             obj.outlook_compose_link()
         )
 
+        def save_model(self, request, obj, form, change):
+            obj.apply_pricing_from_training(save=False)
+            super().save_model(request, obj, form, change)
+            obj.recalculate_prices(save=True)
+        # snapshot tarif depuis la formation / client
+        obj.apply_pricing_from_training(save=False)
+
+        # si collectif, le save du modèle calcule déjà correctement
+        super().save_model(request, obj, form, change)
+
+        # recalcul complet après save pour fiabiliser compteurs + total
+        obj.recalculate_prices(save=True)
+        
     @admin.display(description="Inscriptions en masse")
     def bulk_registrations_button(self, obj):
         if not obj or not obj.pk:
@@ -270,24 +412,67 @@ class SessionAdmin(admin.ModelAdmin):
             present, expected, percent, percent
         )
 
-    fieldsets = (
-        ("Informations session", {
-            "fields": (
-                "bulk_registrations_button",
-                "create_teams_button",
-                "reference",
-                "status",
-                "training_type",
-                "training",
-                "client",
-                "start_date",
-                "end_date",
-                "days_count",
-                "trainer",
-                "backup_trainer",
-                "price_ht",
-            )
-        }),
+        fieldsets = (
+            
+            ("Informations session", {
+                "fields": (
+                    "bulk_registrations_button",
+                    "create_teams_button",
+                    "reference",
+                    "status",
+                    "training_type",
+                    "training",
+                    "client",
+                    "billing_mode",
+                    "start_date",
+                    "end_date",
+                    "days_count",
+                    "trainer",
+                    "backup_trainer",
+                )
+            }),
+            ("Tarification", {
+                "fields": (
+                    "applied_session_price_ht",
+                    "applied_participant_price_ht",
+                    "training_price_ht",
+                    "travel_fee_ht",
+                    "price_ht",
+                )
+            }),
+            ("Lieu", {
+                "fields": (
+                    "on_client_site",
+                    "client_address",
+                    "room",
+                    "is_abroad",
+                )
+            }),
+            ("Suivi administratif", {
+                "fields": (
+                    "software_version",
+                    "work_environment",
+                    "convocations_sent_at",
+                    "teams_meeting_url",
+                )
+            }),
+            ("Clôture de la session", {
+                "fields": (
+                    "expected_participants",
+                    "present_count",
+                    "client_satisfaction",
+                    "report_sent_at",
+                    "accounting_sheets_sent_at",
+                )
+            }),
+            ("Notes", {
+                "fields": ("notes",)
+            }),
+            ("Métadonnées", {
+                "fields": ("created_at",)
+            }),
+        )
+
         ("Lieu", {
             "fields": ("on_client_site", "client_address", "room")
         }),
@@ -314,7 +499,7 @@ class SessionAdmin(admin.ModelAdmin):
         ("Métadonnées", {
             "fields": ("created_at",)
         }),
-    )
+    
 
     class Media:
         js = (
@@ -372,3 +557,62 @@ class PartnerContractAdmin(admin.ModelAdmin):
     list_display = ("partner", "plan", "status", "start_date", "end_date", "price_ht_snapshot")
     list_filter = ("status", "plan")
     search_fields = ("partner__name",)
+
+# ================================================================
+# Plan de charge formateurs
+# ================================================================
+
+@admin.register(TrainerAbsence)
+class TrainerAbsenceAdmin(admin.ModelAdmin):
+    list_display = (
+        "trainer",
+        "absence_type",
+        "start_date",
+        "end_date",
+        "days_count",
+        "created_at",
+    )
+    list_filter = (
+        "absence_type",
+        "trainer__product",
+        "trainer__platform",
+        "start_date",
+        "end_date",
+    )
+    search_fields = (
+        "trainer__first_name",
+        "trainer__last_name",
+        "trainer__email",
+        "notes",
+    )
+    ordering = ("-start_date", "trainer__last_name", "trainer__first_name")
+
+
+@admin.register(TrainerWorkloadEntry)
+class TrainerWorkloadEntryAdmin(admin.ModelAdmin):
+    list_display = (
+        "trainer",
+        "title",
+        "workload_type",
+        "status",
+        "start_date",
+        "end_date",
+        "days_count",
+        "created_at",
+    )
+    list_filter = (
+        "workload_type",
+        "status",
+        "trainer__product",
+        "trainer__platform",
+        "start_date",
+        "end_date",
+    )
+    search_fields = (
+        "title",
+        "notes",
+        "trainer__first_name",
+        "trainer__last_name",
+        "trainer__email",
+    )
+    ordering = ("-start_date", "trainer__last_name", "trainer__first_name")

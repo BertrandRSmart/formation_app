@@ -1,26 +1,206 @@
 {% extends "trainings/base.html" %}
 {% block title %}Participant{% endblock %}
+
 {% block content %}
+<div style="
+  min-height:100vh;
+  padding:92px 18px 18px;
+  box-sizing:border-box;
+  color:rgba(255,255,255,0.92);
+  background:
+    radial-gradient(1200px 600px at 18% -10%, rgba(21,96,130,0.25), transparent 55%),
+    radial-gradient(1000px 600px at 86% 10%, rgba(255,137,233,0.14), transparent 55%),
+    linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.00)),
+    #0B0F14;
+">
 
-<h1 style="margin-bottom:10px;">
-  {% if mode == "add" %}Ajouter un participant{% else %}Modifier le participant{% endif %}
-</h1>
+  <style>
+    .mp-wrap{
+      max-width: 980px;
+      margin: 0 auto;
+    }
 
-<form method="post" style="background:white; border:1px solid #e2e8f0; border-radius:12px; padding:14px;">
-  {% csrf_token %}
+    .mp-title{
+      margin:0 0 14px 0;
+      font-size:28px;
+      font-weight:950;
+      letter-spacing:.2px;
+    }
 
-  {{ p_form.as_p }}
+    .mp-sub{
+      margin:0 0 18px 0;
+      color:rgba(255,255,255,.68);
+      font-size:13px;
+    }
 
-  {% if mode == "edit" %}
-    <h3 style="margin-top:14px;">Inscription</h3>
-    {{ r_form.as_p }}
-  {% endif %}
+    .mp-form{
+      border-radius:18px;
+      border:1px solid rgba(255,255,255,0.10);
+      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      backdrop-filter: blur(12px);
+      box-shadow: 0 18px 45px rgba(0,0,0,.45);
+      padding:18px;
+    }
 
-  <div style="display:flex; gap:10px; margin-top:14px;">
-    <button class="btn" type="submit">Enregistrer</button>
-    <a class="btn" href="{% url 'training_manage_home' %}?session={{ session.id }}">Retour</a>
+    .mp-grid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:16px;
+    }
 
+    @media (max-width: 900px){
+      .mp-grid{ grid-template-columns: 1fr; }
+    }
+
+    .mp-card{
+      border:1px solid rgba(255,255,255,0.10);
+      border-radius:16px;
+      background:rgba(255,255,255,0.04);
+      padding:14px;
+    }
+
+    .mp-card h3{
+      margin:0 0 12px 0;
+      font-size:16px;
+      font-weight:950;
+    }
+
+    .mp-summary{
+      margin-top:14px;
+      padding:12px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,0.08);
+      background:rgba(0,0,0,0.18);
+      font-size:13px;
+      line-height:1.5;
+    }
+
+    .mp-summary strong{
+      color:white;
+    }
+
+    .mp-actions{
+      display:flex;
+      gap:10px;
+      margin-top:16px;
+      flex-wrap:wrap;
+    }
+
+    .mp-btn{
+      text-decoration:none;
+      padding:10px 14px;
+      border-radius:12px;
+      border:1px solid rgba(124,58,237,0.45);
+      background: rgba(124,58,237,0.18);
+      color:white;
+      font-weight:900;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      cursor:pointer;
+    }
+
+    .mp-btn--ghost{
+      border-color: rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.06);
+    }
+
+    .mp-form p{
+      margin:0 0 12px 0;
+    }
+
+    .mp-form label{
+      display:block;
+      margin-bottom:6px;
+      font-size:13px;
+      font-weight:900;
+      color:rgba(255,255,255,.88);
+    }
+
+    .mp-form input[type="text"],
+    .mp-form input[type="email"],
+    .mp-form input[type="date"],
+    .mp-form input[type="number"],
+    .mp-form select,
+    .mp-form textarea{
+      width:100%;
+      padding:10px 12px;
+      border-radius:12px;
+      background:rgba(0,0,0,0.25);
+      border:1px solid rgba(255,255,255,0.12);
+      color:white;
+      font-weight:900;
+      outline:none;
+      box-sizing:border-box;
+    }
+
+    .mp-form input[type="checkbox"]{
+      width:18px;
+      height:18px;
+      vertical-align:middle;
+      margin-right:8px;
+    }
+
+    .mp-form .helptext{
+      display:block;
+      margin-top:6px;
+      font-size:12px;
+      color:rgba(255,255,255,.58);
+    }
+
+    .mp-form ul.errorlist{
+      margin:0 0 8px 0;
+      padding:0;
+      list-style:none;
+      color:#FCA5A5;
+      font-size:12px;
+      font-weight:900;
+    }
+  </style>
+
+  <div class="mp-wrap">
+    <h1 class="mp-title">
+      {% if mode == "add" %}Ajouter un participant{% else %}Modifier le participant{% endif %}
+    </h1>
+
+    <div class="mp-sub">
+      {% if session %}
+        Session : <strong>{{ session.reference }}</strong>
+        {% if session.start_date %} — {{ session.start_date|date:"d/m/Y" }}{% endif %}
+      {% endif %}
+    </div>
+
+    <form method="post" class="mp-form">
+      {% csrf_token %}
+
+      <div class="mp-grid">
+
+        <div class="mp-card">
+          <h3>👤 Participant</h3>
+          {{ p_form.as_p }}
+        </div>
+
+        {% if mode == "edit" %}
+          <div class="mp-card">
+            <h3>💶 Inscription / facturation</h3>
+            {{ r_form.as_p }}
+
+            <div class="mp-summary">
+              <div>Statut actuel : <strong>{{ reg.get_status_display }}</strong></div>
+              <div>Place offerte : <strong>{% if reg.is_free %}Oui{% else %}Non{% endif %}</strong></div>
+              <div>Taux facturé : <strong>{{ reg.billing_rate_percent }}%</strong></div>
+              <div>Montant facturable : <strong>{{ reg.billed_amount_ht|floatformat:2 }} €</strong></div>
+            </div>
+          </div>
+        {% endif %}
+
+      </div>
+
+      <div class="mp-actions">
+        <button class="mp-btn" type="submit">Enregistrer</button>
+        <a class="mp-btn mp-btn--ghost" href="{% url 'trainings:training_manage_home' %}?session={{ session.id }}">Retour</a>
+      </div>
+    </form>
   </div>
-</form>
-
+</div>
 {% endblock %}

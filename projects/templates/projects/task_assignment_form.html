@@ -1,0 +1,117 @@
+{% extends "trainings/base.html" %}
+{% block title %}Affectation tâche{% endblock %}
+{% block body_class %}no-scroll{% endblock %}
+
+{% block content %}
+<div style="max-width:780px; margin: 110px auto 40px; padding: 0 16px;">
+
+  <style>
+    .f-label{ font-weight:900; opacity:.85; font-size:12px; margin-bottom:6px; }
+    .f-field input, .f-field select, .f-field textarea{
+      width:100%;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(0,0,0,.25);
+      color:white;
+      font-weight:900;
+      outline:none;
+      box-sizing:border-box;
+    }
+    .f-field textarea{ resize: vertical; }
+    .f-err{ color:#fca5a5; font-size:12px; margin-top:6px; font-weight:900; }
+    .grid2{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:12px;
+    }
+    @media(max-width:720px){ .grid2{ grid-template-columns: 1fr; } }
+  </style>
+
+  <div style="padding:16px; border-radius:18px; border:1px solid rgba(255,255,255,.10); background: rgba(0,0,0,.22);">
+    <h1 style="margin:0 0 8px; font-weight:950;">
+      {% if mode == "edit" %}✏️ Modifier une affectation{% else %}➕ Nouvelle affectation{% endif %}
+    </h1>
+
+    <div style="opacity:.72; font-size:13px; margin-bottom:14px;">
+      Projet : <strong>{{ project.name }}</strong><br>
+      Tâche : <strong>{{ task.title }}</strong>
+    </div>
+
+    <form method="post" style="display:flex; flex-direction:column; gap:12px;">
+      {% csrf_token %}
+
+      {% if form.non_field_errors %}
+        <div class="f-err">{{ form.non_field_errors|striptags }}</div>
+      {% endif %}
+
+      <div class="f-field" style="display:none;">
+        {{ form.task }}
+      </div>
+
+      <div class="f-field">
+        <div class="f-label">{{ form.trainer.label }}</div>
+        {{ form.trainer }}
+        {% if form.trainer.errors %}<div class="f-err">{{ form.trainer.errors|striptags }}</div>{% endif %}
+      </div>
+
+      <div class="grid2">
+        <div class="f-field">
+          <div class="f-label">{{ form.planned_days.label }}</div>
+          {{ form.planned_days }}
+          {% if form.planned_days.errors %}<div class="f-err">{{ form.planned_days.errors|striptags }}</div>{% endif %}
+        </div>
+
+        <div class="f-field">
+          <div class="f-label">{{ form.status.label }}</div>
+          {{ form.status }}
+          {% if form.status.errors %}<div class="f-err">{{ form.status.errors|striptags }}</div>{% endif %}
+        </div>
+      </div>
+
+      <div class="grid2">
+        <div class="f-field">
+          <div class="f-label">{{ form.start_date.label }}</div>
+          {{ form.start_date }}
+          {% if form.start_date.errors %}<div class="f-err">{{ form.start_date.errors|striptags }}</div>{% endif %}
+        </div>
+
+        <div class="f-field">
+          <div class="f-label">{{ form.end_date.label }}</div>
+          {{ form.end_date }}
+          {% if form.end_date.errors %}<div class="f-err">{{ form.end_date.errors|striptags }}</div>{% endif %}
+        </div>
+      </div>
+
+      <div class="f-field">
+        <div class="f-label">{{ form.is_visible_in_one_to_one.label }}</div>
+        <div style="padding:10px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.12); background: rgba(0,0,0,.25);">
+          {{ form.is_visible_in_one_to_one }}
+        </div>
+        {% if form.is_visible_in_one_to_one.errors %}<div class="f-err">{{ form.is_visible_in_one_to_one.errors|striptags }}</div>{% endif %}
+      </div>
+
+      <div class="f-field">
+        <div class="f-label">{{ form.notes.label }}</div>
+        {{ form.notes }}
+        {% if form.notes.errors %}<div class="f-err">{{ form.notes.errors|striptags }}</div>{% endif %}
+      </div>
+
+      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;">
+        <button type="submit"
+                style="padding:10px 14px; border-radius:12px; border:1px solid rgba(124,58,237,0.45);
+                       background: rgba(124,58,237,0.18); color:white; font-weight:950; cursor:pointer;">
+          Enregistrer
+        </button>
+
+        <a href="{% url 'projects:project_detail' project.id %}"
+           style="padding:10px 14px; border-radius:12px; border:1px solid rgba(255,255,255,.12);
+                  background: rgba(255,255,255,.06); color:white; font-weight:950; text-decoration:none;">
+          Retour projet
+        </a>
+      </div>
+    </form>
+  </div>
+
+</div>
+{% endblock %}

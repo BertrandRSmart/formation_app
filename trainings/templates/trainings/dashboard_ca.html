@@ -119,17 +119,51 @@
           <!-- KPI compacts (sur une ligne) -->
           <div class="kpi-row-compact">
             <div class="kpi-compact">
-              <div class="kpi-ct">CA total</div>
+              <div class="kpi-ct">CA formation total</div>
+              <div class="kpi-cv">{{ ca_formation_total|floatformat:2 }} €</div>
+            </div>
+
+            <div class="kpi-compact">
+              <div class="kpi-ct">CA formation réalisé</div>
+              <div class="kpi-cv">{{ ca_formation_realise|floatformat:2 }} €</div>
+            </div>
+
+            <div class="kpi-compact">
+              <div class="kpi-ct">CA formation prévisionnel</div>
+              <div class="kpi-cv">{{ ca_formation_previsionnel|floatformat:2 }} €</div>
+            </div>
+          </div>
+
+          <div class="kpi-row-compact" style="margin-top:10px;">
+            <div class="kpi-compact">
+              <div class="kpi-ct">Déplacements total</div>
+              <div class="kpi-cv">{{ travel_total|floatformat:2 }} €</div>
+            </div>
+
+            <div class="kpi-compact">
+              <div class="kpi-ct">Déplacements réalisés</div>
+              <div class="kpi-cv">{{ travel_realise|floatformat:2 }} €</div>
+            </div>
+
+            <div class="kpi-compact">
+              <div class="kpi-ct">Déplacements prévisionnels</div>
+              <div class="kpi-cv">{{ travel_previsionnel|floatformat:2 }} €</div>
+            </div>
+          </div>
+
+          <div class="kpi-row-compact" style="margin-top:10px;">
+            <div class="kpi-compact">
+              <div class="kpi-ct">Total global</div>
               <div class="kpi-cv">{{ ca_total|floatformat:2 }} €</div>
             </div>
 
             <div class="kpi-compact">
-              <div class="kpi-ct">CA réalisé</div>
+              <div class="kpi-ct">Global réalisé</div>
               <div class="kpi-cv">{{ ca_realise|floatformat:2 }} €</div>
             </div>
 
             <div class="kpi-compact">
-              <div class="kpi-ct">CA prévisionnel</div>
+              <div class="kpi-ct">Global prévisionnel</div>
               <div class="kpi-cv">{{ ca_previsionnel|floatformat:2 }} €</div>
             </div>
           </div>
@@ -188,7 +222,9 @@
                 <th>Client</th>
                 <th>Formation</th>
                 <th>Type</th>
-                <th>Prix HT</th>
+                <th>Formation HT</th>
+                <th>Déplacements HT</th>
+                <th>Total HT</th>
                 <th>Status</th>
                 <th>Réalisation</th>
               </tr>
@@ -206,6 +242,8 @@
                   <td>{{ s.client }}</td>
                   <td>{{ s.training }}</td>
                   <td>{% if s.training_type %}{{ s.training_type }}{% else %}—{% endif %}</td>
+                  <td style="white-space:nowrap;">{{ s.training_price_ht|floatformat:2 }} €</td>
+                  <td style="white-space:nowrap;">{{ s.travel_fee_ht|floatformat:2 }} €</td>
                   <td style="white-space:nowrap;">{{ s.price_ht|floatformat:2 }} €</td>
                   <td style="white-space:nowrap;">{{ s.status|default:"—" }}</td>
                   <td style="white-space:nowrap;">

@@ -9,9 +9,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.utils import timezone
-
 from django.utils.html import format_html
-
 
 
 # =========================================================
@@ -48,8 +46,54 @@ class Training(models.Model):
     default_days = models.DecimalField(max_digits=4, decimal_places=1, default=Decimal("1.0"))
     color = models.CharField(max_length=7, default="#3b82f6")  # format #RRGGBB
 
+    # =========================
+    # Tarifs de référence
+    # =========================
+    session_price_ht = models.DecimalField(
+        "Tarif session HT",
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)],
+    )
+    participant_price_ht = models.DecimalField(
+        "Tarif participant HT",
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)],
+    )
+    partner_session_price_ht = models.DecimalField(
+        "Tarif session partenaire HT",
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)],
+    )
+    partner_participant_price_ht = models.DecimalField(
+        "Tarif participant partenaire HT",
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)],
+    )
+
     def __str__(self) -> str:
         return self.title
+
+    def get_session_price_ht(self, is_partner: bool = False) -> Decimal:
+        if is_partner and self.partner_session_price_ht is not None:
+            return self.partner_session_price_ht
+        return self.session_price_ht or Decimal("0.00")
+
+    def get_participant_price_ht(self, is_partner: bool = False) -> Decimal:
+        if is_partner and self.partner_participant_price_ht is not None:
+            return self.partner_participant_price_ht
+        return self.participant_price_ht or Decimal("0.00")
 
 
 # =========================================================
@@ -83,8 +127,178 @@ class Trainer(models.Model):
 
     email = models.EmailField(blank=True)
 
+    # =========================
+    # AJOUT PLAN DE CHARGE
+    # =========================
+    is_active = models.BooleanField("Actif", default=True)
+    workload_percent = models.DecimalField(
+        "Capacité disponible (%)",
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal("100.00"),
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+    )
+
     def __str__(self) -> str:
         return f"{self.first_name} {self.last_name}".strip()
+
+
+# =========================================================
+# Plan de charge - absences / charges
+# =========================================================
+
+class TrainerAbsenceType(models.TextChoices):
+    VACATION = "VACATION", "Congés"
+    RTT = "RTT", "RTT"
+    SICK = "SICK", "Maladie"
+    UNAVAILABLE = "UNAVAILABLE", "Indisponible"
+    INTERNAL = "INTERNAL", "Réservé interne"
+
+
+class TrainerAbsence(models.Model):
+    trainer = models.ForeignKey(
+        Trainer,
+        on_delete=models.CASCADE,
+        related_name="absences",
+    )
+    absence_type = models.CharField(
+        "Type d'absence",
+        max_length=20,
+        choices=TrainerAbsenceType.choices,
+        default=TrainerAbsenceType.VACATION,
+    )
+    start_date = models.DateField("Date de début")
+    end_date = models.DateField("Date de fin")
+    days_count = models.DecimalField(
+        "Nombre de jours",
+        max_digits=4,
+        decimal_places=1,
+        default=Decimal("1.0"),
+        validators=[MinValueValidator(Decimal("0.5"))],
+    )
+    notes = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("start_date", "trainer__last_name", "trainer__first_name")
+        verbose_name = "Absence formateur"
+        verbose_name_plural = "Absences formateurs"
+
+    def __str__(self):
+        return (
+            f"{self.trainer} - {self.get_absence_type_display()} "
+            f"({self.start_date} → {self.end_date})"
+        )
+
+        def clean(self):
+            super().clean()
+
+            if self.on_client_site:
+                if not (self.client_address or "").strip():
+                    raise ValidationError("Adresse obligatoire si la formation est chez le client.")
+            else:
+                if not self.room_id:
+                    raise ValidationError("Salle obligatoire si la formation n'est pas chez le client.")
+
+            if not self.training_id:
+                return
+
+            is_partner = False
+            if self.client_id:
+                is_partner = bool(getattr(self.client, "is_partner", False))
+
+            session_price = self.training.get_session_price_ht(is_partner=is_partner)
+            participant_price = self.training.get_participant_price_ht(is_partner=is_partner)
+
+            if self.billing_mode == SessionBillingMode.COLLECTIVE:
+                if session_price <= Decimal("0.00"):
+                    raise ValidationError(
+                        "Aucun tarif session HT n'est défini pour cette formation dans ce mode de tarification."
+                    )
+
+            elif self.billing_mode == SessionBillingMode.INDIVIDUAL:
+                if participant_price <= Decimal("0.00"):
+                    raise ValidationError(
+                        "Aucun tarif participant HT n'est défini pour cette formation dans ce mode de tarification."
+                    )
+
+            if self.is_abroad and (self.travel_fee_ht or Decimal("0.00")) <= Decimal("0.00"):
+                raise ValidationError(
+                    "Une session à l'étranger doit avoir un forfait de déplacement HT renseigné."
+                )
+
+
+class TrainerWorkloadType(models.TextChoices):
+    PREPARATION = "PREPARATION", "Préparation"
+    PROJECT = "PROJECT", "Projet transverse"
+    QA = "QA", "QA / Documentation"
+    MEETING = "MEETING", "Réunion"
+    SUPPORT = "SUPPORT", "Support"
+    TRAVEL = "TRAVEL", "Déplacement"
+    OTHER = "OTHER", "Autre"
+
+
+class TrainerWorkloadEntryStatus(models.TextChoices):
+    FORECAST = "FORECAST", "Prévisionnel"
+    CONFIRMED = "CONFIRMED", "Confirmé"
+    DONE = "DONE", "Réalisé"
+    CANCELED = "CANCELED", "Annulé"
+
+
+class TrainerWorkloadEntry(models.Model):
+    trainer = models.ForeignKey(
+        Trainer,
+        on_delete=models.CASCADE,
+        related_name="workload_entries",
+    )
+    workload_type = models.CharField(
+        "Type de charge",
+        max_length=20,
+        choices=TrainerWorkloadType.choices,
+        default=TrainerWorkloadType.OTHER,
+    )
+    title = models.CharField("Intitulé", max_length=200)
+    start_date = models.DateField("Date de début")
+    end_date = models.DateField("Date de fin")
+    days_count = models.DecimalField(
+        "Nombre de jours",
+        max_digits=4,
+        decimal_places=1,
+        default=Decimal("1.0"),
+        validators=[MinValueValidator(Decimal("0.5"))],
+    )
+    status = models.CharField(
+        "Statut",
+        max_length=20,
+        choices=TrainerWorkloadEntryStatus.choices,
+        default=TrainerWorkloadEntryStatus.FORECAST,
+    )
+    notes = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("start_date", "trainer__last_name", "trainer__first_name")
+        verbose_name = "Charge formateur"
+        verbose_name_plural = "Charges formateurs"
+
+    def __str__(self):
+        return f"{self.trainer} - {self.title}"
+
+        def clean(self):
+            super().clean()
+
+            if self.status == RegistrationStatus.CANCELED and not self.canceled_at:
+                # on laisse save() compléter automatiquement si besoin,
+                # donc pas de ValidationError ici
+                pass
+
+            if self.is_free and self.billing_rate_percent not in (0, 30, 100):
+                raise ValidationError("Le taux de facturation doit être cohérent.")
+
+            if self.session_id and self.session.billing_mode == SessionBillingMode.COLLECTIVE:
+                # En collectif, l'inscription n'a pas vocation à porter un montant propre
+                # on laisse le modèle recalculer billed_amount_ht à 0
+                pass
 
 
 # =========================================================
@@ -104,6 +318,9 @@ class WorkEnvironment(models.TextChoices):
     PSFORMATION = "PSFormation", "PSFormation"
     PSFORMATIONMID = "PSFormationMid", "PSFormationMid"
 
+class SessionBillingMode(models.TextChoices):
+    COLLECTIVE = "COLLECTIVE", "Inscription collective"
+    INDIVIDUAL = "INDIVIDUAL", "Inscriptions individuelles"
 
 class Session(models.Model):
     reference = models.CharField(max_length=50, blank=True, default="")
@@ -144,6 +361,57 @@ class Session(models.Model):
 
     notes = models.TextField(blank=True)
 
+    # =========================
+    # Facturation
+    # =========================
+    billing_mode = models.CharField(
+        "Mode d'inscription",
+        max_length=20,
+        choices=SessionBillingMode.choices,
+        default=SessionBillingMode.COLLECTIVE,
+    )
+
+    is_abroad = models.BooleanField("Formation à l'étranger", default=False)
+
+    applied_session_price_ht = models.DecimalField(
+        "Tarif session appliqué HT",
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)],
+    )
+    applied_participant_price_ht = models.DecimalField(
+        "Tarif participant par défaut appliqué HT",
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)],
+    )
+
+    training_price_ht = models.DecimalField(
+        "Prix formation HT",
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        validators=[MinValueValidator(0)],
+    )
+    travel_fee_ht = models.DecimalField(
+        "Frais de déplacement HT",
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        validators=[MinValueValidator(0)],
+    )
+    price_ht = models.DecimalField(
+        "Prix total HT",
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        validators=[MinValueValidator(0)],
+    )
+
     # Plan B (sans Entra): lien Teams collé manuellement après création Outlook/Teams
     teams_meeting_url = models.URLField("Lien Teams", blank=True, default="")
     participants_invited_at = models.DateTimeField(
@@ -170,8 +438,8 @@ class Session(models.Model):
     # Clôture
     client_satisfaction = models.DecimalField(
         "Satisfaction client (/20)",
-        max_digits=4,          # ex: 20.00 => 4 chiffres au total
-        decimal_places=2,      # 2 chiffres après la virgule
+        max_digits=4,
+        decimal_places=2,
         null=True,
         blank=True,
         validators=[MinValueValidator(0), MaxValueValidator(20)],
@@ -188,22 +456,7 @@ class Session(models.Model):
         editable=False,
     )
 
-    price_ht = models.DecimalField(
-        "Prix formation HT",
-        max_digits=10,
-        decimal_places=2,
-        default=Decimal("0.00"),
-        validators=[MinValueValidator(0)],
-    )
-
-    
-
     def outlook_compose_link(self):
-        """
-        Ouvre Outlook Web avec un évènement pré-rempli.
-        Ensuite tu cliques "Réunion Teams" dans Outlook/Teams, tu enregistres,
-        puis tu colles le lien dans `teams_meeting_url`.
-        """
         if not self.start_date or not self.end_date:
             return "Dates non renseignées"
 
@@ -241,6 +494,145 @@ class Session(models.Model):
 
     outlook_compose_link.short_description = "Lien Outlook"
 
+    def invitation_language_default(self) -> str:
+        return "fr"
+
+    def invitation_location_label(self) -> str:
+        if self.on_client_site:
+            return (self.client_address or "").strip()
+        if self.room:
+            loc = (self.room.location or "").strip()
+            return f"{self.room.name}{' — ' + loc if loc else ''}"
+        return ""
+
+    def invitation_schedule_am(self) -> str:
+        return "09:00–12:00"
+
+    def invitation_schedule_pm(self) -> str:
+        return "13:30–16:30"
+
+    def invitation_schedule_full(self) -> str:
+        return f"{self.invitation_schedule_am()} puis {self.invitation_schedule_pm()}"
+
+    @property
+    def is_partner_pricing(self) -> bool:
+        return bool(self.client_id and getattr(self.client, "is_partner", False))
+
+    def apply_pricing_from_training(self, save: bool = False) -> None:
+        """
+        Copie les tarifs de référence depuis la formation vers la session.
+        - collective : snapshot session
+        - individual : snapshot participant par défaut
+        """
+        if not self.training_id:
+            return
+
+        is_partner = self.is_partner_pricing
+
+        self.applied_session_price_ht = self.training.get_session_price_ht(is_partner=is_partner)
+        self.applied_participant_price_ht = self.training.get_participant_price_ht(is_partner=is_partner)
+
+        if self.billing_mode == SessionBillingMode.COLLECTIVE:
+            self.training_price_ht = self.applied_session_price_ht or Decimal("0.00")
+            self.price_ht = (self.training_price_ht or Decimal("0.00")) + (self.travel_fee_ht or Decimal("0.00"))
+
+        if save and self.pk:
+            self.save(update_fields=[
+                "applied_session_price_ht",
+                "applied_participant_price_ht",
+                "training_price_ht",
+                "price_ht",
+            ])
+
+    def update_participant_counters(self, save: bool = False) -> None:
+        regs = self.registrations.all()
+        self.expected_participants = regs.count()
+        self.present_count = regs.filter(status=RegistrationStatus.PRESENT).count()
+
+        if save and self.pk:
+            self.save(update_fields=["expected_participants", "present_count"])
+
+    def recalculate_prices(self, save: bool = True) -> None:
+        """
+        Recalcule :
+        - training_price_ht
+        - price_ht
+        - compteurs participants
+        """
+        self.update_participant_counters(save=False)
+
+        if self.billing_mode == SessionBillingMode.COLLECTIVE:
+            if self.applied_session_price_ht is None:
+                self.apply_pricing_from_training(save=False)
+            self.training_price_ht = self.applied_session_price_ht or Decimal("0.00")
+
+        else:
+            total_training = Decimal("0.00")
+            for reg in self.registrations.select_related("participant", "participant__client"):
+                reg.compute_billed_amount_ht(save=True)
+                total_training += reg.billed_amount_ht or Decimal("0.00")
+            self.training_price_ht = total_training
+
+        self.price_ht = (self.training_price_ht or Decimal("0.00")) + (self.travel_fee_ht or Decimal("0.00"))
+
+        if save and self.pk:
+            self.save(update_fields=[
+                "expected_participants",
+                "present_count",
+                "training_price_ht",
+                "price_ht",
+            ])
+
+    def save(self, *args, **kwargs):
+        if self.training and not self.training_type_id:
+            self.training_type = self.training.training_type
+
+        old_start_date = None
+        if self.pk:
+            old_start_date = (
+                Session.objects.filter(pk=self.pk)
+                .values_list("start_date", flat=True)
+                .first()
+            )
+
+        if self.start_date:
+            computed = self.start_date - timedelta(days=16)
+
+            if not self.convocations_sent_at:
+                self.convocations_sent_at = computed
+            elif old_start_date and old_start_date != self.start_date:
+                self.convocations_sent_at = computed
+                self.convocation_alert_closed = False
+
+        # snapshot tarif si non défini
+        if self.training_id:
+            if self.applied_session_price_ht is None:
+                self.applied_session_price_ht = self.training.get_session_price_ht(
+                    is_partner=self.is_partner_pricing
+                )
+            if self.applied_participant_price_ht is None:
+                self.applied_participant_price_ht = self.training.get_participant_price_ht(
+                    is_partner=self.is_partner_pricing
+                )
+
+        # calcul immédiat si collectif
+        if self.billing_mode == SessionBillingMode.COLLECTIVE:
+            self.training_price_ht = self.applied_session_price_ht or Decimal("0.00")
+            self.price_ht = (self.training_price_ht or Decimal("0.00")) + (self.travel_fee_ht or Decimal("0.00"))
+
+        super().save(*args, **kwargs)
+
+    def __str__(self) -> str:
+        return f"{self.reference} - {self.training} - {self.client} ({self.start_date})"
+
+    def clean(self):
+        if self.on_client_site:
+            if not (self.client_address or "").strip():
+                raise ValidationError("Adresse obligatoire si la formation est chez le client.")
+        else:
+            if not self.room_id:
+                raise ValidationError("Salle obligatoire si la formation n'est pas chez le client.")
+
     # --- Invitations helpers (HTML -> PDF) ---------------------------------
 
     def invitation_language_default(self) -> str:
@@ -259,7 +651,6 @@ class Session(models.Model):
         if self.on_client_site:
             return (self.client_address or "").strip()
         if self.room:
-            # On combine nom + location si disponible
             loc = (self.room.location or "").strip()
             return f"{self.room.name}{' — ' + loc if loc else ''}"
         return ""
@@ -325,12 +716,10 @@ class Referrer(models.Model):
 
     first_name = models.CharField(max_length=120)
     last_name = models.CharField(max_length=120)
-    role = models.CharField(max_length=150)  # "qualité" (ex: RH, Manager, etc.)
+    role = models.CharField(max_length=150)
     email = models.EmailField()
-    company_service = models.CharField(max_length=200)  # Service/Société
+    company_service = models.CharField(max_length=200)
     service_address = models.TextField("Adresse du service", blank=True)
-
-    
 
     def __str__(self) -> str:
         return f"{self.first_name} {self.last_name} - {self.company_service}"
@@ -370,6 +759,10 @@ class RegistrationStatus(models.TextChoices):
     ABSENT = "ABSENT", "Absent"
     CANCELED = "CANCELED", "Annulé"
 
+class RegistrationBillingRate(models.IntegerChoices):
+    ZERO = 0, "Annulation 0%"
+    THIRTY = 30, "Annulation 30%"
+    FULL = 100, "Facturation 100%"
 
 class Registration(models.Model):
     session = models.ForeignKey(
@@ -388,19 +781,129 @@ class Registration(models.Model):
         choices=RegistrationStatus.choices,
         default=RegistrationStatus.INVITED,
     )
+
+    is_free = models.BooleanField("Place offerte", default=False)
+
+    canceled_at = models.DateField(
+        "Date d'annulation",
+        null=True,
+        blank=True,
+    )
+
+    billing_rate_percent = models.PositiveSmallIntegerField(
+        "Taux de facturation (%)",
+        choices=RegistrationBillingRate.choices,
+        default=RegistrationBillingRate.FULL,
+    )
+
+    applied_unit_price_ht = models.DecimalField(
+        "Tarif participant appliqué HT",
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)],
+    )
+
+    billed_amount_ht = models.DecimalField(
+        "Montant facturable HT",
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        validators=[MinValueValidator(0)],
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         unique_together = ("session", "participant")
 
+    @property
+    def participant_client(self):
+        return getattr(self.participant, "client", None) or getattr(self.session, "client", None)
+
+    @property
+    def participant_is_partner(self) -> bool:
+        client = self.participant_client
+        return bool(client and getattr(client, "is_partner", False))
+
+    def apply_cancellation_policy(self) -> None:
+        """
+        Politique :
+        - > 30 jours : 0%
+        - 15 à 30 jours : 30%
+        - < 15 jours : 100%
+        """
+        if self.status != RegistrationStatus.CANCELED:
+            return
+
+        if not self.canceled_at:
+            self.canceled_at = timezone.localdate()
+
+        if not self.session.start_date:
+            self.billing_rate_percent = RegistrationBillingRate.FULL
+            return
+
+        days_before = (self.session.start_date - self.canceled_at).days
+
+        if days_before > 30:
+            self.billing_rate_percent = RegistrationBillingRate.ZERO
+        elif 15 <= days_before <= 30:
+            self.billing_rate_percent = RegistrationBillingRate.THIRTY
+        else:
+            self.billing_rate_percent = RegistrationBillingRate.FULL
+
+    def compute_billed_amount_ht(self, save: bool = False) -> Decimal:
+        if self.session.billing_mode == SessionBillingMode.COLLECTIVE:
+            self.billed_amount_ht = Decimal("0.00")
+        else:
+            if self.applied_unit_price_ht is None and self.session.training_id:
+                self.applied_unit_price_ht = self.session.training.get_participant_price_ht(
+                    is_partner=self.participant_is_partner
+                )
+
+            unit_price = self.applied_unit_price_ht or Decimal("0.00")
+
+            if self.is_free:
+                self.billed_amount_ht = Decimal("0.00")
+            else:
+                rate = Decimal(self.billing_rate_percent or 0) / Decimal("100")
+                self.billed_amount_ht = (unit_price * rate).quantize(Decimal("0.01"))
+
+        if save and self.pk:
+            self.save(update_fields=["applied_unit_price_ht", "billed_amount_ht"])
+
+        return self.billed_amount_ht
+
     def clean(self):
         super().clean()
-        # ✅ plus de limite de places (aucune validation de capacité)
-        return
 
     def save(self, *args, **kwargs):
         self.full_clean()
-        return super().save(*args, **kwargs)
+
+        if self.status == RegistrationStatus.CANCELED:
+            self.apply_cancellation_policy()
+        else:
+            if not self.is_free:
+                self.billing_rate_percent = RegistrationBillingRate.FULL
+
+        if self.applied_unit_price_ht is None and self.session_id and self.session.training_id:
+            self.applied_unit_price_ht = self.session.training.get_participant_price_ht(
+                is_partner=self.participant_is_partner
+            )
+
+        self.compute_billed_amount_ht(save=False)
+
+        super().save(*args, **kwargs)
+
+        if self.session_id:
+            self.session.recalculate_prices(save=True)
+
+    def delete(self, *args, **kwargs):
+        session = self.session
+        super().delete(*args, **kwargs)
+        if session:
+            session.recalculate_prices(save=True)
 
 
 # ==================================================================================
@@ -458,14 +961,12 @@ class MercureContract(models.Model):
         ordering = ("-created_at",)
 
     def save(self, *args, **kwargs):
-        # Auto-fill trainer depuis la session si manquant
         if not self.trainer_id and getattr(self.session, "trainer_id", None):
             self.trainer_id = self.session.trainer_id
 
-        # ✅ Sync référence avec la session
         if self.session_id:
             self.reference = (getattr(self.session, "reference", "") or "").strip()
-            
+
         super().save(*args, **kwargs)
 
     def __str__(self) -> str:
@@ -474,7 +975,6 @@ class MercureContract(models.Model):
 
     @property
     def due_date(self):
-        """Date cible = J-30 avant start_date"""
         start = getattr(self.session, "start_date", None)
         if not start:
             return None
@@ -482,9 +982,6 @@ class MercureContract(models.Model):
 
     @property
     def is_due_soon(self) -> bool:
-        """
-        True si on est à <= 30 jours de la session et contrat pas envoyé/signé.
-        """
         start = getattr(self.session, "start_date", None)
         if not start:
             return False
@@ -515,10 +1012,10 @@ class MercureInvoice(models.Model):
     )
 
     document_path = models.CharField(
-    "Chemin facture (interne)",
-    max_length=500,
-    blank=True,
-    default="",
+        "Chemin facture (interne)",
+        max_length=500,
+        blank=True,
+        default="",
     )
 
     from django.views.decorators.http import require_POST
@@ -542,7 +1039,6 @@ class MercureInvoice(models.Model):
         validators=[MinValueValidator(0)],
     )
 
-    # ⚠️ null/blank pour éviter les prompts makemigrations si tu as déjà des lignes
     received_date = models.DateField(null=True, blank=True)
     paid_date = models.DateField(null=True, blank=True)
 

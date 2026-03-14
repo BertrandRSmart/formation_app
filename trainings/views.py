@@ -21,6 +21,8 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.encoding import smart_str
 from django.views.decorators.http import require_POST
+from calendar import monthrange
+from django.db import models
 
 from trainings.services.invitations import generate_invitations_for_session
 
@@ -38,9 +40,14 @@ from .models import (
     Registration,
     RegistrationStatus,
     Session,
+    SessionBillingMode,
     Trainer,
     Training,
     TrainingType,
+    SessionStatus,
+    TrainerAbsence,
+    TrainerWorkloadEntry,
+    
 )
 
 from argonteam.models import (
@@ -54,10 +61,11 @@ from argonteam.models import (
 )
 
 try:
-    from projects.models import Project, Task
+    from projects.models import Project, Task, TaskAssignment
 except Exception:
     Project = None
     Task = None
+    TaskAssignment = None
 
 
 # =========================================================
@@ -161,6 +169,116 @@ def _session_days_in_week(start: date | None, end: date | None, week_start: date
         return 0
     return (b - a).days + 1
 
+def _month_bounds_from_string(month_str: str | None) -> tuple[date, date, str]:
+    """
+    Retourne :
+    - start_date du mois
+    - end_date du mois
+    - month_str normalisé YYYY-MM
+    """
+    today = timezone.localdate()
+
+    if month_str:
+        try:
+            y, m = month_str.split("-")
+            year = int(y)
+            month = int(m)
+            start = date(year, month, 1)
+        except Exception:
+            start = date(today.year, today.month, 1)
+    else:
+        start = date(today.year, today.month, 1)
+
+    _, last_day = monthrange(start.year, start.month)
+    end = date(start.year, start.month, last_day)
+    normalized = start.strftime("%Y-%m")
+    return start, end, normalized
+
+
+def _working_days_between(start: date, end: date) -> int:
+    """
+    Nombre de jours ouvrés (lun->ven) inclusifs.
+    """
+    if end < start:
+        return 0
+
+    current = start
+    total = 0
+    while current <= end:
+        if current.weekday() < 5:
+            total += 1
+        current += timedelta(days=1)
+    return total
+
+
+def _inclusive_days_between(start: date | None, end: date | None) -> int:
+    if not start:
+        return 0
+    if not end:
+        end = start
+    if end < start:
+        return 0
+    return (end - start).days + 1
+
+
+def _overlap_inclusive_days(
+    start_a: date | None,
+    end_a: date | None,
+    start_b: date,
+    end_b: date,
+) -> int:
+    """
+    Nombre de jours calendaires inclusifs communs entre [a] et [b].
+    """
+    if not start_a:
+        return 0
+
+    if not end_a:
+        end_a = start_a
+
+    a = max(start_a, start_b)
+    b = min(end_a, end_b)
+
+    if b < a:
+        return 0
+    return (b - a).days + 1
+
+
+def _prorated_days_for_period(
+    item_start: date | None,
+    item_end: date | None,
+    item_days_count: Decimal | None,
+    period_start: date,
+    period_end: date,
+) -> Decimal:
+    """
+    Répartit proportionnellement days_count selon le chevauchement de dates.
+    Exemple :
+    - item sur 4 jours calendaires
+    - chevauchement de 2 jours
+    => 50% de days_count
+    """
+    if not item_start:
+        return Decimal("0.0")
+
+    total_span = _inclusive_days_between(item_start, item_end)
+    overlap = _overlap_inclusive_days(item_start, item_end, period_start, period_end)
+
+    if total_span <= 0 or overlap <= 0:
+        return Decimal("0.0")
+
+    base = item_days_count if item_days_count is not None else Decimal(str(overlap))
+    return (Decimal(overlap) / Decimal(total_span)) * Decimal(base)
+
+
+def _workload_status_label(rate_pct: Decimal) -> str:
+    if rate_pct > Decimal("100"):
+        return "Surcharge"
+    if rate_pct >= Decimal("85"):
+        return "Tension"
+    if rate_pct < Decimal("50"):
+        return "Sous-charge"
+    return "OK"
 
 # =========================================================
 # Sync objectifs -> Tasks (projects app)
@@ -718,19 +836,24 @@ def team_argonos(request):
     module_rows = []
     modules_count = 0
 
+    visible_task_assignments = []
+    visible_task_assignments_open = []
+    visible_task_assignments_done = []
+    project_load_total = Decimal("0.0")
+
     if selected:
         meetings = OneToOneMeeting.objects.filter(trainer=selected).order_by("-week_start")
 
         objectives_open = (
             OneToOneObjective.objects
             .filter(trainer=selected)
-            .exclude(status="DONE")
+            .exclude(status=ObjectiveStatus.DONE)
             .order_by("-created_at")
         )
 
         objectives_done = (
             OneToOneObjective.objects
-            .filter(trainer=selected, status="DONE")
+            .filter(trainer=selected, status=ObjectiveStatus.DONE)
             .order_by("-created_at")[:25]
         )
 
@@ -765,6 +888,33 @@ def team_argonos(request):
             mastery = existing_by_module_id.get(mod.id)
             module_rows.append({"module": mod, "mastery": mastery})
 
+        if TaskAssignment is not None:
+            visible_task_assignments = list(
+                TaskAssignment.objects
+                .select_related("task", "task__project", "trainer")
+                .filter(
+                    trainer=selected,
+                    is_visible_in_one_to_one=True,
+                )
+                .exclude(status=TaskAssignment.Status.CANCELED)
+                .order_by("start_date", "end_date", "task__project__name", "task__title")
+            )
+
+            visible_task_assignments_open = [
+                a for a in visible_task_assignments
+                if a.status != TaskAssignment.Status.DONE
+            ]
+
+            visible_task_assignments_done = [
+                a for a in visible_task_assignments
+                if a.status == TaskAssignment.Status.DONE
+            ]
+
+            project_load_total = sum(
+                (a.planned_days or Decimal("0.0"))
+                for a in visible_task_assignments_open
+            )
+
     return render(request, "trainings/team_argonos.html", {
         "trainers": trainers,
         "selected": selected,
@@ -779,7 +929,12 @@ def team_argonos(request):
         "can_create_this_week": can_create_this_week,
         "module_rows": module_rows,
         "modules_count": modules_count,
+        "visible_task_assignments": visible_task_assignments,
+        "visible_task_assignments_open": visible_task_assignments_open,
+        "visible_task_assignments_done": visible_task_assignments_done,
+        "project_load_total": project_load_total,
     })
+
 
 
 @login_required
@@ -1172,10 +1327,32 @@ def dashboard_ca_view(request):
 
     zero_dec = Value(Decimal("0.00"), output_field=DecimalField(max_digits=12, decimal_places=2))
 
+        
+
+    # =========================
+    # KPI formation
+    # =========================
+    ca_formation_total = qs.aggregate(v=Coalesce(Sum("training_price_ht"), zero_dec))["v"]
+    ca_formation_realise = qs.filter(ca_date__lte=today).aggregate(v=Coalesce(Sum("training_price_ht"), zero_dec))["v"]
+    ca_formation_previsionnel = qs.filter(ca_date__gt=today).aggregate(v=Coalesce(Sum("training_price_ht"), zero_dec))["v"]
+
+    # =========================
+    # KPI déplacements
+    # =========================
+    travel_total = qs.aggregate(v=Coalesce(Sum("travel_fee_ht"), zero_dec))["v"]
+    travel_realise = qs.filter(ca_date__lte=today).aggregate(v=Coalesce(Sum("travel_fee_ht"), zero_dec))["v"]
+    travel_previsionnel = qs.filter(ca_date__gt=today).aggregate(v=Coalesce(Sum("travel_fee_ht"), zero_dec))["v"]
+
+    # =========================
+    # KPI globaux
+    # =========================
     ca_total = qs.aggregate(v=Coalesce(Sum("price_ht"), zero_dec))["v"]
     ca_realise = qs.filter(ca_date__lte=today).aggregate(v=Coalesce(Sum("price_ht"), zero_dec))["v"]
     ca_previsionnel = qs.filter(ca_date__gt=today).aggregate(v=Coalesce(Sum("price_ht"), zero_dec))["v"]
 
+    # =========================
+    # Graph évolution : TOTAL global
+    # =========================
     month_map: dict[str, Decimal] = {}
     for session in qs.exclude(ca_date__isnull=True):
         d = getattr(session, "ca_date", None)
@@ -1190,9 +1367,12 @@ def dashboard_ca_view(request):
         labels_month.append(k)
         values_month.append(float(month_map[k]))
 
+    # =========================
+    # Répartition produit : CA formation uniquement
+    # =========================
     by_type = (
         qs.values("training_type__name")
-        .annotate(total=Coalesce(Sum("price_ht"), zero_dec))
+        .annotate(total=Coalesce(Sum("training_price_ht"), zero_dec))
         .order_by("-total")
     )
     labels_type = [row["training_type__name"] or "Sans type" for row in by_type]
@@ -1211,6 +1391,15 @@ def dashboard_ca_view(request):
     return render(request, "trainings/dashboard_ca.html", {
         "today": today,
         "sessions": sessions,
+
+        "ca_formation_total": ca_formation_total,
+        "ca_formation_realise": ca_formation_realise,
+        "ca_formation_previsionnel": ca_formation_previsionnel,
+
+        "travel_total": travel_total,
+        "travel_realise": travel_realise,
+        "travel_previsionnel": travel_previsionnel,
+
         "ca_total": ca_total,
         "ca_realise": ca_realise,
         "ca_previsionnel": ca_previsionnel,
@@ -1918,3 +2107,625 @@ def partners_detail(request):
         "unique_participants_count": unique_participants_count,
         "total_consumed_seats": total_consumed_seats,
     })
+
+# =========================================================
+# Plan de charge formateurs
+# =========================================================
+
+
+@login_required
+@manager_required
+def trainer_workload_dashboard(request):
+    today = timezone.localdate()
+
+    month_str = (request.GET.get("month") or "").strip()
+    product = (request.GET.get("product") or "").strip().upper()
+    trainer_id = (request.GET.get("trainer") or "").strip()
+
+    month_start, month_end, selected_month = _month_bounds_from_string(month_str)
+
+    trainers_qs = Trainer.objects.filter(is_active=True).order_by("last_name", "first_name")
+
+    if product in (Trainer.PRODUCT_ARGONOS, Trainer.PRODUCT_MERCURE):
+        trainers_qs = trainers_qs.filter(product=product)
+
+    if trainer_id.isdigit():
+        trainers_qs = trainers_qs.filter(id=int(trainer_id))
+
+    trainers = list(trainers_qs)
+
+    session_statuses_included = [
+        SessionStatus.PLANNED,
+        SessionStatus.CONFIRMED,
+        SessionStatus.IN_PROGRESS,
+        SessionStatus.CLOSED,
+    ]
+
+    sessions_qs = (
+        Session.objects
+        .select_related("training", "training_type", "client", "trainer", "backup_trainer")
+        .filter(
+            status__in=session_statuses_included,
+            start_date__isnull=False,
+            start_date__lte=month_end,
+        )
+        .filter(Q(end_date__isnull=True, start_date__gte=month_start) | Q(end_date__gte=month_start))
+    )
+
+    absences_qs = (
+        TrainerAbsence.objects
+        .select_related("trainer")
+        .filter(
+            start_date__lte=month_end,
+            end_date__gte=month_start,
+        )
+    )
+
+    workload_entries_qs = (
+        TrainerWorkloadEntry.objects
+        .select_related("trainer")
+        .exclude(status="CANCELED")
+        .filter(
+            start_date__lte=month_end,
+            end_date__gte=month_start,
+        )
+    )
+
+    task_assignments_qs = TaskAssignment.objects.none()
+    if TaskAssignment is not None:
+        task_assignments_qs = (
+            TaskAssignment.objects
+            .select_related("trainer", "task", "task__project")
+            .exclude(status=TaskAssignment.Status.CANCELED)
+            .filter(
+                trainer__is_active=True,
+                start_date__lte=month_end,
+                end_date__gte=month_start,
+            )
+        )
+
+    sessions_by_primary = defaultdict(list)
+    sessions_by_backup = defaultdict(list)
+    absences_by_trainer = defaultdict(list)
+    extra_workloads_by_trainer = defaultdict(list)
+    assignments_by_trainer = defaultdict(list)
+
+    for s in sessions_qs:
+        if s.trainer_id:
+            sessions_by_primary[s.trainer_id].append(s)
+        if s.backup_trainer_id:
+            sessions_by_backup[s.backup_trainer_id].append(s)
+
+    for absence in absences_qs:
+        absences_by_trainer[absence.trainer_id].append(absence)
+
+    for entry in workload_entries_qs:
+        extra_workloads_by_trainer[entry.trainer_id].append(entry)
+
+    for assignment in task_assignments_qs:
+        assignments_by_trainer[assignment.trainer_id].append(assignment)
+
+    month_working_days = _working_days_between(month_start, month_end)
+
+    rows = []
+
+    total_capacity = Decimal("0.0")
+    total_capacity_net = Decimal("0.0")
+    total_primary = Decimal("0.0")
+    total_backup = Decimal("0.0")
+    total_extra = Decimal("0.0")
+    total_project = Decimal("0.0")
+    total_absence = Decimal("0.0")
+    total_load = Decimal("0.0")
+
+    for trainer in trainers:
+        availability_pct = Decimal(trainer.workload_percent or Decimal("100.00"))
+        theoretical_capacity = (Decimal(month_working_days) * availability_pct) / Decimal("100")
+
+        primary_days = Decimal("0.0")
+        for s in sessions_by_primary.get(trainer.id, []):
+            primary_days += _prorated_days_for_period(
+                s.start_date,
+                s.end_date,
+                s.days_count,
+                month_start,
+                month_end,
+            )
+
+        backup_days = Decimal("0.0")
+        for s in sessions_by_backup.get(trainer.id, []):
+            prorated = _prorated_days_for_period(
+                s.start_date,
+                s.end_date,
+                s.days_count,
+                month_start,
+                month_end,
+            )
+            backup_days += prorated * Decimal("0.5")
+
+        absence_days = Decimal("0.0")
+        for absence in absences_by_trainer.get(trainer.id, []):
+            absence_days += _prorated_days_for_period(
+                absence.start_date,
+                absence.end_date,
+                absence.days_count,
+                month_start,
+                month_end,
+            )
+
+        extra_days = Decimal("0.0")
+        for entry in extra_workloads_by_trainer.get(trainer.id, []):
+            extra_days += _prorated_days_for_period(
+                entry.start_date,
+                entry.end_date,
+                entry.days_count,
+                month_start,
+                month_end,
+            )
+
+        project_days = Decimal("0.0")
+        for assignment in assignments_by_trainer.get(trainer.id, []):
+            project_days += _prorated_days_for_period(
+                assignment.start_date,
+                assignment.end_date,
+                assignment.planned_days,
+                month_start,
+                month_end,
+            )
+
+        net_capacity = theoretical_capacity - absence_days
+        if net_capacity < 0:
+            net_capacity = Decimal("0.0")
+
+        total_planned_load = primary_days + backup_days + extra_days + project_days
+
+        if net_capacity > 0:
+            load_rate = (total_planned_load / net_capacity) * Decimal("100")
+        else:
+            load_rate = Decimal("0.0") if total_planned_load == 0 else Decimal("999.0")
+
+        rows.append({
+            "trainer": trainer,
+            "capacity_theoretical": round(theoretical_capacity, 1),
+            "absence_days": round(absence_days, 1),
+            "capacity_net": round(net_capacity, 1),
+            "primary_days": round(primary_days, 1),
+            "backup_days": round(backup_days, 1),
+            "extra_days": round(extra_days, 1),
+            "project_days": round(project_days, 1),
+            "total_load": round(total_planned_load, 1),
+            "load_rate": round(load_rate, 1),
+            "status_label": _workload_status_label(load_rate),
+            "primary_sessions_count": len(sessions_by_primary.get(trainer.id, [])),
+            "backup_sessions_count": len(sessions_by_backup.get(trainer.id, [])),
+            "extra_entries_count": len(extra_workloads_by_trainer.get(trainer.id, [])),
+            "project_assignments_count": len(assignments_by_trainer.get(trainer.id, [])),
+            "absences_count": len(absences_by_trainer.get(trainer.id, [])),
+        })
+
+        total_capacity += theoretical_capacity
+        total_capacity_net += net_capacity
+        total_primary += primary_days
+        total_backup += backup_days
+        total_extra += extra_days
+        total_project += project_days
+        total_absence += absence_days
+        total_load += total_planned_load
+
+    if total_capacity_net > 0:
+        team_load_rate = (total_load / total_capacity_net) * Decimal("100")
+    else:
+        team_load_rate = Decimal("0.0") if total_load == 0 else Decimal("999.0")
+
+    overload_count = sum(1 for row in rows if Decimal(str(row["load_rate"])) > Decimal("100"))
+    tension_count = sum(
+        1 for row in rows
+        if Decimal("85") <= Decimal(str(row["load_rate"])) <= Decimal("100")
+    )
+    underload_count = sum(1 for row in rows if Decimal(str(row["load_rate"])) < Decimal("50"))
+
+    trainer_options = Trainer.objects.filter(is_active=True).order_by("last_name", "first_name")
+
+    return render(request, "trainings/trainer_workload_dashboard.html", {
+        "today": today,
+        "rows": rows,
+        "month_start": month_start,
+        "month_end": month_end,
+        "selected_month": selected_month,
+        "selected_product": product,
+        "selected_trainer_id": trainer_id,
+        "trainer_options": trainer_options,
+        "month_working_days": month_working_days,
+        "kpi_total_capacity": round(total_capacity, 1),
+        "kpi_total_capacity_net": round(total_capacity_net, 1),
+        "kpi_total_primary": round(total_primary, 1),
+        "kpi_total_backup": round(total_backup, 1),
+        "kpi_total_extra": round(total_extra, 1),
+        "kpi_total_project": round(total_project, 1),
+        "kpi_total_absence": round(total_absence, 1),
+        "kpi_total_load": round(total_load, 1),
+        "kpi_team_load_rate": round(team_load_rate, 1),
+        "kpi_overload_count": overload_count,
+        "kpi_tension_count": tension_count,
+        "kpi_underload_count": underload_count,
+    })
+
+
+# =========================
+# Control center
+# =========================
+@login_required
+@manager_required
+def control_center_view(request):
+    today = timezone.localdate()
+    week_end = today + timedelta(days=7)
+    month_start, month_end, selected_month = _month_bounds_from_string(None)
+
+    # =========================
+    # KPI globaux
+    # =========================
+    sessions_month = Session.objects.filter(
+        start_date__isnull=False,
+        start_date__gte=month_start,
+        start_date__lte=month_end,
+    ).count()
+
+    ca_realise = (
+        Session.objects
+        .filter(end_date__isnull=False, end_date__lte=today)
+        .aggregate(
+            v=Coalesce(
+                Sum("training_price_ht"),
+                Value(Decimal("0.00")),
+                output_field=DecimalField(max_digits=12, decimal_places=2),
+            )
+        )
+        .get("v")
+    ) or Decimal("0.00")
+
+    ca_previsionnel = (
+        Session.objects
+        .filter(start_date__isnull=False, start_date__gt=today)
+        .aggregate(
+            v=Coalesce(
+                Sum("training_price_ht"),
+                Value(Decimal("0.00")),
+                output_field=DecimalField(max_digits=12, decimal_places=2),
+            )
+        )
+        .get("v")
+    ) or Decimal("0.00")
+
+    satisfaction_avg = (
+        Session.objects
+        .filter(
+            start_date__isnull=False,
+            start_date__gte=month_start,
+            start_date__lte=month_end,
+            client_satisfaction__isnull=False,
+        )
+        .aggregate(v=models.Avg("client_satisfaction"))
+        .get("v")
+    )
+
+    # =========================
+    # Sessions / delivery
+    # =========================
+    upcoming_sessions = list(
+        Session.objects
+        .select_related("training", "client", "trainer")
+        .filter(start_date__isnull=False, start_date__gte=today)
+        .order_by("start_date")[:6]
+    )
+
+    convocation_alerts = list(
+        Session.objects
+        .select_related("training", "client", "trainer")
+        .filter(start_date__isnull=False, start_date__gte=today, start_date__lte=week_end)
+        .filter(Q(convocation_alert_closed=False) | Q(convocation_alert_closed__isnull=True))
+        .order_by("start_date")[:6]
+    )
+
+    pending_reports_count = Session.objects.filter(
+        end_date__isnull=False,
+        end_date__lt=today,
+        report_sent_at__isnull=True,
+    ).count()
+
+    pending_accounting_count = Session.objects.filter(
+        end_date__isnull=False,
+        end_date__lt=today,
+        accounting_sheets_sent_at__isnull=True,
+    ).count()
+
+    # =========================
+    # Team control
+    # =========================
+    active_trainers = list(
+        Trainer.objects
+        .filter()
+        .order_by("last_name", "first_name")
+    )
+
+    trainer_rows = []
+    total_load_rate = Decimal("0.0")
+    overload_count = 0
+
+    month_working_days = _working_days_between(month_start, month_end)
+
+    session_statuses_included = [
+        SessionStatus.PLANNED,
+        SessionStatus.CONFIRMED,
+        SessionStatus.IN_PROGRESS,
+        SessionStatus.CLOSED,
+    ]
+
+    sessions_qs = (
+        Session.objects
+        .select_related("trainer", "backup_trainer")
+        .filter(
+            status__in=session_statuses_included,
+            start_date__isnull=False,
+            start_date__lte=month_end,
+        )
+        .filter(Q(end_date__isnull=True, start_date__gte=month_start) | Q(end_date__gte=month_start))
+    )
+
+    absences_qs = (
+        TrainerAbsence.objects
+        .select_related("trainer")
+        .filter(start_date__lte=month_end, end_date__gte=month_start)
+    )
+
+    workload_entries_qs = (
+        TrainerWorkloadEntry.objects
+        .select_related("trainer")
+        .exclude(status="CANCELED")
+        .filter(start_date__lte=month_end, end_date__gte=month_start)
+    )
+
+    task_assignments_qs = TaskAssignment.objects.none()
+    if TaskAssignment is not None:
+        task_assignments_qs = (
+            TaskAssignment.objects
+            .select_related("trainer", "task", "task__project")
+            .exclude(status=TaskAssignment.Status.CANCELED)
+            .filter(
+                trainer__isnull=False,
+                start_date__lte=month_end,
+                end_date__gte=month_start,
+            )
+        )
+
+    sessions_by_primary = defaultdict(list)
+    sessions_by_backup = defaultdict(list)
+    absences_by_trainer = defaultdict(list)
+    extra_workloads_by_trainer = defaultdict(list)
+    assignments_by_trainer = defaultdict(list)
+
+    for s in sessions_qs:
+        if s.trainer_id:
+            sessions_by_primary[s.trainer_id].append(s)
+        if s.backup_trainer_id:
+            sessions_by_backup[s.backup_trainer_id].append(s)
+
+    for absence in absences_qs:
+        absences_by_trainer[absence.trainer_id].append(absence)
+
+    for entry in workload_entries_qs:
+        extra_workloads_by_trainer[entry.trainer_id].append(entry)
+
+    for assignment in task_assignments_qs:
+        assignments_by_trainer[assignment.trainer_id].append(assignment)
+
+    for trainer in active_trainers:
+        availability_pct = Decimal(getattr(trainer, "workload_percent", Decimal("100.00")) or Decimal("100.00"))
+        theoretical_capacity = (Decimal(month_working_days) * availability_pct) / Decimal("100")
+
+        primary_days = Decimal("0.0")
+        for s in sessions_by_primary.get(trainer.id, []):
+            primary_days += _prorated_days_for_period(
+                s.start_date, s.end_date, s.days_count, month_start, month_end
+            )
+
+        backup_days = Decimal("0.0")
+        for s in sessions_by_backup.get(trainer.id, []):
+            backup_days += _prorated_days_for_period(
+                s.start_date, s.end_date, s.days_count, month_start, month_end
+            ) * Decimal("0.5")
+
+        absence_days = Decimal("0.0")
+        for a in absences_by_trainer.get(trainer.id, []):
+            absence_days += _prorated_days_for_period(
+                a.start_date, a.end_date, a.days_count, month_start, month_end
+            )
+
+        extra_days = Decimal("0.0")
+        for e in extra_workloads_by_trainer.get(trainer.id, []):
+            extra_days += _prorated_days_for_period(
+                e.start_date, e.end_date, e.days_count, month_start, month_end
+            )
+
+        project_days = Decimal("0.0")
+        for a in assignments_by_trainer.get(trainer.id, []):
+            project_days += _prorated_days_for_period(
+                a.start_date, a.end_date, a.planned_days, month_start, month_end
+            )
+
+        net_capacity = theoretical_capacity - absence_days
+        if net_capacity < 0:
+            net_capacity = Decimal("0.0")
+
+        total_planned = primary_days + backup_days + extra_days + project_days
+        if net_capacity > 0:
+            load_rate = (total_planned / net_capacity) * Decimal("100")
+        else:
+            load_rate = Decimal("0.0") if total_planned == 0 else Decimal("999.0")
+
+        status_label = _workload_status_label(load_rate)
+        if load_rate > Decimal("100"):
+            overload_count += 1
+
+        total_load_rate += load_rate
+
+        trainer_rows.append({
+            "trainer": trainer,
+            "load_rate": round(load_rate, 1),
+            "status_label": status_label,
+            "project_assignments_count": len(assignments_by_trainer.get(trainer.id, [])),
+            "open_objectives_count": OneToOneObjective.objects.filter(trainer=trainer).exclude(
+                status=ObjectiveStatus.DONE
+            ).count(),
+        })
+
+    trainer_rows = sorted(trainer_rows, key=lambda x: x["load_rate"], reverse=True)[:6]
+    team_load_avg = round((total_load_rate / Decimal(len(active_trainers))), 1) if active_trainers else Decimal("0.0")
+
+    # =========================
+    # Projects control
+    # =========================
+    projects_active = 0
+    tasks_open = 0
+    tasks_blocked = 0
+    hot_projects = []
+
+    if Project is not None:
+        projects_active = Project.objects.filter(is_active=True).count()
+
+    if Task is not None:
+        tasks_open = Task.objects.exclude(status=Task.Status.DONE).count()
+        tasks_blocked = Task.objects.filter(status=Task.Status.BLOCKED).count()
+
+        hot_projects = list(
+            Project.objects
+            .annotate(
+                tasks_total_count=Count("tasks"),
+                tasks_open_count=Count("tasks", filter=~Q(tasks__status=Task.Status.DONE)),
+                tasks_blocked_count=Count("tasks", filter=Q(tasks__status=Task.Status.BLOCKED)),
+            )
+            .filter(is_active=True)
+            .order_by("-tasks_open_count", "-tasks_blocked_count", "name")[:5]
+        )
+
+    # =========================
+    # Partners / clients
+    # =========================
+    partners_active = Client.objects.filter(is_partner=True).count()
+    sessions_partners_month = Session.objects.filter(
+        client__is_partner=True,
+        start_date__isnull=False,
+        start_date__gte=month_start,
+        start_date__lte=month_end,
+    ).count()
+
+    # =========================
+    # Alerts center
+    # =========================
+    alert_items = []
+
+    for s in convocation_alerts[:4]:
+        alert_items.append({
+            "level": "high",
+            "label": f"Convocation proche à traiter — {s.reference or 'Session'}",
+            "meta": f"{s.client} · {s.start_date.strftime('%d/%m/%Y') if s.start_date else '—'}",
+            "url": reverse("trainings:home"),
+        })
+
+    if pending_reports_count:
+        alert_items.append({
+            "level": "medium",
+            "label": f"{pending_reports_count} bilan(s) à envoyer",
+            "meta": "Sessions clôturées sans bilan envoyé",
+            "url": reverse("trainings:home"),
+        })
+
+    if pending_accounting_count:
+        alert_items.append({
+            "level": "medium",
+            "label": f"{pending_accounting_count} feuille(s) compta à envoyer",
+            "meta": "Sessions terminées sans envoi comptable",
+            "url": reverse("trainings:home"),
+        })
+
+    if tasks_blocked:
+        alert_items.append({
+            "level": "medium",
+            "label": f"{tasks_blocked} tâche(s) projet bloquée(s)",
+            "meta": "À revoir côté Projects",
+            "url": "/projects/",
+        })
+
+    if overload_count:
+        alert_items.append({
+            "level": "high",
+            "label": f"{overload_count} formateur(s) en surcharge",
+            "meta": "Charge mensuelle au-dessus de 100%",
+            "url": reverse("trainings:trainer_workload_dashboard"),
+        })
+
+        pricing_issues_collective = Session.objects.filter(
+        billing_mode=SessionBillingMode.COLLECTIVE,
+        training_price_ht=Decimal("0.00"),
+    ).count()
+
+    pricing_issues_individual = Session.objects.filter(
+        billing_mode=SessionBillingMode.INDIVIDUAL,
+        applied_participant_price_ht__isnull=True,
+    ).count()
+
+    abroad_missing_travel = Session.objects.filter(
+        is_abroad=True,
+        travel_fee_ht=Decimal("0.00"),
+    ).count()
+
+    if pricing_issues_collective:
+        alert_items.append({
+            "level": "high",
+            "label": f"{pricing_issues_collective} session(s) collective(s) sans tarif session",
+            "meta": "Tarification formation à vérifier",
+            "url": reverse("trainings:dashboard_ca"),
+        })
+
+    if pricing_issues_individual:
+        alert_items.append({
+            "level": "high",
+            "label": f"{pricing_issues_individual} session(s) individuelle(s) sans tarif participant",
+            "meta": "Tarification par inscription à vérifier",
+            "url": reverse("trainings:dashboard_ca"),
+        })
+
+    if abroad_missing_travel:
+        alert_items.append({
+            "level": "medium",
+            "label": f"{abroad_missing_travel} session(s) à l'étranger sans déplacement",
+            "meta": "Forfait déplacement manquant",
+            "url": reverse("trainings:dashboard_ca"),
+        })
+
+    context = {
+        "today": today,
+        "sessions_month": sessions_month,
+        "ca_realise": ca_realise,
+        "ca_previsionnel": ca_previsionnel,
+        "team_load_avg": team_load_avg,
+        "satisfaction_avg": round(satisfaction_avg, 1) if satisfaction_avg is not None else None,
+        "alerts_count": len(alert_items),
+
+        "upcoming_sessions": upcoming_sessions,
+        "convocation_alerts": convocation_alerts,
+        "pending_reports_count": pending_reports_count,
+        "pending_accounting_count": pending_accounting_count,
+
+        "trainer_rows": trainer_rows,
+        "projects_active": projects_active,
+        "tasks_open": tasks_open,
+        "tasks_blocked": tasks_blocked,
+        "hot_projects": hot_projects,
+
+        "partners_active": partners_active,
+        "sessions_partners_month": sessions_partners_month,
+
+        "alert_items": alert_items,
+    }
+
+    return render(request, "trainings/control_center.html", context)

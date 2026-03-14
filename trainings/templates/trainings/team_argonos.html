@@ -95,7 +95,6 @@
       font-size: 13px;
     }
 
-    /* Onglets + bouton header */
     .tabs{
       display:flex;
       gap:8px;
@@ -170,7 +169,6 @@
       align-items:center;
     }
 
-    /* ✅ messages Django */
     .flash{
       border:1px solid rgba(255,255,255,0.10);
       background: rgba(0,0,0,0.20);
@@ -184,11 +182,136 @@
     .flash.error{ border-color: rgba(239,68,68,0.35); background: rgba(239,68,68,0.10); }
     .flash.warning{ border-color: rgba(245,158,11,0.35); background: rgba(245,158,11,0.10); }
     .flash.info{ border-color: rgba(59,130,246,0.35); background: rgba(59,130,246,0.10); }
+
+    .assign-box{
+      margin-top:10px;
+      padding:10px;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.03);
+    }
+    .assign-name{
+      font-weight:950;
+      font-size:13px;
+      color:white;
+    }
+    .assign-meta{
+      opacity:.75;
+      font-size:12px;
+      margin-top:4px;
+      line-height:1.45;
+    }
+    .assign-grid{
+      display:grid;
+      grid-template-columns: repeat(2, minmax(0,1fr));
+      gap:10px;
+      margin-top:12px;
+    }
+    @media(max-width: 980px){
+      .assign-grid{ grid-template-columns: 1fr; }
+    }
+
+    .assign-card{
+      border:1px solid rgba(255,255,255,0.10);
+      background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03));
+      border-radius:16px;
+      padding:12px;
+      box-shadow: 0 10px 24px rgba(0,0,0,0.20);
+    }
+
+    .assign-card.open{
+      border-color: rgba(59,130,246,0.28);
+      background:
+        radial-gradient(600px 200px at 0% 0%, rgba(59,130,246,0.10), transparent 40%),
+        linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03));
+    }
+
+    .assign-card.done{
+      border-color: rgba(34,197,94,0.24);
+      background:
+        radial-gradient(600px 200px at 0% 0%, rgba(34,197,94,0.08), transparent 40%),
+        linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03));
+    }
+
+    .assign-top{
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      align-items:flex-start;
+    }
+
+    .assign-title{
+      font-weight:950;
+      font-size:13px;
+      color:white;
+      margin:0;
+    }
+
+    .assign-project{
+      margin-top:4px;
+      font-size:12px;
+      color:rgba(255,255,255,0.68);
+      font-weight:800;
+    }
+
+    .assign-lines{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      margin-top:10px;
+    }
+
+    .assign-line{
+      font-size:12px;
+      color:rgba(255,255,255,0.78);
+    }
+
+    .assign-status{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      padding:5px 9px;
+      border-radius:999px;
+      font-size:11px;
+      font-weight:950;
+      border:1px solid rgba(255,255,255,0.10);
+      white-space:nowrap;
+    }
+
+    .assign-status.forecast{
+      color:#BFDBFE;
+      background: rgba(59,130,246,0.14);
+      border-color: rgba(59,130,246,0.34);
+    }
+
+    .assign-status.confirmed{
+      color:#C4B5FD;
+      background: rgba(124,58,237,0.16);
+      border-color: rgba(124,58,237,0.34);
+    }
+
+    .assign-status.progress{
+      color:#FDE68A;
+      background: rgba(245,158,11,0.14);
+      border-color: rgba(245,158,11,0.34);
+    }
+
+    .assign-status.done{
+      color:#A7F3D0;
+      background: rgba(16,185,129,0.16);
+      border-color: rgba(16,185,129,0.34);
+    }
+
+    .assign-actions{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      margin-top:12px;
+    }
   </style>
 
   <div class="page">
 
-    <!-- ✅ COLONNE GAUCHE : FORMATEURS -->
     <aside class="panel">
       <div class="panel-head">
         <div>
@@ -210,7 +333,6 @@
       </div>
     </aside>
 
-    <!-- ✅ COLONNE DROITE : DÉTAIL -->
     <section class="panel">
       <div class="panel-head">
         <div>
@@ -250,7 +372,6 @@
 
       <div class="body">
 
-        {# ✅ Messages Django (success/error) #}
         {% if messages %}
           {% for message in messages %}
             <div class="flash {{ message.tags|default:'info' }}">{{ message }}</div>
@@ -349,7 +470,6 @@
 
           {% if tab == "1to1" %}
 
-            <!-- ✅ Bloc Semaine en cours -->
             <div class="box">
               <div class="row" style="justify-content:space-between;">
                 <div>
@@ -384,13 +504,11 @@
                       ➕ Ajouter un objectif (admin)
                     </a>
 
-                    {# ✅ SAFE : ne pas pointer vers une URL POST en GET #}
                     <a class="tabbtn"
                        href="{% url 'trainings:team_argonos' %}?trainer={{ selected.id }}&tab=1to1">
                       ➕ Ajouter un objectif (depuis la page)
                     </a>
 
-                    {# ✅ Kanban #}
                     <a class="tabbtn"
                       href="{% url 'trainings:argonos_objectives_kanban' %}?trainer={{ selected.id }}">
                       🧩 Voir Kanban objectifs
@@ -410,7 +528,6 @@
                           <div class="item-title">{{ o.title }}</div>
 
                           <div class="row" style="justify-content:flex-end;">
-                            {# ✅ Toggle TODO/DONE #}
                             <form method="post"
                                   action="{% url 'trainings:argonos_objective_toggle' o.id %}"
                                   style="margin:0;">
@@ -424,13 +541,11 @@
                               </button>
                             </form>
 
-                            {# ✅ Éditer (page dédiée) #}
                             <a class="tabbtn"
                               href="{% url 'trainings:argonos_objective_edit' o.id %}">
                               ✏️ Éditer
                             </a>
 
-                            {# ✅ Supprimer #}
                             <form method="post"
                                   action="{% url 'trainings:argonos_objective_delete' o.id %}"
                                   style="margin:0;"
@@ -441,7 +556,6 @@
                               </button>
                             </form>
 
-                            {# ✅ Badge statut #}
                             {% if o.get_status_display %}
                               <span class="pill">{{ o.get_status_display }}</span>
                             {% else %}
@@ -479,7 +593,104 @@
               {% endif %}
             </div>
 
-            <!-- ✅ Historique des 1to1 -->
+            <div class="box">
+              <div class="row" style="justify-content:space-between;">
+                <div>
+                  <div class="h2">🧩 Charges projet / tâches</div>
+                  <div class="muted">Affectations visibles dans le 1 to 1 pour ce formateur.</div>
+                </div>
+                <div class="row">
+                  <span class="pill">Ouvertes : {{ visible_task_assignments_open|length }}</span>
+                  <span class="pill">Terminées : {{ visible_task_assignments_done|length }}</span>
+                  <span class="pill">Charge ouverte : {{ project_load_total }} j</span>
+                </div>
+              </div>
+
+              {% if visible_task_assignments_open %}
+                <div class="assign-grid">
+                  {% for a in visible_task_assignments_open %}
+                    <div class="assign-card open">
+                      <div class="assign-top">
+                        <div>
+                          <div class="assign-title">{{ a.task.title }}</div>
+                          <div class="assign-project">📁 {{ a.task.project.name }}</div>
+                        </div>
+
+                        {% if a.status == "FORECAST" %}
+                          <span class="assign-status forecast">{{ a.get_status_display }}</span>
+                        {% elif a.status == "CONFIRMED" %}
+                          <span class="assign-status confirmed">{{ a.get_status_display }}</span>
+                        {% elif a.status == "IN_PROGRESS" %}
+                          <span class="assign-status progress">{{ a.get_status_display }}</span>
+                        {% elif a.status == "DONE" %}
+                          <span class="assign-status done">{{ a.get_status_display }}</span>
+                        {% else %}
+                          <span class="assign-status">{{ a.get_status_display }}</span>
+                        {% endif %}
+                      </div>
+
+                      <div class="assign-lines">
+                        <div class="assign-line">⏱️ Charge planifiée : <strong>{{ a.planned_days }} j</strong></div>
+
+                        <div class="assign-line">
+                          📅 Période :
+                          {% if a.start_date %}{{ a.start_date|date:"d/m/Y" }}{% else %}—{% endif %}
+                          {% if a.end_date %} → {{ a.end_date|date:"d/m/Y" }}{% endif %}
+                        </div>
+
+                        {% if a.notes %}
+                          <div class="assign-line">📝 {{ a.notes }}</div>
+                        {% endif %}
+                      </div>
+
+                      <div class="assign-actions">
+                        <a class="tabbtn" href="{% url 'projects:project_detail' a.task.project_id %}">
+                          📁 Ouvrir projet
+                        </a>
+                        <a class="tabbtn" href="{% url 'projects:task_assignment_edit' a.id %}">
+                          ✏️ Affectation
+                        </a>
+                      </div>
+                    </div>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <div style="opacity:.7; margin-top:10px;">Aucune affectation projet visible.</div>
+              {% endif %}
+            </div>
+
+              {% for a in visible_task_assignments_open %}
+                <div class="assign-box">
+                  <div class="row" style="justify-content:space-between; align-items:center;">
+                    <div>
+                      <div class="assign-name">{{ a.task.title }}</div>
+                      <div class="assign-meta">
+                        📁 {{ a.task.project.name }}
+                        {% if a.planned_days %} • {{ a.planned_days }} j{% endif %}
+                        {% if a.start_date %} • début {{ a.start_date|date:"d/m/Y" }}{% endif %}
+                        {% if a.end_date %} → {{ a.end_date|date:"d/m/Y" }}{% endif %}
+                        {% if a.get_status_display %} • {{ a.get_status_display }}{% endif %}
+                      </div>
+                      {% if a.notes %}
+                        <div class="assign-meta">📝 {{ a.notes }}</div>
+                      {% endif %}
+                    </div>
+
+                    <div class="row" style="justify-content:flex-end;">
+                      <a class="tabbtn" href="{% url 'projects:project_detail' a.task.project_id %}">
+                        📁 Ouvrir projet
+                      </a>
+                      <a class="tabbtn" href="{% url 'projects:task_assignment_edit' a.id %}">
+                        ✏️ Affectation
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              {% empty %}
+                <div style="opacity:.7; margin-top:10px;">Aucune affectation projet visible.</div>
+              {% endfor %}
+            </div>
+
             <div class="box">
               <div class="row" style="justify-content:space-between;">
                 <div>
@@ -507,7 +718,6 @@
               {% endfor %}
             </div>
 
-            <!-- ✅ Objectifs en cours -->
             <div class="box">
               <div class="h2">Objectifs en cours</div>
               <div class="muted">Objectifs dont le statut n’est pas “Terminé”.</div>
@@ -558,7 +768,6 @@
               {% endfor %}
             </div>
 
-            <!-- ✅ Objectifs terminés -->
             <div class="box">
               <div class="h2">Objectifs terminés</div>
               <div class="muted">Les 25 derniers objectifs “Terminé”.</div>
@@ -599,8 +808,38 @@
                   </div>
                 </div>
               {% empty %}
-                <div style="opacity:.7; margin-top:10px;">Aucun objectif terminé.</div>
+                <div style="opacity:.7; margin-top:10px;">Aucune affectation terminée.</div>
               {% endfor %}
+
+              {% if visible_task_assignments_done %}
+                <div class="muted" style="margin-top:14px;">Affectations projet terminées</div>
+
+                <div class="assign-grid">
+                  {% for a in visible_task_assignments_done %}
+                    <div class="assign-card done">
+                      <div class="assign-top">
+                        <div>
+                          <div class="assign-title">{{ a.task.title }}</div>
+                          <div class="assign-project">📁 {{ a.task.project.name }}</div>
+                        </div>
+                        <span class="assign-status done">{{ a.get_status_display }}</span>
+                      </div>
+
+                      <div class="assign-lines">
+                        <div class="assign-line">⏱️ Charge planifiée : <strong>{{ a.planned_days }} j</strong></div>
+                        <div class="assign-line">
+                          📅 Période :
+                          {% if a.start_date %}{{ a.start_date|date:"d/m/Y" }}{% else %}—{% endif %}
+                          {% if a.end_date %} → {{ a.end_date|date:"d/m/Y" }}{% endif %}
+                        </div>
+                        {% if a.notes %}
+                          <div class="assign-line">📝 {{ a.notes }}</div>
+                        {% endif %}
+                      </div>
+                    </div>
+                  {% endfor %}
+                </div>
+              {% endif %}
             </div>
 
           {% endif %}
