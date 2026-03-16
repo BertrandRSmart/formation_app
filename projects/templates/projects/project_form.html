@@ -1,34 +1,203 @@
 {% extends "trainings/base.html" %}
-{% block title %}Projet — BSmart{% endblock %}
+{% block title %}
+  {% if mode == "create" %}Nouveau projet{% else %}Modifier projet{% endif %}
+{% endblock %}
+{% block body_class %}no-scroll{% endblock %}
 
 {% block content %}
-<div style="padding:92px 18px; color:white;">
+<div style="
+  position: fixed;
+  top: 90px;
+  left: 0; right: 0; bottom: 0;
+  padding: 18px;
+  box-sizing: border-box;
+  overflow: auto;
+  color: rgba(255,255,255,0.92);
+  background:
+    radial-gradient(1200px 600px at 18% -10%, rgba(21,96,130,0.25), transparent 55%),
+    radial-gradient(1000px 600px at 86% 10%, rgba(255,137,233,0.14), transparent 55%),
+    linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.00)),
+    #0B0F14;
+">
+  <style>
+    .pf-wrap{
+      max-width: 860px;
+      margin: 0 auto;
+    }
 
-  <h1 style="margin-bottom:12px;">
-    {% if mode == "edit" %}✏️ Modifier le projet{% else %}➕ Nouveau projet{% endif %}
-  </h1>
+    .pf-card{
+      border-radius: 22px;
+      border: 1px solid rgba(255,255,255,0.10);
+      background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+      box-shadow: 0 18px 45px rgba(0,0,0,0.45);
+      padding: 22px;
+    }
 
-  <div class="alert-item">
-    <form method="post">
-      {% csrf_token %}
+    .pf-title{
+      margin: 0 0 6px 0;
+      font-size: 24px;
+      font-weight: 950;
+    }
 
-      <div style="display:flex; flex-direction:column; gap:12px;">
-        {{ form.name.label_tag }}
-        {{ form.name }}
+    .pf-sub{
+      color: rgba(255,255,255,0.68);
+      font-size: 13px;
+      margin-bottom: 18px;
+    }
 
-        {{ form.category.label_tag }}
-        {{ form.category }}
+    .pf-grid{
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
 
-        {{ form.description.label_tag }}
-        {{ form.description }}
+    .pf-field{
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .pf-field.full{
+      grid-column: 1 / -1;
+    }
+
+    .pf-field label{
+      font-size: 12px;
+      font-weight: 900;
+      opacity: .85;
+    }
+
+    .pf-field input,
+    .pf-field select,
+    .pf-field textarea{
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(0,0,0,.22);
+      color: rgba(255,255,255,.92);
+      outline: none;
+      box-sizing: border-box;
+    }
+
+    .pf-field textarea{
+      min-height: 130px;
+      resize: vertical;
+    }
+
+    .pf-actions{
+      margin-top: 18px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .btn-primary,
+    .btn-secondary{
+      padding: 11px 14px;
+      border-radius: 12px;
+      font-weight: 900;
+      text-decoration: none;
+      cursor: pointer;
+      border: 1px solid rgba(255,255,255,.12);
+      color: white;
+    }
+
+    .btn-primary{
+      background: rgba(124,58,237,0.18);
+      border-color: rgba(124,58,237,0.40);
+    }
+
+    .btn-secondary{
+      background: rgba(255,255,255,0.05);
+    }
+
+    .errorlist{
+      margin: 0;
+      padding-left: 18px;
+      color: #fca5a5;
+      font-size: 12px;
+    }
+
+    @media (max-width: 760px){
+      .pf-grid{ grid-template-columns: 1fr; }
+    }
+  </style>
+
+  <div class="pf-wrap">
+    <div class="pf-card">
+      <h1 class="pf-title">
+        {% if mode == "create" %}➕ Nouveau projet{% else %}✏️ Modifier le projet{% endif %}
+      </h1>
+      <div class="pf-sub">
+        {% if mode == "create" %}
+          Crée un nouveau projet et rattache-le à une catégorie.
+        {% else %}
+          Mets à jour les informations du projet.
+        {% endif %}
       </div>
 
-      <div style="margin-top:16px; display:flex; gap:10px;">
-        <button class="btn2 btn2--primary">Enregistrer</button>
-        <a class="btn2" href="{% url 'projects_list' %}">Annuler</a>
-      </div>
-    </form>
+      <form method="post">
+        {% csrf_token %}
+
+        <div class="pf-grid">
+          <div class="pf-field full">
+            {{ form.name.label_tag }}
+            {{ form.name }}
+            {{ form.name.errors }}
+          </div>
+
+          <div class="pf-field">
+            {{ form.category.label_tag }}
+            {{ form.category }}
+            {{ form.category.errors }}
+          </div>
+
+          <div class="pf-field">
+            {{ form.status.label_tag }}
+            {{ form.status }}
+            {{ form.status.errors }}
+          </div>
+
+          <div class="pf-field">
+            {{ form.target_date.label_tag }}
+            {{ form.target_date }}
+            {{ form.target_date.errors }}
+          </div>
+
+          <div class="pf-field">
+            {{ form.estimated_days.label_tag }}
+            {{ form.estimated_days }}
+            {{ form.estimated_days.errors }}
+          </div>
+
+          <div class="pf-field">
+            {{ form.owner.label_tag }}
+            {{ form.owner }}
+            {{ form.owner.errors }}
+          </div>
+
+          <div class="pf-field">
+            {{ form.is_active.label_tag }}
+            {{ form.is_active }}
+            {{ form.is_active.errors }}
+          </div>
+
+          <div class="pf-field full">
+            {{ form.description.label_tag }}
+            {{ form.description }}
+            {{ form.description.errors }}
+          </div>
+        </div>
+
+        <div class="pf-actions">
+          <button type="submit" class="btn-primary">
+            {% if mode == "create" %}Créer le projet{% else %}Enregistrer{% endif %}
+          </button>
+          <a class="btn-secondary" href="{% url 'projects:projects_kanban' %}">Annuler</a>
+        </div>
+      </form>
+    </div>
   </div>
-
 </div>
 {% endblock %}

@@ -1,5 +1,5 @@
 {% extends "trainings/base.html" %}
-{% block title %}Kanban (Gestion projets){% endblock %}
+{% block title %}Projets — BSmart Application{% endblock %}
 {% block body_class %}no-scroll{% endblock %}
 
 {% block content %}
@@ -19,222 +19,574 @@
 ">
 
 <style>
+  .wrap{ max-width: 1450px; margin:0 auto; }
 
-.wrap{ max-width: 1400px; margin:0 auto; }
+  .head{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    gap:14px;
+    flex-wrap:wrap;
+    margin-bottom: 14px;
+  }
 
-.head{
-display:flex;
-justify-content:space-between;
-align-items:flex-end;
-gap:12px;
-flex-wrap:wrap;
-}
+  .title{
+    margin:0;
+    font-size:24px;
+    font-weight:950;
+    letter-spacing:.2px;
+  }
 
-.title{
-margin:0;
-font-size:22px;
-font-weight:950;
-}
+  .sub{
+    opacity:.72;
+    font-size:13px;
+    margin-top:6px;
+  }
 
-.sub{
-opacity:.7;
-font-size:13px;
-margin-top:6px;
-}
+  .top-actions{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    align-items:center;
+  }
 
-.filters{
-display:flex;
-gap:10px;
-flex-wrap:wrap;
-margin-top:14px;
-}
+  .filters{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    margin-top:12px;
+    margin-bottom:18px;
+  }
 
-.input, .select, .btn{
-padding:10px 12px;
-border-radius:12px;
-background:rgba(0,0,0,0.25);
-border:1px solid rgba(255,255,255,0.12);
-color:white;
-font-weight:900;
-outline:none;
-font-size:13px;
-}
+  .input, .select, .btn, .btn-soft, .btn-danger{
+    padding:10px 12px;
+    border-radius:12px;
+    border:1px solid rgba(255,255,255,0.12);
+    color:white;
+    font-weight:900;
+    outline:none;
+    font-size:13px;
+    text-decoration:none;
+    line-height:1;
+    background:rgba(0,0,0,0.24);
+  }
 
-.input{
-min-width:220px;
-}
+  .input{ min-width:240px; }
 
-.btn{
-cursor:pointer;
-background: rgba(124,58,237,0.18);
-border-color: rgba(124,58,237,0.45);
-}
+  .btn{
+    cursor:pointer;
+    background: rgba(124,58,237,0.18);
+    border-color: rgba(124,58,237,0.42);
+  }
 
-.grid{
-margin-top:18px;
-display:grid;
-grid-template-columns: repeat(3, minmax(0, 1fr));
-gap:14px;
-}
+  .btn-soft{
+    cursor:pointer;
+    background: rgba(255,255,255,0.05);
+    border-color: rgba(255,255,255,0.10);
+  }
 
-@media(max-width:1100px){
-.grid{ grid-template-columns:1fr 1fr; }
-}
+  .btn-danger{
+    cursor:pointer;
+    background: rgba(239,68,68,0.12);
+    border-color: rgba(239,68,68,0.32);
+  }
 
-@media(max-width:720px){
-.grid{ grid-template-columns:1fr; }
-}
+  .btn:hover,
+  .btn-soft:hover,
+  .btn-danger:hover{
+    transform: translateY(-1px);
+    transition: .15s ease;
+  }
 
-.card{
-border-radius:18px;
-background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
-border:1px solid rgba(255,255,255,0.08);
-box-shadow: 0 18px 45px rgba(0,0,0,0.55);
-padding:16px;
-text-decoration:none;
-color:inherit;
-transition:all .15s ease;
-}
+  .summary-bar{
+    display:grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap:12px;
+    margin-bottom:18px;
+  }
 
-.card:hover{
-border-color: rgba(168,85,247,0.35);
-transform:translateY(-2px);
-}
+  @media(max-width:1100px){
+    .summary-bar{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
 
-.name{
-font-weight:950;
-font-size:15px;
-margin:0;
-}
+  @media(max-width:680px){
+    .summary-bar{ grid-template-columns: 1fr; }
+  }
 
-.meta{
-opacity:.7;
-font-size:12px;
-margin-top:6px;
-}
+  .summary-card{
+    border-radius:18px;
+    padding:14px 16px;
+    border:1px solid rgba(255,255,255,0.08);
+    background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+    box-shadow: 0 18px 45px rgba(0,0,0,0.35);
+  }
 
-.badges{
-display:flex;
-gap:8px;
-flex-wrap:wrap;
-margin-top:10px;
-}
+  .summary-k{
+    font-size:12px;
+    opacity:.7;
+    font-weight:800;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+  }
 
-.badge{
-display:inline-flex;
-align-items:center;
-gap:6px;
-padding:4px 8px;
-border-radius:999px;
-font-size:12px;
-font-weight:950;
-border:1px solid rgba(255,255,255,0.10);
-background: rgba(0,0,0,0.20);
-}
+  .summary-v{
+    margin-top:8px;
+    font-size:24px;
+    font-weight:950;
+  }
 
-.dot{
-width:8px;
-height:8px;
-border-radius:3px;
-display:inline-block;
-}
+  .cat-section{
+    margin-top:18px;
+    border-radius:24px;
+    border:1px solid rgba(255,255,255,0.08);
+    background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+    box-shadow: 0 18px 45px rgba(0,0,0,0.28);
+    overflow:hidden;
+  }
 
-.todo{ background:#3b82f6; }
-.doing{ background:#facc15; }
-.blocked{ background:#ef4444; }
-.done{ background:#22c55e; }
+  .cat-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:12px;
+    flex-wrap:wrap;
+    padding:16px 18px;
+    border-bottom:1px solid rgba(255,255,255,0.06);
+    background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01));
+  }
 
+  .cat-title-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+
+  .cat-dot{
+    width:12px;
+    height:12px;
+    border-radius:4px;
+    display:inline-block;
+    background: linear-gradient(135deg, #60A5FA, #A855F7);
+    box-shadow: 0 0 18px rgba(168,85,247,0.35);
+  }
+
+  .cat-name{
+    margin:0;
+    font-size:16px;
+    font-weight:950;
+  }
+
+  .cat-sub{
+    opacity:.68;
+    font-size:12px;
+    margin-top:4px;
+  }
+
+  .cat-stats{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+
+  .pill{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:7px 10px;
+    border-radius:999px;
+    font-size:12px;
+    font-weight:900;
+    border:1px solid rgba(255,255,255,0.10);
+    background: rgba(0,0,0,0.20);
+  }
+
+  .projects-grid{
+    padding:16px;
+    display:grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap:14px;
+  }
+
+  @media(max-width:1180px){
+    .projects-grid{ grid-template-columns:1fr 1fr; }
+  }
+
+  @media(max-width:760px){
+    .projects-grid{ grid-template-columns:1fr; }
+  }
+
+  .project-card{
+    border-radius:20px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+    border:1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 18px 45px rgba(0,0,0,0.45);
+    padding:16px;
+    transition:all .15s ease;
+  }
+
+  .project-card:hover{
+    border-color: rgba(168,85,247,0.28);
+    transform: translateY(-2px);
+  }
+
+  .project-top{
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+    align-items:flex-start;
+  }
+
+  .project-name{
+    margin:0;
+    font-size:15px;
+    font-weight:950;
+    line-height:1.3;
+  }
+
+  .project-name a{
+    color:inherit;
+    text-decoration:none;
+  }
+
+  .project-name a:hover{
+    opacity:.9;
+  }
+
+  .project-meta{
+    margin-top:6px;
+    font-size:12px;
+    opacity:.72;
+    line-height:1.45;
+  }
+
+  .status-badge{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:6px 10px;
+    border-radius:999px;
+    font-size:11px;
+    font-weight:950;
+    white-space:nowrap;
+    border:1px solid rgba(255,255,255,0.10);
+    background: rgba(0,0,0,0.20);
+  }
+
+  .status-dot{
+    width:8px;
+    height:8px;
+    border-radius:999px;
+    display:inline-block;
+  }
+
+  .s-todo{ background:#60A5FA; }
+  .s-doing{ background:#FACC15; }
+  .s-blocked{ background:#F87171; }
+  .s-done{ background:#22C55E; }
+  .s-canceled{ background:#94A3B8; }
+
+  .archive-badge{
+    margin-top:10px;
+    display:inline-flex;
+    padding:5px 9px;
+    border-radius:999px;
+    font-size:11px;
+    font-weight:950;
+    color:#FDE68A;
+    border:1px solid rgba(251,191,36,0.25);
+    background: rgba(251,191,36,0.10);
+  }
+
+  .metrics{
+    display:grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap:8px;
+    margin-top:14px;
+  }
+
+  .metric{
+    border-radius:14px;
+    padding:10px 8px;
+    text-align:center;
+    background: rgba(255,255,255,0.04);
+    border:1px solid rgba(255,255,255,0.06);
+  }
+
+  .metric-label{
+    font-size:11px;
+    opacity:.65;
+    font-weight:800;
+  }
+
+  .metric-value{
+    margin-top:5px;
+    font-size:16px;
+    font-weight:950;
+  }
+
+  .progress-wrap{
+    margin-top:14px;
+  }
+
+  .progress-top{
+    display:flex;
+    justify-content:space-between;
+    gap:10px;
+    font-size:12px;
+    opacity:.8;
+    margin-bottom:6px;
+  }
+
+  .progress{
+    height:9px;
+    border-radius:999px;
+    overflow:hidden;
+    background: rgba(255,255,255,0.08);
+    border:1px solid rgba(255,255,255,0.06);
+  }
+
+  .progress-bar{
+    height:100%;
+    border-radius:999px;
+    background: linear-gradient(90deg, #60A5FA, #A855F7);
+  }
+
+  .project-actions{
+    margin-top:16px;
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+
+  .project-actions a,
+  .project-actions button{
+    border:none;
+    text-decoration:none;
+  }
+
+  .empty{
+    border-radius:18px;
+    padding:20px;
+    text-align:center;
+    opacity:.75;
+    border:1px dashed rgba(255,255,255,0.14);
+    background: rgba(255,255,255,0.03);
+  }
+
+  .empty-cat{
+    padding:16px;
+    opacity:.68;
+    font-size:13px;
+  }
+
+  .category-anchor{
+    scroll-margin-top: 110px;
+  }
 </style>
 
 <div class="wrap">
 
-<div class="head">
-<div>
-<h1 class="title">📁 Kanban (Gestion projets)</h1>
-<div class="sub">Filtre les projets par catégorie ou recherche un projet.</div>
+  <div class="head">
+    <div>
+      <h1 class="title">📁 Project Hub</h1>
+      <div class="sub">
+        Visualise les projets par catégorie, pilote leur avancement et gère leur cycle de vie.
+      </div>
+    </div>
+
+    <div class="top-actions">
+      <a href="{% url 'projects:project_create' %}" class="btn">+ Nouveau projet</a>
+    </div>
+  </div>
+
+  <form method="get" class="filters">
+    <input
+      class="input"
+      type="text"
+      name="q"
+      placeholder="Recherche projet..."
+      value="{{ q }}"
+    >
+
+    <select class="select" name="cat">
+      <option value="">Toutes les catégories</option>
+      {% for c in categories %}
+        <option value="{{ c.id }}" {% if cat_id == c.id|stringformat:"s" %}selected{% endif %}>
+          {{ c.name }}
+        </option>
+      {% endfor %}
+    </select>
+
+    <select class="select" name="status">
+      <option value="active" {% if status_filter == "active" %}selected{% endif %}>Actifs</option>
+      <option value="archived" {% if status_filter == "archived" %}selected{% endif %}>Archivés</option>
+      <option value="all" {% if status_filter == "all" %}selected{% endif %}>Tous</option>
+    </select>
+
+    <button class="btn" type="submit">Filtrer</button>
+
+    <a href="{% url 'projects:projects_kanban' %}" class="btn-soft">Réinitialiser</a>
+  </form>
+
+  <div class="summary-bar">
+    <div class="summary-card">
+      <div class="summary-k">Projets affichés</div>
+      <div class="summary-v">{{ projects|length }}</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-k">Catégories visibles</div>
+      <div class="summary-v">{{ categories|length }}</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-k">Filtre statut</div>
+      <div class="summary-v">
+        {% if status_filter == "active" %}
+          Actifs
+        {% elif status_filter == "archived" %}
+          Archivés
+        {% else %}
+          Tous
+        {% endif %}
+      </div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-k">Recherche</div>
+      <div class="summary-v">
+        {% if q %}{{ q }}{% else %}—{% endif %}
+      </div>
+    </div>
+  </div>
+
+  {% regroup projects by category as grouped_projects %}
+
+  {% if projects %}
+    {% for category_group in grouped_projects %}
+      <section class="cat-section category-anchor">
+        <div class="cat-head">
+          <div>
+            <div class="cat-title-row">
+              <span class="cat-dot"
+                    {% if category_group.grouper and category_group.grouper.color %}
+                      style="background: {{ category_group.grouper.color }}; box-shadow: 0 0 18px {{ category_group.grouper.color }}55;"
+                    {% endif %}
+              ></span>
+              <h2 class="cat-name">
+                {% if category_group.grouper %}
+                  {{ category_group.grouper.name }}
+                {% else %}
+                  Sans catégorie
+                {% endif %}
+              </h2>
+            </div>
+            <div class="cat-sub">
+              {{ category_group.list|length }} projet(s) dans cette catégorie
+            </div>
+          </div>
+
+          <div class="cat-stats">
+            <span class="pill">{{ category_group.list|length }} projet(s)</span>
+          </div>
+        </div>
+
+        <div class="projects-grid">
+          {% for p in category_group.list %}
+            <div class="project-card">
+              <div class="project-top">
+                <div>
+                  <h3 class="project-name">
+                    <a href="{% url 'projects:project_detail' p.id %}">{{ p.name }}</a>
+                  </h3>
+
+                  <div class="project-meta">
+                    {% if p.owner %}
+                      Responsable : {{ p.owner }}
+                    {% else %}
+                      Responsable : —
+                    {% endif %}
+                    <br>
+                    {% if p.target_date %}
+                      Date cible : {{ p.target_date|date:"d/m/Y" }}
+                    {% else %}
+                      Date cible : —
+                    {% endif %}
+                  </div>
+
+                  {% if not p.is_active %}
+                    <div class="archive-badge">Archivé</div>
+                  {% endif %}
+                </div>
+
+                <span class="status-badge">
+                  <span class="status-dot s-{{ p.status }}"></span>
+                  {{ p.get_status_display }}
+                </span>
+              </div>
+
+              <div class="metrics">
+                <div class="metric">
+                  <div class="metric-label">TODO</div>
+                  <div class="metric-value">{{ p.todo_count }}</div>
+                </div>
+                <div class="metric">
+                  <div class="metric-label">En cours</div>
+                  <div class="metric-value">{{ p.doing_count }}</div>
+                </div>
+                <div class="metric">
+                  <div class="metric-label">Bloqué</div>
+                  <div class="metric-value">{{ p.blocked_count }}</div>
+                </div>
+                <div class="metric">
+                  <div class="metric-label">Terminé</div>
+                  <div class="metric-value">{{ p.done_count }}</div>
+                </div>
+              </div>
+
+              <div class="progress-wrap">
+                <div class="progress-top">
+                  <span>Progression</span>
+                  <strong>{{ p.progress_percent }}%</strong>
+                </div>
+                <div class="progress">
+                  <div class="progress-bar" style="width: {{ p.progress_percent }}%;"></div>
+                </div>
+              </div>
+
+              <div class="project-actions">
+                <a href="{% url 'projects:project_detail' p.id %}" class="btn-soft">Ouvrir</a>
+                <a href="{% url 'projects:project_edit' p.id %}" class="btn-soft">Modifier</a>
+
+                {% if p.is_active %}
+                  <form method="post" action="{% url 'projects:project_archive' p.id %}" style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-soft">Archiver</button>
+                  </form>
+                {% else %}
+                  <form method="post" action="{% url 'projects:project_unarchive' p.id %}" style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-soft">Restaurer</button>
+                  </form>
+                {% endif %}
+
+                <form method="post"
+                      action="{% url 'projects:project_delete' p.id %}"
+                      style="display:inline;"
+                      onsubmit="return confirm('Supprimer définitivement ce projet ?');">
+                  {% csrf_token %}
+                  <button type="submit" class="btn-danger">Supprimer</button>
+                </form>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </section>
+    {% endfor %}
+  {% else %}
+    <div class="empty">
+      Aucun projet trouvé avec les filtres actuels.
+    </div>
+  {% endif %}
+
 </div>
-</div>
-
-<form method="get" class="filters">
-
-<input
-class="input"
-type="text"
-name="q"
-placeholder="Recherche projet..."
-value="{{ q }}"
->
-
-<select class="select" name="cat">
-
-<option value="">Toutes les catégories</option>
-
-{% for c in categories %}
-<option value="{{ c.id }}" {% if cat_id == c.id|stringformat:"s" %}selected{% endif %}>
-{{ c.name }}
-</option>
-{% endfor %}
-
-</select>
-
-<button class="btn" type="submit">
-Filtrer
-</button>
-
-</form>
-
-<div class="grid">
-
-{% for p in projects %}
-
-<a class="card" href="{% url 'projects:project_detail' p.id %}">
-
-<div class="name">{{ p.name }}</div>
-
-<div class="meta">
-{% if p.category %}
-{{ p.category.name }} •
-{% endif %}
-{{ p.total_count }} tâche(s)
-</div>
-
-<div class="badges">
-
-<span class="badge">
-<span class="dot todo"></span>
-{{ p.todo_count }}
-</span>
-
-<span class="badge">
-<span class="dot doing"></span>
-{{ p.doing_count }}
-</span>
-
-<span class="badge">
-<span class="dot blocked"></span>
-{{ p.blocked_count }}
-</span>
-
-<span class="badge">
-<span class="dot done"></span>
-{{ p.done_count }}
-</span>
-
-</div>
-
-</a>
-
-{% empty %}
-
-<div style="opacity:.7;">
-Aucun projet trouvé.
-</div>
-
-{% endfor %}
-
-</div>
-
-</div>
-
 </div>
 {% endblock %}

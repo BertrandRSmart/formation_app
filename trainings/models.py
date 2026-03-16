@@ -190,42 +190,10 @@ class TrainerAbsence(models.Model):
             f"({self.start_date} → {self.end_date})"
         )
 
-        def clean(self):
-            super().clean()
-
-            if self.on_client_site:
-                if not (self.client_address or "").strip():
-                    raise ValidationError("Adresse obligatoire si la formation est chez le client.")
-            else:
-                if not self.room_id:
-                    raise ValidationError("Salle obligatoire si la formation n'est pas chez le client.")
-
-            if not self.training_id:
-                return
-
-            is_partner = False
-            if self.client_id:
-                is_partner = bool(getattr(self.client, "is_partner", False))
-
-            session_price = self.training.get_session_price_ht(is_partner=is_partner)
-            participant_price = self.training.get_participant_price_ht(is_partner=is_partner)
-
-            if self.billing_mode == SessionBillingMode.COLLECTIVE:
-                if session_price <= Decimal("0.00"):
-                    raise ValidationError(
-                        "Aucun tarif session HT n'est défini pour cette formation dans ce mode de tarification."
-                    )
-
-            elif self.billing_mode == SessionBillingMode.INDIVIDUAL:
-                if participant_price <= Decimal("0.00"):
-                    raise ValidationError(
-                        "Aucun tarif participant HT n'est défini pour cette formation dans ce mode de tarification."
-                    )
-
-            if self.is_abroad and (self.travel_fee_ht or Decimal("0.00")) <= Decimal("0.00"):
-                raise ValidationError(
-                    "Une session à l'étranger doit avoir un forfait de déplacement HT renseigné."
-                )
+    def clean(self):
+        super().clean()
+        if self.end_date and self.start_date and self.end_date < self.start_date:
+            raise ValidationError("La date de fin ne peut pas être antérieure à la date de début.")
 
 
 class TrainerWorkloadType(models.TextChoices):
@@ -284,21 +252,10 @@ class TrainerWorkloadEntry(models.Model):
     def __str__(self):
         return f"{self.trainer} - {self.title}"
 
-        def clean(self):
-            super().clean()
-
-            if self.status == RegistrationStatus.CANCELED and not self.canceled_at:
-                # on laisse save() compléter automatiquement si besoin,
-                # donc pas de ValidationError ici
-                pass
-
-            if self.is_free and self.billing_rate_percent not in (0, 30, 100):
-                raise ValidationError("Le taux de facturation doit être cohérent.")
-
-            if self.session_id and self.session.billing_mode == SessionBillingMode.COLLECTIVE:
-                # En collectif, l'inscription n'a pas vocation à porter un montant propre
-                # on laisse le modèle recalculer billed_amount_ht à 0
-                pass
+    def clean(self):
+        super().clean()
+        if self.end_date and self.start_date and self.end_date < self.start_date:
+            raise ValidationError("La date de fin ne peut pas être antérieure à la date de début.")
 
 
 # =========================================================
@@ -318,9 +275,11 @@ class WorkEnvironment(models.TextChoices):
     PSFORMATION = "PSFormation", "PSFormation"
     PSFORMATIONMID = "PSFormationMid", "PSFormationMid"
 
+
 class SessionBillingMode(models.TextChoices):
     COLLECTIVE = "COLLECTIVE", "Inscription collective"
     INDIVIDUAL = "INDIVIDUAL", "Inscriptions individuelles"
+
 
 class Session(models.Model):
     reference = models.CharField(max_length=50, blank=True, default="")
@@ -456,6 +415,47 @@ class Session(models.Model):
         editable=False,
     )
 
+    @property
+    def is_partner_pricing(self) -> bool:
+        return bool(self.client_id and getattr(self.client, "is_partner", False))
+
+    def __str__(self) -> str:
+        return f"{self.reference} - {self.training} - {self.client} ({self.start_date})"
+
+    def clean(self):
+        super().clean()
+
+        if self.on_client_site:
+            if not (self.client_address or "").strip():
+                raise ValidationError("Adresse obligatoire si la formation est chez le client.")
+        else:
+            if not self.room_id:
+                raise ValidationError("Salle obligatoire si la formation n'est pas chez le client.")
+
+        if not self.training_id:
+            return
+
+        is_partner = self.is_partner_pricing
+        session_price = self.training.get_session_price_ht(is_partner=is_partner)
+        participant_price = self.training.get_participant_price_ht(is_partner=is_partner)
+
+        if self.billing_mode == SessionBillingMode.COLLECTIVE:
+            if session_price <= Decimal("0.00"):
+                raise ValidationError(
+                    "Aucun tarif session HT n'est défini pour cette formation dans ce mode de tarification."
+                )
+
+        elif self.billing_mode == SessionBillingMode.INDIVIDUAL:
+            if participant_price <= Decimal("0.00"):
+                raise ValidationError(
+                    "Aucun tarif participant HT n'est défini pour cette formation dans ce mode de tarification."
+                )
+
+        if self.is_abroad and (self.travel_fee_ht or Decimal("0.00")) <= Decimal("0.00"):
+            raise ValidationError(
+                "Une session à l'étranger doit avoir un forfait de déplacement HT renseigné."
+            )
+
     def outlook_compose_link(self):
         if not self.start_date or not self.end_date:
             return "Dates non renseignées"
@@ -494,6 +494,8 @@ class Session(models.Model):
 
     outlook_compose_link.short_description = "Lien Outlook"
 
+    # --- Invitations helpers (HTML -> PDF) ---------------------------------
+
     def invitation_language_default(self) -> str:
         return "fr"
 
@@ -513,10 +515,6 @@ class Session(models.Model):
 
     def invitation_schedule_full(self) -> str:
         return f"{self.invitation_schedule_am()} puis {self.invitation_schedule_pm()}"
-
-    @property
-    def is_partner_pricing(self) -> bool:
-        return bool(self.client_id and getattr(self.client, "is_partner", False))
 
     def apply_pricing_from_training(self, save: bool = False) -> None:
         """
@@ -569,8 +567,9 @@ class Session(models.Model):
         else:
             total_training = Decimal("0.00")
             for reg in self.registrations.select_related("participant", "participant__client"):
-                reg.compute_billed_amount_ht(save=True)
+                reg.compute_billed_amount_ht(save=False)
                 total_training += reg.billed_amount_ht or Decimal("0.00")
+
             self.training_price_ht = total_training
 
         self.price_ht = (self.training_price_ht or Decimal("0.00")) + (self.travel_fee_ht or Decimal("0.00"))
@@ -584,9 +583,11 @@ class Session(models.Model):
             ])
 
     def save(self, *args, **kwargs):
+        # auto-fill training_type depuis training si besoin
         if self.training and not self.training_type_id:
             self.training_type = self.training.training_type
 
+        # détecter si start_date change (pour recalculer / rouvrir l'alerte)
         old_start_date = None
         if self.pk:
             old_start_date = (
@@ -621,84 +622,6 @@ class Session(models.Model):
             self.price_ht = (self.training_price_ht or Decimal("0.00")) + (self.travel_fee_ht or Decimal("0.00"))
 
         super().save(*args, **kwargs)
-
-    def __str__(self) -> str:
-        return f"{self.reference} - {self.training} - {self.client} ({self.start_date})"
-
-    def clean(self):
-        if self.on_client_site:
-            if not (self.client_address or "").strip():
-                raise ValidationError("Adresse obligatoire si la formation est chez le client.")
-        else:
-            if not self.room_id:
-                raise ValidationError("Salle obligatoire si la formation n'est pas chez le client.")
-
-    # --- Invitations helpers (HTML -> PDF) ---------------------------------
-
-    def invitation_language_default(self) -> str:
-        """
-        Langue par défaut si on ne stocke pas en DB.
-        On part sur FR, et on pourra choisir EN via le bouton (paramètre POST).
-        """
-        return "fr"
-
-    def invitation_location_label(self) -> str:
-        """
-        Libellé lieu à afficher sur la convocation.
-        - Si chez le client : adresse client
-        - Sinon : salle + éventuellement adresse salle
-        """
-        if self.on_client_site:
-            return (self.client_address or "").strip()
-        if self.room:
-            loc = (self.room.location or "").strip()
-            return f"{self.room.name}{' — ' + loc if loc else ''}"
-        return ""
-
-    def invitation_schedule_am(self) -> str:
-        return "09:00–12:00"
-
-    def invitation_schedule_pm(self) -> str:
-        return "13:30–16:30"
-
-    def invitation_schedule_full(self) -> str:
-        return f"{self.invitation_schedule_am()} puis {self.invitation_schedule_pm()}"
-
-    def save(self, *args, **kwargs):
-        # auto-fill training_type depuis training si besoin
-        if self.training and not self.training_type_id:
-            self.training_type = self.training.training_type
-
-        # détecter si start_date change (pour recalculer / rouvrir l'alerte)
-        old_start_date = None
-        if self.pk:
-            old_start_date = (
-                Session.objects.filter(pk=self.pk)
-                .values_list("start_date", flat=True)
-                .first()
-            )
-
-        if self.start_date:
-            computed = self.start_date - timedelta(days=16)
-
-            if not self.convocations_sent_at:
-                self.convocations_sent_at = computed
-            elif old_start_date and old_start_date != self.start_date:
-                self.convocations_sent_at = computed
-                self.convocation_alert_closed = False
-
-        super().save(*args, **kwargs)
-
-    def __str__(self) -> str:
-        return f"{self.reference} - {self.training} - {self.client} ({self.start_date})"
-
-    def clean(self):
-        if self.on_client_site:
-            if not (self.client_address or "").strip():
-                raise ValidationError("Adresse obligatoire si la formation est chez le client.")
-        else:
-            if not self.room_id:
-                raise ValidationError("Salle obligatoire si la formation n'est pas chez le client.")
 
 
 # =========================================================
@@ -759,10 +682,12 @@ class RegistrationStatus(models.TextChoices):
     ABSENT = "ABSENT", "Absent"
     CANCELED = "CANCELED", "Annulé"
 
+
 class RegistrationBillingRate(models.IntegerChoices):
     ZERO = 0, "Annulation 0%"
     THIRTY = 30, "Annulation 30%"
     FULL = 100, "Facturation 100%"
+
 
 class Registration(models.Model):
     session = models.ForeignKey(
@@ -994,12 +919,11 @@ class MercureContract(models.Model):
 
 
 class MercureInvoice(models.Model):
-
-    payment_alert_closed = models.BooleanField("Alerte paiement fermée", default=False)
-
     """
     Factures formateurs Mercure (suivi 60 jours à partir de la réception)
     """
+    payment_alert_closed = models.BooleanField("Alerte paiement fermée", default=False)
+
     session = models.ForeignKey(
         Session,
         on_delete=models.PROTECT,
@@ -1010,25 +934,6 @@ class MercureInvoice(models.Model):
         on_delete=models.PROTECT,
         related_name="mercure_invoices",
     )
-
-    document_path = models.CharField(
-        "Chemin facture (interne)",
-        max_length=500,
-        blank=True,
-        default="",
-    )
-
-    from django.views.decorators.http import require_POST
-    from django.shortcuts import get_object_or_404, redirect
-    from django.contrib.admin.views.decorators import staff_member_required
-
-    @staff_member_required
-    @require_POST
-    def dismiss_mercure_invoice_alert(request, invoice_id: int):
-        inv = get_object_or_404(MercureInvoice, pk=invoice_id)
-        inv.payment_alert_closed = True
-        inv.save(update_fields=["payment_alert_closed"])
-        return redirect("trainings:home")
 
     reference = models.CharField(max_length=120, blank=True, default="")
     document_path = models.CharField("Chemin facture (interne)", max_length=500, blank=True, default="")
@@ -1079,9 +984,6 @@ class MercureInvoice(models.Model):
 # ==================================================================================
 # PARTNERS - DETAILS
 # ===============================================================================
-
-from django.core.validators import MinValueValidator
-
 
 class PartnerContractPlan(models.Model):
     PLAN_SILVER = "silver"

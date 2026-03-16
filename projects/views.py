@@ -6,7 +6,7 @@ from django.views.decorators.http import require_POST, require_GET
 from django.http import JsonResponse
 
 from .models import Project, Task, ProjectCategory, TaskAssignment
-from .forms import TaskForm, TaskAssignmentForm
+from .forms import TaskForm, TaskAssignmentForm, ProjectForm
 
 
 # =========================================================
@@ -95,6 +95,7 @@ def projects_home(request):
 def projects_kanban(request):
     cat_id = (request.GET.get("cat") or "").strip()
     q = (request.GET.get("q") or "").strip()
+    status_filter = (request.GET.get("status") or "active").strip()
 
     categories = ProjectCategory.objects.all().order_by("name")
 
@@ -108,8 +109,14 @@ def projects_kanban(request):
             done_count=Count("tasks", filter=Q(tasks__status="done")),
             total_count=Count("tasks"),
         )
-        .order_by("name")
+        .order_by("category__name", "name")
     )
+
+    if status_filter == "active":
+        projects_qs = projects_qs.filter(is_active=True)
+    elif status_filter == "archived":
+        projects_qs = projects_qs.filter(is_active=False)
+    # "all" => pas de filtre supplémentaire
 
     if cat_id:
         projects_qs = projects_qs.filter(category_id=cat_id)
@@ -124,6 +131,7 @@ def projects_kanban(request):
         "categories": categories,
         "cat_id": cat_id,
         "q": q,
+        "status_filter": status_filter,
     })
 
 
@@ -157,6 +165,71 @@ def project_detail(request, project_id: int):
         "tasks": tasks_qs,
         "kanban_cols": kanban_cols,
     })
+
+
+# =========================================================
+# Gestion des projets
+# =========================================================
+
+@login_required
+def project_create(request):
+    if request.method == "POST":
+        form = ProjectForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect("projects:projects_kanban")
+    else:
+        form = ProjectForm()
+
+    return render(request, "projects/project_form.html", {
+        "form": form,
+        "mode": "create",
+    })
+
+
+@login_required
+def project_edit(request, project_id: int):
+    project = get_object_or_404(Project, id=project_id)
+
+    if request.method == "POST":
+        form = ProjectForm(request.POST, instance=project)
+        if form.is_valid():
+            form.save()
+            return redirect("projects:projects_kanban")
+    else:
+        form = ProjectForm(instance=project)
+
+    return render(request, "projects/project_form.html", {
+        "form": form,
+        "mode": "edit",
+        "project": project,
+    })
+
+
+@login_required
+@require_POST
+def project_archive(request, project_id: int):
+    project = get_object_or_404(Project, id=project_id)
+    project.is_active = False
+    project.save(update_fields=["is_active"])
+    return redirect("projects:projects_kanban")
+
+
+@login_required
+@require_POST
+def project_unarchive(request, project_id: int):
+    project = get_object_or_404(Project, id=project_id)
+    project.is_active = True
+    project.save(update_fields=["is_active"])
+    return redirect("projects:projects_kanban")
+
+
+@login_required
+@require_POST
+def project_delete(request, project_id: int):
+    project = get_object_or_404(Project, id=project_id)
+    project.delete()
+    return redirect("projects:projects_kanban")
 
 
 # =========================================================

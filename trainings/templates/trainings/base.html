@@ -58,7 +58,7 @@
       background:
         radial-gradient(900px 260px at 15% 0%, rgba(59,130,246,.22), transparent 60%),
         radial-gradient(900px 260px at 75% 20%, rgba(168,85,247,.18), transparent 60%),
-        linear-gradient(180deg, rgba(5,8,22,.92), rgba(11,16,38,.75));
+        linear-gradient(180deg, rgba(5,8,22,.92), rgba(11,16,38,.78));
 
       backdrop-filter: blur(14px);
       -webkit-backdrop-filter: blur(14px);
@@ -79,7 +79,7 @@
       display:flex;
       align-items:center;
       justify-content:space-between;
-      gap: 14px;
+      gap: 18px;
       padding: 12px 16px;
     }
 
@@ -122,7 +122,6 @@
       margin-left: 2px;
     }
 
-    /* Calendar icon (inline SVG) */
     .cal-ic{
       width: 22px;
       height: 22px;
@@ -156,7 +155,6 @@
       overflow:hidden;
     }
 
-    /* Futuristic diagonal */
     .dt::after{
       content:"";
       position:absolute;
@@ -176,7 +174,6 @@
       color: rgba(255,255,255,0.92);
     }
 
-    /* Colors (day / month / year) */
     .dt--day   { background: rgba(59,130,246,0.18); border-color: rgba(59,130,246,0.30); }
     .dt--month { background: rgba(16,185,129,0.18); border-color: rgba(16,185,129,0.30); }
     .dt--year  { background: rgba(168,85,247,0.18); border-color: rgba(168,85,247,0.30); }
@@ -190,29 +187,45 @@
       flex-wrap: wrap;
       align-items:center;
       justify-content:flex-end;
-      flex: 0 0 auto;
+      flex: 1 1 auto;
+      min-width: 0;
     }
 
     .bsmart-nav a{
       text-decoration:none;
       color: rgba(255,255,255,.88);
 
-      padding: 10px 14px;
+      min-height: 40px;
+      padding: 0 16px;
       border-radius: 999px;
-      border: 1px solid var(--border);
-      background: var(--surface);
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.05);
 
-      font-weight: 800;
+      font-weight: 900;
       font-size: 13px;
 
-      transition: transform .15s ease, background .15s ease, border-color .15s ease, filter .15s ease;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      white-space: nowrap;
+
+      transition:
+        transform .15s ease,
+        background .15s ease,
+        border-color .15s ease,
+        filter .15s ease,
+        color .15s ease;
+
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.06),
+        0 8px 18px rgba(0,0,0,.18);
     }
 
     .bsmart-nav a:hover{
       transform: translateY(-1px);
-      background: var(--surface-2);
+      background: rgba(255,255,255,.08);
       border-color: rgba(255,255,255,.18);
+      color: #fff;
       filter: brightness(1.04);
     }
 
@@ -220,9 +233,19 @@
       background:
         radial-gradient(260px 60px at 30% 30%, rgba(59,130,246,.22), transparent 60%),
         radial-gradient(260px 60px at 70% 70%, rgba(168,85,247,.22), transparent 60%),
-        var(--surface);
+        rgba(255,255,255,.07);
       border-color: rgba(168,85,247,.35);
       color: var(--text);
+    }
+
+    .bsmart-nav a.signout-btn{
+      background: rgba(239,68,68,.10);
+      border-color: rgba(239,68,68,.26);
+    }
+
+    .bsmart-nav a.signout-btn:hover{
+      background: rgba(239,68,68,.16);
+      border-color: rgba(239,68,68,.34);
     }
 
     /* ✅ Responsive */
@@ -230,10 +253,21 @@
       .brand-date{ display:none; }
       .bsmart-brand{ min-width:auto; }
     }
+
     @media (max-width: 920px){
+      .bsmart-topbar__inner{
+        flex-direction:column;
+        align-items:stretch;
+      }
+
       .bsmart-logo{ width: 200px; height: 48px; }
       .bsmart-brand{ min-width: auto; }
+
+      .bsmart-nav{
+        justify-content:flex-start;
+      }
     }
+
     @media (max-width: 640px){
       .bsmart-logo{ width: 170px; height: 46px; }
     }
@@ -364,7 +398,8 @@
             <path d="M3.5 9h17" stroke="rgba(255,255,255,.55)" stroke-width="2" stroke-linecap="round"/>
             <path d="M6 5h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3Z"
                   stroke="rgba(255,255,255,.75)" stroke-width="2" />
-            <path d="M7.5 12.5h2M12 12.5h2M16.5 12.5h0M7.5 16.5h2M12 16.5h2" stroke="rgba(255,255,255,.55)" stroke-width="2" stroke-linecap="round"/>
+            <path d="M7.5 12.5h2M12 12.5h2M16.5 12.5h0M7.5 16.5h2M12 16.5h2"
+                  stroke="rgba(255,255,255,.55)" stroke-width="2" stroke-linecap="round"/>
           </svg>
 
           <div class="date-tiles">
@@ -382,52 +417,40 @@
           Calendar
         </a>
 
-        <a class="{% if request.path|slice:':11' == '/dashboard/' and request.path|slice:':16' != '/dashboard/work' %}is-active{% endif %}" href="/dashboard/">
+        <a class="{% if request.path|slice:':11' == '/dashboard/' and request.path|slice:':14' != '/dashboard/ca/' and request.path|slice:':20' != '/dashboard/workload/' %}is-active{% endif %}" href="/dashboard/">
           Dashboard
         </a>
 
         <a class="{% if request.path|slice:':16' == '/control-center/' %}is-active{% endif %}"
-          href="{% url 'trainings:control_center' %}">
+           href="{% url 'trainings:control_center' %}">
           🚀 Control Center
         </a>
 
         <a class="{% if request.path|slice:':10' == '/partners/' %}is-active{% endif %}"
-          href="{% url 'trainings:partners_dashboard' %}">
+           href="{% url 'trainings:partners_dashboard' %}">
           Partenaires
         </a>
 
         {% if request.user.is_staff %}
-          <a class="{% if request.path|slice:':28' == '/trainer-eval/internal-evaluations/' %}is-active{% endif %}"
-            href="{% url 'trainer_eval:internal_eval_list' %}">
+          <a class="{% if '/trainer-eval/' in request.path %}is-active{% endif %}"
+             href="{% url 'trainer_eval:internal_eval_list' %}">
             Trainer Ops
           </a>
         {% endif %}
 
         <a class="{% if request.path|slice:':6' == '/team/' %}is-active{% endif %}"
-          href="/team/?product=ARGONOS">
+           href="/team/?product=ARGONOS">
           Teams
         </a>
 
         {% if request.user.is_staff %}
-          <a href="/admin/">Admin</a>
+          <a class="{% if request.path|slice:':7' == '/admin/' %}is-active{% endif %}"
+             href="/admin/">
+            Admin
+          </a>
         {% endif %}
 
-        <a href="/accounts/logout/">Sign out</a>
-      </nav>
-
-        {% if request.user.is_staff %}
-          <a class="{% if request.path|slice:':28' == '/trainer-eval/internal-evaluations/' %}is-active{% endif %}"
-            href="{% url 'trainer_eval:internal_eval_list' %}">Trainer Ops</a>
-        {% endif %}
-
-        <a class="{% if request.path|slice:':6' == '/team/' %}is-active{% endif %}"
-          href="/team/?product=ARGONOS">Teams</a>
-
-        {% if request.user.is_staff %}
-          <a href="/admin/">Admin</a>
-        {% endif %}
-
-        <a href="/accounts/logout/">Sign out</a>
+        <a class="signout-btn" href="/accounts/logout/">Sign out</a>
       </nav>
 
     </div>
@@ -463,6 +486,7 @@
     document.addEventListener('keydown', function(e){
       if(e.key === 'Escape'){
         closeDrawer('participantDrawer');
+        closeDrawer('alertsDrawer');
       }
     });
   </script>
@@ -489,8 +513,6 @@
       TEMPLATE: {{ request.resolver_match.view_name }}<br>
       PATH: {{ request.path }}
     </div>
-    {% endif %}
-  </body>
-
-  
+  {% endif %}
+</body>
 </html>

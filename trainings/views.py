@@ -372,9 +372,18 @@ def home_view(request):
 
     week_start, week_end = _week_bounds(today)
 
+    month_start = date(today.year, today.month, 1)
+    if today.month == 12:
+        month_end = date(today.year + 1, 1, 1) - timedelta(days=1)
+    else:
+        month_end = date(today.year, today.month + 1, 1) - timedelta(days=1)
+
+    # =========================================================
+    # Weekly sessions
+    # =========================================================
     week_sessions = (
         Session.objects
-        .select_related("training", "training_type", "client")
+        .select_related("training", "training_type", "client", "trainer")
         .filter(start_date__gte=week_start, start_date__lte=week_end)
     )
 
@@ -416,6 +425,9 @@ def home_view(request):
     week_utilization_pct = round((planned_days / working_days) * 100) if working_days else None
     utilization_target = 80
 
+    # =========================================================
+    # Alerts
+    # =========================================================
     invoices_alerts = MercureInvoice.objects.none()
 
     qs = Session.objects.select_related("training", "client").filter(
@@ -471,6 +483,204 @@ def home_view(request):
 
     alerts_total = invoices_alerts_count + convocations_alerts_count
 
+    # =========================================================
+    # Home KPIs
+    # =========================================================
+    home_ca_qs = (
+        Session.objects
+        .annotate(ca_date=Coalesce("end_date", "start_date"))
+        .filter(
+            ca_date__isnull=False,
+            ca_date__gte=month_start,
+            ca_date__lte=month_end,
+        )
+    )
+
+    sessions_month = home_ca_qs.count()
+
+    ca_month = home_ca_qs.aggregate(
+        v=Coalesce(
+            Sum("price_ht"),
+            Value(Decimal("0.00")),
+            output_field=DecimalField(max_digits=12, decimal_places=2),
+        )
+    ).get("v") or Decimal("0.00")
+
+
+    travel_month = home_ca_qs.aggregate(
+        v=Coalesce(
+            Sum("travel_fee_ht"),
+            Value(Decimal("0.00")),
+            output_field=DecimalField(max_digits=12, decimal_places=2),
+        )
+    ).get("v") or Decimal("0.00")
+
+
+
+    # =========================================================
+    # Operations pulse
+    # =========================================================
+    upcoming_sessions_short = list(
+        Session.objects
+        .select_related("training", "client", "trainer")
+        .filter(start_date__isnull=False, start_date__gte=today)
+        .order_by("start_date")[:6]
+    )
+
+    # =========================================================
+    # Team snapshot
+    # =========================================================
+    active_trainers = list(
+        Trainer.objects
+        .filter(is_active=True)
+        .order_by("last_name", "first_name")
+    )
+
+    team_rows = []
+    overload_count = 0
+    total_load_rate = Decimal("0.0")
+
+    month_working_days = _working_days_between(month_start, month_end)
+
+    session_statuses_included = [
+        SessionStatus.PLANNED,
+        SessionStatus.CONFIRMED,
+        SessionStatus.IN_PROGRESS,
+        SessionStatus.CLOSED,
+    ]
+
+    sessions_qs_month = (
+        Session.objects
+        .select_related("trainer", "backup_trainer")
+        .filter(
+            status__in=session_statuses_included,
+            start_date__isnull=False,
+            start_date__lte=month_end,
+        )
+        .filter(Q(end_date__isnull=True, start_date__gte=month_start) | Q(end_date__gte=month_start))
+    )
+
+    absences_qs = (
+        TrainerAbsence.objects
+        .select_related("trainer")
+        .filter(start_date__lte=month_end, end_date__gte=month_start)
+    )
+
+    workload_entries_qs = (
+        TrainerWorkloadEntry.objects
+        .select_related("trainer")
+        .exclude(status="CANCELED")
+        .filter(start_date__lte=month_end, end_date__gte=month_start)
+    )
+
+    task_assignments_qs = TaskAssignment.objects.none()
+    if TaskAssignment is not None:
+        task_assignments_qs = (
+            TaskAssignment.objects
+            .select_related("trainer", "task", "task__project")
+            .exclude(status=TaskAssignment.Status.CANCELED)
+            .filter(
+                trainer__isnull=False,
+                start_date__lte=month_end,
+                end_date__gte=month_start,
+            )
+        )
+
+    sessions_by_primary = defaultdict(list)
+    sessions_by_backup = defaultdict(list)
+    absences_by_trainer = defaultdict(list)
+    extra_workloads_by_trainer = defaultdict(list)
+    assignments_by_trainer = defaultdict(list)
+
+    for s in sessions_qs_month:
+        if s.trainer_id:
+            sessions_by_primary[s.trainer_id].append(s)
+        if s.backup_trainer_id:
+            sessions_by_backup[s.backup_trainer_id].append(s)
+
+    for absence in absences_qs:
+        absences_by_trainer[absence.trainer_id].append(absence)
+
+    for entry in workload_entries_qs:
+        extra_workloads_by_trainer[entry.trainer_id].append(entry)
+
+    for assignment in task_assignments_qs:
+        assignments_by_trainer[assignment.trainer_id].append(assignment)
+
+    for trainer in active_trainers:
+        availability_pct = Decimal(getattr(trainer, "workload_percent", Decimal("100.00")) or Decimal("100.00"))
+        theoretical_capacity = (Decimal(month_working_days) * availability_pct) / Decimal("100")
+
+        primary_days = Decimal("0.0")
+        for s in sessions_by_primary.get(trainer.id, []):
+            primary_days += _prorated_days_for_period(
+                s.start_date, s.end_date, s.days_count, month_start, month_end
+            )
+
+        backup_days = Decimal("0.0")
+        for s in sessions_by_backup.get(trainer.id, []):
+            backup_days += _prorated_days_for_period(
+                s.start_date, s.end_date, s.days_count, month_start, month_end
+            ) * Decimal("0.5")
+
+        absence_days = Decimal("0.0")
+        for a in absences_by_trainer.get(trainer.id, []):
+            absence_days += _prorated_days_for_period(
+                a.start_date, a.end_date, a.days_count, month_start, month_end
+            )
+
+        extra_days = Decimal("0.0")
+        for e in extra_workloads_by_trainer.get(trainer.id, []):
+            extra_days += _prorated_days_for_period(
+                e.start_date, e.end_date, e.days_count, month_start, month_end
+            )
+
+        project_days = Decimal("0.0")
+        for a in assignments_by_trainer.get(trainer.id, []):
+            project_days += _prorated_days_for_period(
+                a.start_date, a.end_date, a.planned_days, month_start, month_end
+            )
+
+        net_capacity = theoretical_capacity - absence_days
+        if net_capacity < 0:
+            net_capacity = Decimal("0.0")
+
+        total_planned = primary_days + backup_days + extra_days + project_days
+        if net_capacity > 0:
+            load_rate = (total_planned / net_capacity) * Decimal("100")
+        else:
+            load_rate = Decimal("0.0") if total_planned == 0 else Decimal("999.0")
+
+        if load_rate > Decimal("100"):
+            overload_count += 1
+
+        total_load_rate += load_rate
+
+        team_rows.append({
+            "trainer": trainer,
+            "load_rate": round(load_rate, 1),
+            "status_label": _workload_status_label(load_rate),
+            "project_assignments_count": len(assignments_by_trainer.get(trainer.id, [])),
+            "open_objectives_count": OneToOneObjective.objects.filter(trainer=trainer).exclude(
+                status=ObjectiveStatus.DONE
+            ).count(),
+        })
+
+    team_rows = sorted(team_rows, key=lambda x: x["load_rate"], reverse=True)[:5]
+    team_load_avg = round((total_load_rate / Decimal(len(active_trainers))), 1) if active_trainers else Decimal("0.0")
+
+    # =========================================================
+    # Partners snapshot
+    # =========================================================
+    partners_active = Client.objects.filter(is_partner=True).count()
+
+    sessions_partners_month = Session.objects.filter(
+        client__is_partner=True,
+        start_date__isnull=False,
+        start_date__gte=month_start,
+        start_date__lte=month_end,
+    ).count()
+
     return render(request, "trainings/home.html", {
         "today": today,
         "week_start": week_start,
@@ -480,13 +690,27 @@ def home_view(request):
         "week_deadlines_count": week_deadlines_count if week_deadlines_count is not None else "—",
         "week_utilization_pct": week_utilization_pct,
         "utilization_target": utilization_target,
+
         "convocations_alerts": convocations_alerts_list,
         "invoices_alerts": invoices_alerts_list,
         "convocations_alerts_count": convocations_alerts_count,
         "invoices_alerts_count": invoices_alerts_count,
         "alerts_total": alerts_total,
         "can_access_mercure": can_access_mercure,
+
+        "sessions_month": sessions_month,
+        "ca_month": ca_month,
+        "travel_month": travel_month,
+        "upcoming_sessions_short": upcoming_sessions_short,
+
+        "team_rows": team_rows,
+        "team_load_avg": team_load_avg,
+        "overload_count": overload_count,
+
+        "partners_active": partners_active,
+        "sessions_partners_month": sessions_partners_month,
     })
+
 
 
 @staff_member_required
