@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.contrib import admin, messages
 from django import forms
 from django.urls import reverse
@@ -28,6 +30,7 @@ from .models import (
     PartnerContract,
 )
 
+
 # ---------------------------------------------------------
 # Clients
 # ---------------------------------------------------------
@@ -37,11 +40,13 @@ class ClientAdmin(admin.ModelAdmin):
     list_filter = ("is_partner", "country")
     search_fields = ("name", "country")
 
+
 # ---------------------------------------------------------
 # Enregistrements simples
 # ---------------------------------------------------------
 admin.site.register(Room)
 admin.site.register(TrainingType)
+
 
 @admin.register(Registration)
 class RegistrationAdmin(admin.ModelAdmin):
@@ -70,6 +75,7 @@ class RegistrationAdmin(admin.ModelAdmin):
         "session__reference",
         "session__training__title",
     )
+
 
 @admin.register(Training)
 class TrainingAdmin(admin.ModelAdmin):
@@ -108,8 +114,6 @@ class TrainingAdmin(admin.ModelAdmin):
     )
 
 
-
-
 # ---------------------------------------------------------
 # Action admin - Convocations (PDF session + email participants)
 # ---------------------------------------------------------
@@ -132,6 +136,7 @@ def generate_session_invitations(modeladmin, request, queryset):
 
     if ok:
         messages.success(request, f"✅ Terminé pour {ok} session(s).")
+
 
 # ---------------------------------------------------------
 # Referrers
@@ -165,14 +170,12 @@ class TrainerAdmin(admin.ModelAdmin):
 # Participants (import/export + filtrage referrers par client)
 # ---------------------------------------------------------
 class ParticipantResource(resources.ModelResource):
-    # Clé étrangère Client via son nom
     client = fields.Field(
         column_name="client",
         attribute="client",
         widget=ForeignKeyWidget(Client, "name"),
     )
 
-    # Clé étrangère Referrer via son email
     referrer = fields.Field(
         column_name="referrer_email",
         attribute="referrer",
@@ -186,6 +189,7 @@ class ParticipantResource(resources.ModelResource):
         skip_unchanged = True
         report_skipped = True
         import_id_fields = ("email",)
+
 
 @admin.register(Participant)
 class ParticipantAdmin(ImportExportModelAdmin):
@@ -224,6 +228,7 @@ class ParticipantAdmin(ImportExportModelAdmin):
 
         return form
 
+
 # ---------------------------------------------------------
 # Sessions
 # ---------------------------------------------------------
@@ -235,13 +240,11 @@ class SessionAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # Filtrer les trainings selon le training_type (édition)
         if self.instance and self.instance.pk and self.instance.training_type_id:
             self.fields["training"].queryset = Training.objects.filter(
                 training_type_id=self.instance.training_type_id
             )
 
-        # Rendre ces champs indicatifs dans l'admin
         for fname in (
             "applied_session_price_ht",
             "applied_participant_price_ht",
@@ -279,19 +282,18 @@ class SessionAdminForm(forms.ModelForm):
                 training_price = cleaned["applied_session_price_ht"] or Decimal("0.00")
                 cleaned["training_price_ht"] = training_price
                 cleaned["price_ht"] = training_price + travel_fee_ht
+
             elif billing_mode == "INDIVIDUAL":
-                # en individuel, le total formation se recalculera sur les inscriptions
                 existing_training_price = cleaned.get("training_price_ht") or Decimal("0.00")
                 cleaned["training_price_ht"] = existing_training_price
                 cleaned["price_ht"] = existing_training_price + travel_fee_ht
 
         return cleaned
 
-@admin.register(Session)
 
+@admin.register(Session)
 class SessionAdmin(admin.ModelAdmin):
     form = SessionAdminForm
-
     actions = [generate_session_invitations]
 
     list_display = (
@@ -351,6 +353,66 @@ class SessionAdmin(admin.ModelAdmin):
         "create_teams_button",
     )
 
+    fieldsets = (
+        ("Informations session", {
+            "fields": (
+                "bulk_registrations_button",
+                "create_teams_button",
+                "reference",
+                "status",
+                "training_type",
+                "training",
+                "client",
+                "billing_mode",
+                "start_date",
+                "end_date",
+                "days_count",
+                "trainer",
+                "backup_trainer",
+            )
+        }),
+        ("Tarification", {
+            "fields": (
+                "applied_session_price_ht",
+                "applied_participant_price_ht",
+                "training_price_ht",
+                "travel_fee_ht",
+                "price_ht",
+            )
+        }),
+        ("Lieu", {
+            "fields": (
+                "on_client_site",
+                "client_address",
+                "room",
+                "is_abroad",
+            )
+        }),
+        ("Suivi administratif", {
+            "fields": (
+                "software_version",
+                "work_environment",
+                "convocations_sent_at",
+                "teams_meeting_url",
+            )
+        }),
+        ("Clôture de la session", {
+            "fields": (
+                "expected_participants",
+                "present_count",
+                "client_satisfaction",
+                "report_sent_at",
+                "accounting_sheets_sent_at",
+            )
+        }),
+        ("Notes", {
+            "fields": ("notes",)
+        }),
+        ("Métadonnées", {
+            "fields": ("created_at",)
+        }),
+    )
+
     @admin.display(description="Réunion Teams")
     def create_teams_button(self, obj):
         if not obj or not obj.pk:
@@ -360,19 +422,11 @@ class SessionAdmin(admin.ModelAdmin):
             obj.outlook_compose_link()
         )
 
-        def save_model(self, request, obj, form, change):
-            obj.apply_pricing_from_training(save=False)
-            super().save_model(request, obj, form, change)
-            obj.recalculate_prices(save=True)
-        # snapshot tarif depuis la formation / client
+    def save_model(self, request, obj, form, change):
         obj.apply_pricing_from_training(save=False)
-
-        # si collectif, le save du modèle calcule déjà correctement
         super().save_model(request, obj, form, change)
-
-        # recalcul complet après save pour fiabiliser compteurs + total
         obj.recalculate_prices(save=True)
-        
+
     @admin.display(description="Inscriptions en masse")
     def bulk_registrations_button(self, obj):
         if not obj or not obj.pk:
@@ -412,113 +466,16 @@ class SessionAdmin(admin.ModelAdmin):
             present, expected, percent, percent
         )
 
-        fieldsets = (
-            
-            ("Informations session", {
-                "fields": (
-                    "bulk_registrations_button",
-                    "create_teams_button",
-                    "reference",
-                    "status",
-                    "training_type",
-                    "training",
-                    "client",
-                    "billing_mode",
-                    "start_date",
-                    "end_date",
-                    "days_count",
-                    "trainer",
-                    "backup_trainer",
-                )
-            }),
-            ("Tarification", {
-                "fields": (
-                    "applied_session_price_ht",
-                    "applied_participant_price_ht",
-                    "training_price_ht",
-                    "travel_fee_ht",
-                    "price_ht",
-                )
-            }),
-            ("Lieu", {
-                "fields": (
-                    "on_client_site",
-                    "client_address",
-                    "room",
-                    "is_abroad",
-                )
-            }),
-            ("Suivi administratif", {
-                "fields": (
-                    "software_version",
-                    "work_environment",
-                    "convocations_sent_at",
-                    "teams_meeting_url",
-                )
-            }),
-            ("Clôture de la session", {
-                "fields": (
-                    "expected_participants",
-                    "present_count",
-                    "client_satisfaction",
-                    "report_sent_at",
-                    "accounting_sheets_sent_at",
-                )
-            }),
-            ("Notes", {
-                "fields": ("notes",)
-            }),
-            ("Métadonnées", {
-                "fields": ("created_at",)
-            }),
-        )
-
-        ("Lieu", {
-            "fields": ("on_client_site", "client_address", "room")
-        }),
-        ("Suivi administratif", {
-            "fields": (
-                "software_version",
-                "work_environment",
-                "convocations_sent_at",
-                "teams_meeting_url",
-            )
-        }),
-        ("Clôture de la session", {
-            "fields": (
-                "expected_participants",
-                "present_count",
-                "client_satisfaction",
-                "report_sent_at",
-                "accounting_sheets_sent_at",
-            )
-        }),
-        ("Notes", {
-            "fields": ("notes",)
-        }),
-        ("Métadonnées", {
-            "fields": ("created_at",)
-        }),
-    
-
     class Media:
         js = (
             "trainings/session_admin.js",
             "trainings/session_location_admin.js",
         )
 
+
 # ================================================================
 # Gestion suivi prestations formateurs Mercure
 # ================================================================
-
-# trainings/admin.py
-
-
-
-from django.contrib import admin
-from .models import MercureContract, MercureInvoice
-
-
 @admin.register(MercureContract)
 class MercureContractAdmin(admin.ModelAdmin):
     list_display = ("session", "trainer", "status", "sent_date", "signed_date", "created_at")
@@ -533,12 +490,9 @@ class MercureInvoiceAdmin(admin.ModelAdmin):
     search_fields = ("reference", "session__reference", "trainer__first_name", "trainer__last_name")
 
 
-
 # ================================================================
 # Gestion partners
 # ================================================================
-
-
 class PartnerContractPlanSeatInline(admin.TabularInline):
     model = PartnerContractPlanSeat
     extra = 1
@@ -558,10 +512,10 @@ class PartnerContractAdmin(admin.ModelAdmin):
     list_filter = ("status", "plan")
     search_fields = ("partner__name",)
 
+
 # ================================================================
 # Plan de charge formateurs
 # ================================================================
-
 @admin.register(TrainerAbsence)
 class TrainerAbsenceAdmin(admin.ModelAdmin):
     list_display = (

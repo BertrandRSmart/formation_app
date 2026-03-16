@@ -186,10 +186,10 @@
             {{ r_form.as_p }}
 
             <div class="mp-summary">
-              <div>Statut actuel : <strong>{{ reg.get_status_display }}</strong></div>
-              <div>Place offerte : <strong>{% if reg.is_free %}Oui{% else %}Non{% endif %}</strong></div>
-              <div>Taux facturé : <strong>{{ reg.billing_rate_percent }}%</strong></div>
-              <div>Montant facturable : <strong>{{ reg.billed_amount_ht|floatformat:2 }} €</strong></div>
+              <div>Statut actuel : <strong data-summary-status>{{ reg.get_status_display }}</strong></div>
+              <div>Place offerte : <strong data-summary-free>{% if reg.is_free %}Oui{% else %}Non{% endif %}</strong></div>
+              <div>Taux facturé : <strong data-summary-rate>{{ reg.billing_rate_percent }}%</strong></div>
+              <div>Montant facturable : <strong data-summary-amount>{{ reg.billed_amount_ht|floatformat:2 }} €</strong></div>
             </div>
           </div>
         {% endif %}
@@ -203,4 +203,60 @@
     </form>
   </div>
 </div>
+
+{% if mode == "edit" %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const statusField = document.getElementById("id_status");
+  const isFreeField = document.getElementById("id_is_free");
+  const rateField = document.getElementById("id_billing_rate_percent");
+
+  const summaryStatus = document.querySelector("[data-summary-status]");
+  const summaryFree = document.querySelector("[data-summary-free]");
+  const summaryRate = document.querySelector("[data-summary-rate]");
+  const summaryAmount = document.querySelector("[data-summary-amount]");
+
+  const sessionBillingMode = "{{ session.billing_mode|default:'' }}";
+  const baseAmount = parseFloat("{{ reg.applied_unit_price_ht|default_if_none:0 }}".replace(",", ".")) || 0;
+
+  function updateSummary() {
+    const statusText = statusField
+      ? statusField.options[statusField.selectedIndex].text
+      : "{{ reg.get_status_display|escapejs }}";
+
+    const isFree = isFreeField ? isFreeField.checked : {% if reg.is_free %}true{% else %}false{% endif %};
+    const rate = parseFloat(rateField ? rateField.value : "{{ reg.billing_rate_percent|default:0 }}") || 0;
+
+    let amount = 0;
+
+    if (sessionBillingMode === "INDIVIDUAL") {
+      if (isFree) {
+        amount = 0;
+      } else {
+        amount = baseAmount * (rate / 100);
+      }
+    } else {
+      amount = 0;
+    }
+
+    if (summaryStatus) summaryStatus.textContent = statusText;
+    if (summaryFree) summaryFree.textContent = isFree ? "Oui" : "Non";
+    if (summaryRate) summaryRate.textContent = rate + "%";
+    if (summaryAmount) summaryAmount.textContent = amount.toFixed(2) + " €";
+  }
+
+  if (statusField) {
+    statusField.addEventListener("change", updateSummary);
+  }
+  if (isFreeField) {
+    isFreeField.addEventListener("change", updateSummary);
+  }
+  if (rateField) {
+    rateField.addEventListener("change", updateSummary);
+  }
+
+  updateSummary();
+});
+</script>
+{% endif %}
 {% endblock %}

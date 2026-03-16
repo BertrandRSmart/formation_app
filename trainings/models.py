@@ -782,10 +782,19 @@ class Registration(models.Model):
         if self.session.billing_mode == SessionBillingMode.COLLECTIVE:
             self.billed_amount_ht = Decimal("0.00")
         else:
-            if self.applied_unit_price_ht is None and self.session.training_id:
-                self.applied_unit_price_ht = self.session.training.get_participant_price_ht(
-                    is_partner=self.participant_is_partner
-                )
+            if (
+                self.applied_unit_price_ht is None
+                or self.applied_unit_price_ht <= Decimal("0.00")
+            ):
+                session_price = self.session.applied_participant_price_ht
+                if session_price is not None and session_price > Decimal("0.00"):
+                    self.applied_unit_price_ht = session_price
+                elif self.session.training_id:
+                    self.applied_unit_price_ht = self.session.training.get_participant_price_ht(
+                        is_partner=self.participant_is_partner
+                    )
+                else:
+                    self.applied_unit_price_ht = Decimal("0.00")
 
             unit_price = self.applied_unit_price_ht or Decimal("0.00")
 
@@ -812,10 +821,20 @@ class Registration(models.Model):
             if not self.is_free:
                 self.billing_rate_percent = RegistrationBillingRate.FULL
 
-        if self.applied_unit_price_ht is None and self.session_id and self.session.training_id:
-            self.applied_unit_price_ht = self.session.training.get_participant_price_ht(
-                is_partner=self.participant_is_partner
-            )
+        if self.session_id:
+            if (
+                self.applied_unit_price_ht is None
+                or self.applied_unit_price_ht <= Decimal("0.00")
+            ):
+                if (
+                    self.session.applied_participant_price_ht is not None
+                    and self.session.applied_participant_price_ht > Decimal("0.00")
+                ):
+                    self.applied_unit_price_ht = self.session.applied_participant_price_ht
+                elif self.session.training_id:
+                    self.applied_unit_price_ht = self.session.training.get_participant_price_ht(
+                        is_partner=self.participant_is_partner
+                    )
 
         self.compute_billed_amount_ht(save=False)
 
