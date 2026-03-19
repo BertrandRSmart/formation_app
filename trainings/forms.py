@@ -1,7 +1,15 @@
+from __future__ import annotations
+
 from django import forms
 from django.forms import formset_factory
 
-from .models import Session, Participant
+from .models import (
+    MercureContract,
+    MercureInvoice,
+    Participant,
+    Referrer,
+    Session,
+)
 
 
 class BulkRegistrationForm(forms.Form):
@@ -47,7 +55,6 @@ class NewParticipantForm(forms.Form):
     def clean(self):
         data = super().clean()
 
-        # Ligne complètement vide -> OK (on ignore)
         if not any([
             data.get("first_name"),
             data.get("last_name"),
@@ -56,7 +63,6 @@ class NewParticipantForm(forms.Form):
         ]):
             return data
 
-        # Ligne partiellement remplie -> on exige prénom + nom + email
         if not (data.get("first_name") and data.get("last_name") and data.get("email")):
             raise forms.ValidationError(
                 "Pour créer un participant, renseigne au minimum prénom, nom et email."
@@ -67,16 +73,21 @@ class NewParticipantForm(forms.Form):
 
 NewParticipantFormSet = formset_factory(NewParticipantForm, extra=25, can_delete=False)
 
-# Bouton +Nouveau page Suivi paiements Mercure
-
-from django import forms
-from .models import MercureInvoice, MercureContract
-
 
 class MercureInvoiceForm(forms.ModelForm):
     class Meta:
         model = MercureInvoice
-        fields = ["session", "trainer", "reference", "amount_ht", "received_date", "paid_date", "status", "document_path", "notes"]
+        fields = [
+            "session",
+            "trainer",
+            "reference",
+            "amount_ht",
+            "received_date",
+            "paid_date",
+            "status",
+            "document_path",
+            "notes",
+        ]
         widgets = {
             "received_date": forms.DateInput(attrs={"type": "date"}),
             "paid_date": forms.DateInput(attrs={"type": "date"}),
@@ -87,9 +98,61 @@ class MercureInvoiceForm(forms.ModelForm):
 class MercureContractForm(forms.ModelForm):
     class Meta:
         model = MercureContract
-        fields = ["session", "trainer", "status", "sent_date", "signed_date", "notes"]
+        fields = [
+            "session",
+            "trainer",
+            "status",
+            "sent_date",
+            "signed_date",
+            "notes",
+        ]
         widgets = {
             "sent_date": forms.DateInput(attrs={"type": "date"}),
             "signed_date": forms.DateInput(attrs={"type": "date"}),
             "notes": forms.Textarea(attrs={"rows": 4}),
         }
+
+
+class ReferrerQuickForm(forms.ModelForm):
+    class Meta:
+        model = Referrer
+        fields = [
+            "client",
+            "first_name",
+            "last_name",
+            "role",
+            "email",
+            "company_service",
+            "service_address",
+        ]
+        widgets = {
+            "client": forms.Select(attrs={"class": "hub-input"}),
+            "first_name": forms.TextInput(
+                attrs={"class": "hub-input", "placeholder": "Prénom"}
+            ),
+            "last_name": forms.TextInput(
+                attrs={"class": "hub-input", "placeholder": "Nom"}
+            ),
+            "role": forms.TextInput(
+                attrs={"class": "hub-input", "placeholder": "Rôle / fonction"}
+            ),
+            "email": forms.EmailInput(
+                attrs={"class": "hub-input", "placeholder": "Email"}
+            ),
+            "company_service": forms.TextInput(
+                attrs={"class": "hub-input", "placeholder": "Service"}
+            ),
+            "service_address": forms.Textarea(
+                attrs={
+                    "class": "hub-input",
+                    "rows": 3,
+                    "placeholder": "Adresse du service",
+                }
+            ),
+        }
+
+    def clean_email(self):
+        email = (self.cleaned_data.get("email") or "").strip()
+        if not email:
+            return email
+        return email.lower()

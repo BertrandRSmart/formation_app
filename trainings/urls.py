@@ -171,4 +171,6 @@ urlpatterns = [
     
     path("partners/detail/", views.partners_detail, name="partners_detail"),
     path("control-center/", views.control_center_view, name="control_center"),
+
+    path("clients/", views.client_hub, name="client_hub"),
     ]

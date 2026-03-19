@@ -23,10 +23,18 @@ from django.utils.encoding import smart_str
 from django.views.decorators.http import require_POST
 from calendar import monthrange
 from django.db import models
+from .services.participants import get_or_create_participant_identity
 
 from trainings.services.invitations import generate_invitations_for_session
 
-from .forms import BulkRegistrationForm, MercureContractForm, MercureInvoiceForm, NewParticipantFormSet
+from .forms import (
+    BulkRegistrationForm,
+    MercureContractForm,
+    MercureInvoiceForm,
+    NewParticipantFormSet,
+    ReferrerQuickForm,
+)
+
 from .models import (
     Client,
     MercureContract,
@@ -37,6 +45,7 @@ from .models import (
     PartnerContract,
     PartnerContractPlan,
     PartnerContractPlanSeat,
+    Referrer,
     Registration,
     RegistrationStatus,
     Session,
@@ -47,7 +56,6 @@ from .models import (
     SessionStatus,
     TrainerAbsence,
     TrainerWorkloadEntry,
-    
 )
 
 from argonteam.models import (
@@ -791,19 +799,14 @@ def bulk_registrations(request):
                 ]):
                     continue
 
-                participant, _created = Participant.objects.get_or_create(
-                    email=cd["email"],
-                    defaults={
-                        "first_name": cd["first_name"],
-                        "last_name": cd["last_name"],
-                        "company_service": cd.get("company_service") or "",
-                        "client": session.client,
-                    },
+                participant, _created = get_or_create_participant_identity(
+                    first_name=cd["first_name"],
+                    last_name=cd["last_name"],
+                    email=cd.get("email") or "",
+                    client_id=session.client_id,
+                    company_service=cd.get("company_service") or "",
+                    referrer_id=None,
                 )
-
-                if participant.client_id is None:
-                    participant.client = session.client
-                    participant.save(update_fields=["client"])
 
                 selected.append(participant)
 
@@ -842,10 +845,11 @@ def bulk_registrations(request):
 
 @login_required
 def sessions_json(request):
-    """Renvoie les sessions pour FullCalendar avec filtres."""
+    """Renvoie les sessions + absences pour FullCalendar avec filtres."""
 
     client_id = request.GET.get("client_id")
     trainer_id = request.GET.get("trainer_id")
+    show_absences = (request.GET.get("show_absences") or "1").strip() not in ("0", "false", "False", "off")
 
     product = (request.GET.get("product") or "").upper().strip()
     from_str = (request.GET.get("from") or "").strip()
@@ -862,12 +866,51 @@ def sessions_json(request):
         from_date = None
         to_date = None
 
+    def _trainer_full_name(trainer):
+        if not trainer:
+            return ""
+        return f"{trainer.first_name} {trainer.last_name}".strip()
+
+    def _date_label(start_d, end_d):
+        if not start_d:
+            return ""
+        end_d = end_d or start_d
+        if start_d == end_d:
+            return start_d.strftime("%d/%m/%Y")
+        return f"{start_d.strftime('%d/%m/%Y')} → {end_d.strftime('%d/%m/%Y')}"
+
+    def _absence_type_label(absence):
+        for attr in ("absence_type", "type", "category", "reason", "label"):
+            value = getattr(absence, attr, None)
+            if value:
+                return str(value)
+        return "Absence"
+
+    def _absence_notes(absence):
+        for attr in ("comment", "comments", "note", "notes", "description", "reason_detail"):
+            value = getattr(absence, attr, None)
+            if value:
+                return str(value)
+        return ""
+
+    def _absence_color(absence_label: str) -> str:
+        txt = (absence_label or "").lower()
+
+        if "rtt" in txt:
+            return "#f59e0b"
+        if "malad" in txt or "sick" in txt:
+            return "#a855f7"
+        if "cong" in txt or "vac" in txt or "cp" in txt:
+            return "#ef4444"
+        return "#64748b"
+
     qs = Session.objects.select_related(
         "training", "training_type", "client", "trainer", "backup_trainer", "room"
     ).filter(start_date__isnull=False)
 
     if client_id:
         qs = qs.filter(client_id=client_id)
+
     if trainer_id:
         qs = qs.filter(trainer_id=trainer_id)
 
@@ -883,6 +926,7 @@ def sessions_json(request):
         qs = qs.filter(start_date__lte=to_date)
 
     events = []
+
     for session in qs:
         if not session.start_date:
             continue
@@ -899,29 +943,72 @@ def sessions_json(request):
         color = _color_for_training(session.training_id or 0)
 
         events.append({
-            "id": session.id,
+            "id": f"session-{session.id}",
             "title": title,
             "start": session.start_date.isoformat(),
             "end": end_exclusive.isoformat(),
             "allDay": True,
             "backgroundColor": color,
             "borderColor": color,
+            "textColor": "#ffffff",
             "detail_url": f"/sessions/{session.id}/",
             "reference": session.reference or "",
             "work_environment": getattr(session, "work_environment", ""),
             "client": session.client.name if session.client else "",
             "training": session.training.title if session.training else "",
+            "training_title": session.training.title if session.training else "",
             "training_type": session.training_type.name if getattr(session, "training_type", None) else "",
-            "trainer": f"{session.trainer.first_name} {session.trainer.last_name}".strip() if session.trainer else "",
-            "backup_trainer": (
-                f"{session.backup_trainer.first_name} {session.backup_trainer.last_name}".strip()
-                if getattr(session, "backup_trainer", None) else ""
-            ),
+            "trainer": _trainer_full_name(session.trainer),
+            "backup_trainer": _trainer_full_name(getattr(session, "backup_trainer", None)),
             "location": location,
             "start_date": session.start_date.strftime("%d/%m/%Y") if session.start_date else "",
             "end_date": end_date.strftime("%d/%m/%Y") if end_date else "",
+            "dates_label": _date_label(session.start_date, end_date),
             "status": getattr(session, "status", ""),
+            "is_absence": False,
         })
+
+    if show_absences:
+        abs_qs = TrainerAbsence.objects.select_related("trainer").filter(start_date__isnull=False)
+
+        if trainer_id:
+            abs_qs = abs_qs.filter(trainer_id=trainer_id)
+
+        if product in ("ARGONOS", "MERCURE"):
+            abs_qs = abs_qs.filter(trainer__product=product)
+
+        if from_date:
+            abs_qs = abs_qs.filter(end_date__gte=from_date)
+        if to_date:
+            abs_qs = abs_qs.filter(start_date__lte=to_date)
+
+        for absence in abs_qs:
+            start_date = getattr(absence, "start_date", None)
+            end_date = getattr(absence, "end_date", None) or start_date
+            if not start_date:
+                continue
+
+            absence_label = _absence_type_label(absence)
+            trainer_name = _trainer_full_name(getattr(absence, "trainer", None))
+            color = _absence_color(absence_label)
+            end_exclusive = end_date + timedelta(days=1)
+
+            events.append({
+                "id": f"absence-{absence.id}",
+                "title": f"{absence_label} — {trainer_name}".strip(" —"),
+                "start": start_date.isoformat(),
+                "end": end_exclusive.isoformat(),
+                "allDay": True,
+                "backgroundColor": color,
+                "borderColor": color,
+                "textColor": "#ffffff",
+                "display": "block",
+                "trainer": trainer_name,
+                "absence_type": absence_label,
+                "dates_label": _date_label(start_date, end_date),
+                "notes": _absence_notes(absence),
+                "is_absence": True,
+            })
 
     return JsonResponse(events, safe=False)
 
@@ -2955,3 +3042,629 @@ def control_center_view(request):
     }
 
     return render(request, "trainings/control_center.html", context)
+
+# =========================================================
+# Client Hub
+# =========================================================
+
+@login_required
+def client_hub(request):
+    q = (request.GET.get("q") or "").strip()
+    participant_id = (request.GET.get("participant") or "").strip()
+    referrer_id = (request.GET.get("referrer") or "").strip()
+    client_id = (request.GET.get("client") or "").strip()
+    mode = (request.GET.get("mode") or "").strip().lower()
+
+    # ---------------------------------------------------------
+    # Drawer / panel state
+    # ---------------------------------------------------------
+    referrer_panel_mode = ""
+    referrer_edit_target = None
+
+    # ---------------------------------------------------------
+    # Helpers charts
+    # ---------------------------------------------------------
+    def _empty_chart_pack():
+        return {
+            "product_labels": [],
+            "product_values": [],
+            "training_labels": [],
+            "training_session_values": [],
+            "training_participant_values": [],
+            "status_labels": [],
+            "status_values": [],
+            "month_labels": [],
+            "month_values": [],
+        }
+
+    def _session_product_label(session):
+        if getattr(session, "training_type", None) and getattr(session.training_type, "name", None):
+            raw = (session.training_type.name or "").strip()
+        elif getattr(session, "training", None) and getattr(session.training, "training_type", None):
+            raw = (session.training.training_type.name or "").strip()
+        else:
+            raw = ""
+
+        txt = raw.upper()
+        if "ARGONOS" in txt:
+            return "ArgonOS"
+        if "MERCURE" in txt:
+            return "Mercure"
+        return raw or "Autres"
+
+    def _session_training_label(session):
+        if getattr(session, "training", None) and getattr(session.training, "title", None):
+            return session.training.title
+        return "—"
+
+    def _build_chart_pack_from_regs(regs):
+        product_counter = defaultdict(int)
+        training_session_counter = defaultdict(int)
+        training_participant_counter = defaultdict(set)
+        status_counter = defaultdict(int)
+        month_counter = defaultdict(int)
+
+        for reg in regs:
+            session = reg.session
+            product_label = _session_product_label(session)
+            training_label = _session_training_label(session)
+
+            product_counter[product_label] += 1
+            training_session_counter[training_label] += 1
+            training_participant_counter[training_label].add(reg.participant_id)
+            status_counter[reg.get_status_display()] += 1
+
+            if session.start_date:
+                month_key = session.start_date.strftime("%Y-%m")
+                month_counter[month_key] += 1
+
+        product_items = sorted(product_counter.items(), key=lambda x: (-x[1], x[0]))
+        training_items = sorted(training_session_counter.items(), key=lambda x: (-x[1], x[0]))
+        participant_training_items = sorted(
+            ((k, len(v)) for k, v in training_participant_counter.items()),
+            key=lambda x: (-x[1], x[0])
+        )
+        status_items = sorted(status_counter.items(), key=lambda x: (-x[1], x[0]))
+        month_items = sorted(month_counter.items(), key=lambda x: x[0])
+
+        return {
+            "product_labels": [k for k, _ in product_items],
+            "product_values": [v for _, v in product_items],
+
+            "training_labels": [k for k, _ in training_items],
+            "training_session_values": [v for _, v in training_items],
+
+            "training_participant_values": [v for _, v in participant_training_items],
+
+            "status_labels": [k for k, _ in status_items],
+            "status_values": [v for _, v in status_items],
+
+            "month_labels": [k for k, _ in month_items],
+            "month_values": [v for _, v in month_items],
+        }
+
+    # ---------------------------------------------------------
+    # POST actions
+    # ---------------------------------------------------------
+    if request.method == "POST":
+        action = (request.POST.get("action") or "").strip()
+
+        if action == "create_referrer":
+            referrer_form = ReferrerQuickForm(request.POST)
+            referrer_panel_mode = "create"
+
+            if referrer_form.is_valid():
+                new_referrer = referrer_form.save()
+                messages.success(request, "Référent ajouté ✅")
+
+                redirect_client_id = request.POST.get("redirect_client") or ""
+                if redirect_client_id:
+                    return redirect(
+                        f"{reverse('trainings:client_hub')}?client={redirect_client_id}&referrer={new_referrer.id}&mode=referrer"
+                    )
+                return redirect(
+                    f"{reverse('trainings:client_hub')}?referrer={new_referrer.id}&mode=referrer"
+                )
+            else:
+                messages.error(request, "Impossible d'ajouter le référent. Vérifie les champs.")
+
+        elif action == "edit_referrer":
+            referrer_obj = None
+            referrer_obj_id = (request.POST.get("referrer_id") or "").strip()
+            if referrer_obj_id.isdigit():
+                referrer_obj = Referrer.objects.filter(pk=int(referrer_obj_id)).first()
+
+            referrer_panel_mode = "edit"
+            referrer_edit_target = referrer_obj
+
+            if referrer_obj is None:
+                referrer_form = ReferrerQuickForm(request.POST)
+                messages.error(request, "Référent introuvable.")
+            else:
+                referrer_form = ReferrerQuickForm(request.POST, instance=referrer_obj)
+                if referrer_form.is_valid():
+                    updated_referrer = referrer_form.save()
+                    messages.success(request, "Référent modifié ✅")
+
+                    redirect_client_id = request.POST.get("redirect_client") or ""
+                    target_client_id = redirect_client_id or (updated_referrer.client_id or "")
+                    if target_client_id:
+                        return redirect(
+                            f"{reverse('trainings:client_hub')}?client={target_client_id}&referrer={updated_referrer.id}&mode=referrer"
+                        )
+                    return redirect(
+                        f"{reverse('trainings:client_hub')}?referrer={updated_referrer.id}&mode=referrer"
+                    )
+                else:
+                    messages.error(request, "Impossible de modifier le référent. Vérifie les champs.")
+        else:
+            initial = {}
+            if client_id.isdigit():
+                initial["client"] = int(client_id)
+            referrer_form = ReferrerQuickForm(initial=initial)
+
+    else:
+        initial = {}
+        if client_id.isdigit():
+            initial["client"] = int(client_id)
+        referrer_form = ReferrerQuickForm(initial=initial)
+
+    # ---------------------------------------------------------
+    # Base selections
+    # ---------------------------------------------------------
+    participant_results = Participant.objects.none()
+    selected_participant = None
+    selected_referrer = None
+    selected_client = None
+
+    if client_id.isdigit():
+        selected_client = Client.objects.filter(pk=int(client_id)).first()
+        if selected_client and not mode:
+            mode = "client"
+
+    participants_base = Participant.objects.select_related("client", "referrer").all()
+    referrers_base = Referrer.objects.select_related("client").all()
+
+    if selected_client:
+        participants_base = participants_base.filter(client=selected_client)
+        referrers_base = referrers_base.filter(
+            Q(client=selected_client) | Q(participants__client=selected_client)
+        ).distinct()
+
+    if q:
+        participant_results = (
+            participants_base
+            .filter(
+                Q(first_name__icontains=q)
+                | Q(last_name__icontains=q)
+                | Q(email__icontains=q)
+                | Q(company_service__icontains=q)
+                | Q(client__name__icontains=q)
+            )
+            .order_by("last_name", "first_name")[:20]
+        )
+
+    if participant_id.isdigit():
+        selected_participant = (
+            Participant.objects
+            .select_related("client", "referrer", "referrer__client")
+            .filter(pk=int(participant_id))
+            .first()
+        )
+        if selected_participant:
+            mode = "participant"
+            if not selected_client and selected_participant.client_id:
+                selected_client = selected_participant.client
+
+    elif referrer_id.isdigit():
+        selected_referrer = (
+            Referrer.objects
+            .select_related("client")
+            .filter(pk=int(referrer_id))
+            .first()
+        )
+        if selected_referrer:
+            mode = "referrer"
+            if not selected_client and selected_referrer.client_id:
+                selected_client = selected_referrer.client
+
+    elif q and participant_results.count() == 1:
+        selected_participant = participant_results.first()
+        mode = "participant"
+        if not selected_client and selected_participant.client_id:
+            selected_client = selected_participant.client
+
+    if request.method == "GET":
+        panel_action = (request.GET.get("panel") or "").strip().lower()
+        if panel_action == "create_referrer":
+            referrer_panel_mode = "create"
+            initial = {}
+            if selected_client:
+                initial["client"] = selected_client.id
+            elif client_id.isdigit():
+                initial["client"] = int(client_id)
+            referrer_form = ReferrerQuickForm(initial=initial)
+
+        elif panel_action == "edit_referrer" and selected_referrer:
+            referrer_panel_mode = "edit"
+            referrer_edit_target = selected_referrer
+            referrer_form = ReferrerQuickForm(instance=selected_referrer)
+
+    # ---------------------------------------------------------
+    # Vue client
+    # ---------------------------------------------------------
+    client_kpis = {}
+    client_referrers = []
+    client_participants = []
+    client_session_rows = []
+    client_charts = _empty_chart_pack()
+
+    if selected_client:
+        client_referrers_qs = (
+            Referrer.objects
+            .select_related("client")
+            .filter(Q(client=selected_client) | Q(participants__client=selected_client))
+            .distinct()
+            .order_by("last_name", "first_name")
+        )
+
+        client_participants_qs = (
+            Participant.objects
+            .select_related("client", "referrer")
+            .filter(client=selected_client)
+            .order_by("last_name", "first_name")
+        )
+
+        client_regs_qs = (
+            Registration.objects
+            .select_related(
+                "participant",
+                "participant__client",
+                "participant__referrer",
+                "session",
+                "session__training",
+                "session__training_type",
+                "session__trainer",
+                "session__client",
+                "session__room",
+            )
+            .filter(participant__client=selected_client)
+            .order_by("-session__start_date", "-id")
+        )
+
+        client_referrers = list(client_referrers_qs)
+        client_participants_list = list(client_participants_qs)
+        client_regs = list(client_regs_qs)
+
+        session_ids = {r.session_id for r in client_regs}
+        training_ids = {
+            r.session.training_id for r in client_regs
+            if getattr(r.session, "training_id", None)
+        }
+
+        today = timezone.localdate()
+        future_regs = [r for r in client_regs if r.session.start_date and r.session.start_date > today]
+        last_activity = client_regs[0].session if client_regs else None
+        next_activity = future_regs[-1].session if future_regs else None
+
+        client_kpis = {
+            "referrers_count": len(client_referrers),
+            "participants_count": len(client_participants_list),
+            "sessions_count": len(session_ids),
+            "trainings_count": len(training_ids),
+            "present_count": sum(1 for r in client_regs if r.status == RegistrationStatus.PRESENT),
+            "last_activity": last_activity,
+            "next_activity": next_activity,
+        }
+
+        participant_stats = defaultdict(lambda: {
+            "sessions_count": 0,
+            "last_session": None,
+            "next_session": None,
+        })
+
+        for reg in client_regs:
+            stats = participant_stats[reg.participant_id]
+            stats["sessions_count"] += 1
+
+            sdate = reg.session.start_date
+            if sdate:
+                if not stats["last_session"] or (
+                    stats["last_session"].start_date
+                    and sdate > stats["last_session"].start_date
+                    and sdate <= today
+                ):
+                    stats["last_session"] = reg.session
+
+                if sdate > today:
+                    if not stats["next_session"] or (
+                        stats["next_session"].start_date
+                        and sdate < stats["next_session"].start_date
+                    ):
+                        stats["next_session"] = reg.session
+
+            client_session_rows.append({
+                "participant": reg.participant,
+                "registration": reg,
+                "session": reg.session,
+                "training_title": reg.session.training.title if reg.session.training else "—",
+                "training_type": reg.session.training_type.name if reg.session.training_type else "—",
+                "trainer_name": (
+                    f"{reg.session.trainer.first_name} {reg.session.trainer.last_name}".strip()
+                    if reg.session.trainer else "—"
+                ),
+            })
+
+        client_participants = []
+        for p in client_participants_list:
+            stats = participant_stats[p.id]
+            client_participants.append({
+                "participant": p,
+                "sessions_count": stats["sessions_count"],
+                "last_session": stats["last_session"],
+                "next_session": stats["next_session"],
+            })
+
+        client_charts = _build_chart_pack_from_regs(client_regs)
+
+    # ---------------------------------------------------------
+    # Vue participant
+    # ---------------------------------------------------------
+    participant_kpis = {}
+    participant_rows = []
+    participant_related_same_client = []
+    participant_related_same_referrer = []
+
+    if selected_participant:
+        regs = list(
+            Registration.objects
+            .select_related(
+                "session",
+                "session__training",
+                "session__training_type",
+                "session__client",
+                "session__trainer",
+                "session__room",
+            )
+            .filter(participant=selected_participant)
+            .order_by("-session__start_date", "-id")
+        )
+
+        total_sessions = len(regs)
+        present_count = sum(1 for r in regs if r.status == RegistrationStatus.PRESENT)
+        absent_count = sum(1 for r in regs if r.status == RegistrationStatus.ABSENT)
+        canceled_count = sum(1 for r in regs if r.status == RegistrationStatus.CANCELED)
+
+        distinct_trainings = len({
+            r.session.training_id for r in regs if getattr(r.session, "training_id", None)
+        })
+
+        today = timezone.localdate()
+        past_regs = [r for r in regs if r.session.start_date and r.session.start_date <= today]
+        future_regs = [r for r in regs if r.session.start_date and r.session.start_date > today]
+
+        last_session = past_regs[0].session if past_regs else (regs[0].session if regs else None)
+        next_session = future_regs[-1].session if future_regs else None
+
+        participant_kpis = {
+            "total_sessions": total_sessions,
+            "present_count": present_count,
+            "absent_count": absent_count,
+            "canceled_count": canceled_count,
+            "distinct_trainings": distinct_trainings,
+            "last_session": last_session,
+            "next_session": next_session,
+        }
+
+        for reg in regs:
+            session = reg.session
+            participant_rows.append({
+                "registration": reg,
+                "session": session,
+                "training_title": session.training.title if session.training else "—",
+                "training_type": session.training_type.name if session.training_type else "—",
+                "client_name": session.client.name if session.client else "—",
+                "trainer_name": (
+                    f"{session.trainer.first_name} {session.trainer.last_name}".strip()
+                    if session.trainer else "—"
+                ),
+                "location": (
+                    session.client_address if session.on_client_site else (session.room.name if session.room else "—")
+                ),
+            })
+
+        if selected_participant.client_id:
+            participant_related_same_client = list(
+                Participant.objects
+                .select_related("client", "referrer")
+                .filter(client_id=selected_participant.client_id)
+                .exclude(pk=selected_participant.pk)
+                .order_by("last_name", "first_name")[:8]
+            )
+
+        if selected_participant.referrer_id:
+            participant_related_same_referrer = list(
+                Participant.objects
+                .select_related("client", "referrer")
+                .filter(referrer_id=selected_participant.referrer_id)
+                .exclude(pk=selected_participant.pk)
+                .order_by("last_name", "first_name")[:8]
+            )
+
+    # ---------------------------------------------------------
+    # Vue référent
+    # ---------------------------------------------------------
+    referrer_kpis = {}
+    referrer_participants = []
+    referrer_session_rows = []
+    referrer_charts = _empty_chart_pack()
+
+    if selected_referrer:
+        linked_participants_qs = (
+            Participant.objects
+            .select_related("client", "referrer")
+            .filter(referrer=selected_referrer)
+            .order_by("last_name", "first_name")
+        )
+
+        referrer_participants_list = list(linked_participants_qs)
+        participant_ids = [p.id for p in referrer_participants_list]
+
+        registrations_qs = (
+            Registration.objects
+            .select_related(
+                "participant",
+                "session",
+                "session__training",
+                "session__training_type",
+                "session__client",
+                "session__trainer",
+                "session__room",
+            )
+            .filter(participant_id__in=participant_ids)
+            .order_by("-session__start_date", "-id")
+        ) if participant_ids else Registration.objects.none()
+
+        registrations_list = list(registrations_qs)
+
+        sessions_distinct_ids = {r.session_id for r in registrations_list}
+        trainings_distinct_ids = {
+            r.session.training_id for r in registrations_list if getattr(r.session, "training_id", None)
+        }
+
+        today = timezone.localdate()
+        future_regs = [r for r in registrations_list if r.session.start_date and r.session.start_date > today]
+        last_activity = registrations_list[0].session if registrations_list else None
+        next_activity = future_regs[-1].session if future_regs else None
+
+        referrer_kpis = {
+            "participants_count": len(referrer_participants_list),
+            "sessions_count": len(sessions_distinct_ids),
+            "trainings_count": len(trainings_distinct_ids),
+            "present_count": sum(1 for r in registrations_list if r.status == RegistrationStatus.PRESENT),
+            "last_activity": last_activity,
+            "next_activity": next_activity,
+        }
+
+        participant_stats = defaultdict(lambda: {
+            "count": 0,
+            "last_session": None,
+            "next_session": None,
+        })
+
+        for reg in registrations_list:
+            stats = participant_stats[reg.participant_id]
+            stats["count"] += 1
+
+            session_date = reg.session.start_date
+            if session_date:
+                if not stats["last_session"] or (
+                    stats["last_session"].start_date
+                    and session_date > stats["last_session"].start_date
+                    and session_date <= today
+                ):
+                    stats["last_session"] = reg.session
+
+                if session_date > today:
+                    if not stats["next_session"] or (
+                        stats["next_session"].start_date
+                        and session_date < stats["next_session"].start_date
+                    ):
+                        stats["next_session"] = reg.session
+
+            referrer_session_rows.append({
+                "participant": reg.participant,
+                "registration": reg,
+                "session": reg.session,
+                "training_title": reg.session.training.title if reg.session.training else "—",
+                "trainer_name": (
+                    f"{reg.session.trainer.first_name} {reg.session.trainer.last_name}".strip()
+                    if reg.session.trainer else "—"
+                ),
+            })
+
+        for participant in referrer_participants_list:
+            stats = participant_stats[participant.id]
+            referrer_participants.append({
+                "participant": participant,
+                "trainings_count": stats["count"],
+                "last_session": stats["last_session"],
+                "next_session": stats["next_session"],
+            })
+
+        referrer_charts = _build_chart_pack_from_regs(registrations_list)
+
+    # ---------------------------------------------------------
+    # Mode fallback
+    # ---------------------------------------------------------
+    if not mode:
+        if selected_participant:
+            mode = "participant"
+        elif selected_referrer:
+            mode = "referrer"
+        elif selected_client:
+            mode = "client"
+        else:
+            mode = "client"
+
+    referrer_options = referrers_base.order_by("last_name", "first_name")
+    client_options = Client.objects.order_by("name")
+
+    context = {
+        "q": q,
+        "mode": mode,
+        "selected_client_id": client_id,
+        "selected_referrer_id": referrer_id,
+        "selected_participant_id": participant_id,
+
+        "client_options": client_options,
+        "referrer_options": referrer_options,
+        "participant_results": participant_results,
+
+        "selected_client": selected_client,
+        "selected_participant": selected_participant,
+        "selected_referrer": selected_referrer,
+
+        "client_kpis": client_kpis,
+        "client_referrers": client_referrers,
+        "client_participants": client_participants,
+        "client_session_rows": client_session_rows,
+        "client_charts": client_charts,
+
+        "participant_kpis": participant_kpis,
+        "participant_rows": participant_rows,
+        "participant_related_same_client": participant_related_same_client,
+        "participant_related_same_referrer": participant_related_same_referrer,
+
+        "referrer_kpis": referrer_kpis,
+        "referrer_participants": referrer_participants,
+        "referrer_session_rows": referrer_session_rows,
+        "referrer_charts": referrer_charts,
+
+        "referrer_form": referrer_form,
+        "referrer_panel_mode": referrer_panel_mode,
+        "referrer_edit_target": referrer_edit_target,
+
+        # Variables attendues par le template pour les graphiques client
+        "client_chart_product_labels": client_charts["product_labels"],
+        "client_chart_product_values": client_charts["product_values"],
+        "client_chart_training_labels": client_charts["training_labels"],
+        "client_chart_training_session_values": client_charts["training_session_values"],
+        "client_chart_training_participant_values": client_charts["training_participant_values"],
+        "client_chart_status_labels": client_charts["status_labels"],
+        "client_chart_status_values": client_charts["status_values"],
+        "client_chart_month_labels": client_charts["month_labels"],
+        "client_chart_month_values": client_charts["month_values"],
+
+        # Variables attendues pour une future vue graphique référent
+        "referrer_chart_product_labels": referrer_charts["product_labels"],
+        "referrer_chart_product_values": referrer_charts["product_values"],
+        "referrer_chart_training_labels": referrer_charts["training_labels"],
+        "referrer_chart_training_session_values": referrer_charts["training_session_values"],
+        "referrer_chart_training_participant_values": referrer_charts["training_participant_values"],
+        "referrer_chart_status_labels": referrer_charts["status_labels"],
+        "referrer_chart_status_values": referrer_charts["status_values"],
+        "referrer_chart_month_labels": referrer_charts["month_labels"],
+        "referrer_chart_month_values": referrer_charts["month_values"],
+    }
+    return render(request, "trainings/client_hub.html", context)

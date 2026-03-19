@@ -20,8 +20,11 @@ urlpatterns = [
     path("alerts/<int:pk>/edit/", views.alerts_edit, name="alerts_edit"),
 
     path("dashboard/", views.trainer_eval_dashboard, name="dashboard"),
+
     path("api/rubrics/", views.rubrics_by_training, name="rubrics_by_training"),
+    path("api/criteria/", views.criteria_by_rubric, name="criteria_by_rubric"),                 # <-- AJOUT
+    path("api/internal-evaluations/add-criterion/", views.internal_eval_add_criterion, name="internal_eval_add_criterion"),  # <-- AJOUT
 
     path("api/project-steps/", views.project_steps_by_project, name="project_steps_by_project"),
     path("api/project-rubrics/", views.project_rubrics_by_category, name="project_rubrics_by_category"),
-    ]
+]

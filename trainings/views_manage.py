@@ -18,6 +18,8 @@ from .views import manager_required
 from django.http import FileResponse, Http404
 from .services.invitations import generate_invitation_for_registration
 
+from .services.participants import get_or_create_participant_identity
+
 # =========================================================
 # Helpers
 # =========================================================
@@ -215,39 +217,61 @@ def session_participant_add(request, session_id):
         p_form = ParticipantForm(request.POST)
 
         if p_form.is_valid():
-            participant = p_form.save(commit=False)
+            cd = p_form.cleaned_data
+
+            first_name = cd.get("first_name") or ""
+            last_name = cd.get("last_name") or ""
+            email = cd.get("email") or ""
+            company_service = cd.get("company_service") or ""
+            client = cd.get("client")
+            referrer = cd.get("referrer")
 
             # on lit le flag envoyé par le bouton "Forcer l’inscription"
             force_prerequisite = (request.POST.get("force_prerequisite") == "1")
 
             # vérification prérequis uniquement si on ne force pas
             if not force_prerequisite:
-                ok, msg = check_initiation_prereq(session, participant.email)
+                ok, msg = check_initiation_prereq(session, email)
                 if not ok:
                     messages.error(request, msg)
                     return _redirect_to_manage_home(request, session=session.id)
 
-            # on sauve le participant
-            participant.save()
+            participant, created_participant = get_or_create_participant_identity(
+                first_name=first_name,
+                last_name=last_name,
+                email=email,
+                client_id=client.id if client else None,
+                company_service=company_service,
+                referrer_id=referrer.id if referrer else None,
+            )
 
             # éviter les doublons d'inscription
-            reg, created = Registration.objects.get_or_create(
+            reg, created_registration = Registration.objects.get_or_create(
                 session=session,
                 participant=participant,
                 defaults={"status": RegistrationStatus.INVITED},
             )
 
-            if created:
+            if created_registration:
                 reg.save()  # force le calcul initial
                 session.recalculate_prices(save=True)
 
-                if force_prerequisite:
-                    messages.warning(
-                        request,
-                        "Participant ajouté avec dérogation de prérequis ⚠️"
-                    )
+                if created_participant:
+                    if force_prerequisite:
+                        messages.warning(
+                            request,
+                            "Nouveau participant créé et ajouté avec dérogation de prérequis ⚠️"
+                        )
+                    else:
+                        messages.success(request, "Nouveau participant créé et ajouté à la session ✅")
                 else:
-                    messages.success(request, "Participant ajouté à la session ✅")
+                    if force_prerequisite:
+                        messages.warning(
+                            request,
+                            "Participant existant réutilisé et ajouté avec dérogation de prérequis ⚠️"
+                        )
+                    else:
+                        messages.success(request, "Participant existant réutilisé et ajouté à la session ✅")
             else:
                 session.recalculate_prices(save=True)
                 messages.info(request, "Ce participant est déjà inscrit à cette session.")
@@ -256,7 +280,7 @@ def session_participant_add(request, session_id):
             messages.error(request, "Formulaire invalide. Vérifie les champs.")
 
     return _redirect_to_manage_home(request, session=session.id)
-
+    
 @manager_required
 def session_participant_edit(request, session_id, registration_id):
     session = get_object_or_404(Session, pk=session_id)

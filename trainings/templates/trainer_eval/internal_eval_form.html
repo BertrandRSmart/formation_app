@@ -6,7 +6,6 @@
 
 {% block extra_head %}
 <style>
-  /* --- page cadrée --- */
   html, body { height:100%; margin:0; }
   body { overflow:hidden !important; }
   main { height:100%; overflow:hidden; }
@@ -43,15 +42,19 @@
     gap: 12px;
   }
 
-  /* --- NEW: split layout --- */
   .split{
     flex: 1 1 auto;
     min-height: 0;
     padding: 16px;
     display: grid;
-    grid-template-columns: 1.05fr 0.95fr; /* gauche un poil plus large */
+    grid-template-columns: 0.72fr 1.28fr;
     gap: 14px;
     overflow:hidden;
+    transition: grid-template-columns .22s ease;
+  }
+
+  .split.is-collapsed{
+    grid-template-columns: 68px minmax(0, 1fr);
   }
 
   .col{
@@ -63,21 +66,114 @@
     padding: 14px;
   }
 
+  .left-col{
+    position: relative;
+    transition: padding .22s ease;
+  }
+
+  .split.is-collapsed .left-col{
+    padding: 10px;
+    overflow: hidden;
+  }
+
+  .left-topbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    margin-bottom:10px;
+  }
+
+  .collapse-btn{
+    appearance:none;
+    border:none;
+    cursor:pointer;
+    width:36px;
+    min-width:36px;
+    height:36px;
+    border-radius:12px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    color:white;
+    font-size:16px;
+    font-weight:900;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    transition:.18s ease;
+  }
+
+  .collapse-btn:hover{
+    filter: brightness(1.08);
+  }
+
+  .collapsed-badge{
+    display:none;
+    width:100%;
+    height:100%;
+    align-items:center;
+    justify-content:center;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    font-weight:950;
+    letter-spacing:.08em;
+    opacity:.85;
+    text-transform:uppercase;
+    font-size:11px;
+  }
+
+  .left-content{
+    display:block;
+  }
+
+  .split.is-collapsed .left-content{
+    display:none;
+  }
+
+  .split.is-collapsed .collapsed-badge{
+    display:flex;
+  }
+
   .col-title{
     font-weight: 950;
     margin: 0 0 10px;
     opacity:.95;
   }
+
   .col-sub{
     margin: -6px 0 12px;
     font-size: 12px;
     opacity:.7;
   }
 
-  /* --- form fields --- */
-  .grid{ display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
-  .field label{ display:block; font-size:12px; opacity:.85; font-weight:900; margin-bottom:6px; }
-  .field input, .field select, .field textarea{
+  .stack{
+    display:grid;
+    gap:12px;
+  }
+
+  .grid{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .grid-1{
+    display:grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .field label{
+    display:block;
+    font-size:12px;
+    opacity:.85;
+    font-weight:900;
+    margin-bottom:6px;
+  }
+
+  .field input,
+  .field select,
+  .field textarea{
     width:100%;
     padding: 10px 12px;
     border-radius: 12px;
@@ -86,11 +182,86 @@
     color: white;
     font-weight: 900;
     outline:none;
+    box-sizing:border-box;
   }
-  .field textarea{ min-height: 84px; }
 
-  /* --- scores table --- */
-  .scores{ border-radius: 16px; border: 1px solid rgba(255,255,255,0.08); overflow:hidden; }
+  .field textarea{
+    min-height: 76px;
+    resize: vertical;
+  }
+
+  .field textarea.compact{
+    min-height: 64px;
+  }
+
+  .field textarea.tall{
+    min-height: 96px;
+  }
+
+  .meta-card,
+  .comments-card,
+  .save-card,
+  .mini-form{
+    border-radius:16px;
+    border:1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.025);
+    padding:12px;
+  }
+
+  .section-title{
+    margin:0 0 8px;
+    font-size:13px;
+    font-weight:950;
+    opacity:.96;
+  }
+
+  .hint{
+    font-size:12px;
+    opacity:.68;
+    margin-top:-2px;
+    margin-bottom:10px;
+  }
+
+  .errors{
+    color:#ffb4b4;
+    font-weight:900;
+    margin-top:6px;
+    font-size:12px;
+  }
+
+  details.fold{
+    border-radius:14px;
+    border:1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.02);
+    overflow:hidden;
+  }
+
+  details.fold summary{
+    list-style:none;
+    cursor:pointer;
+    padding:12px 14px;
+    font-weight:950;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+  }
+
+  details.fold summary::-webkit-details-marker{
+    display:none;
+  }
+
+  .fold-body{
+    padding:0 12px 12px;
+  }
+
+  .scores{
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.08);
+    overflow:hidden;
+    background: rgba(255,255,255,0.02);
+  }
+
   .scores-head{
     padding: 10px 12px;
     border-bottom: 1px solid rgba(255,255,255,0.08);
@@ -100,17 +271,81 @@
     top: 0;
     z-index: 5;
   }
-  table{ width:100%; border-collapse: collapse; }
-  th, td{ padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.06); vertical-align: top; font-size: 13px; }
-  th{ text-transform: uppercase; letter-spacing: .9px; font-size: 11px; opacity:.8; text-align:left; }
-  td input[type="number"]{ width: 90px; }
+
+  table{
+    width:100%;
+    border-collapse: collapse;
+  }
+
+  th, td{
+    padding: 12px 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    vertical-align: top;
+    font-size: 13px;
+  }
+
+  th{
+    text-transform: uppercase;
+    letter-spacing: .9px;
+    font-size: 11px;
+    opacity:.8;
+    text-align:left;
+  }
+
+  th.col-criterion, td.col-criterion{
+    width: 52%;
+  }
+
+  th.col-score, td.col-score{
+    width: 72px;
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+
+  th.col-comment, td.col-comment{
+    width: 300px;
+  }
+
+  td input[type="number"]{
+    width: 64px;
+    min-width: 64px;
+    max-width: 64px;
+  }
+
+  .col-comment textarea,
+  td.col-comment textarea{
+    width: 100%;
+    min-width: 100%;
+    min-height: 64px;
+    box-sizing: border-box;
+  }
+
+  .criterion-title{
+    font-weight:950;
+    line-height:1.25;
+    margin-bottom:3px;
+    max-width: 95%;
+  }
+
+  .criterion-meta{
+    opacity:.72;
+    font-size:12px;
+  }
+
+  .criterion-desc{
+    opacity:.75;
+    font-size:12px;
+    margin-top:4px;
+  }
 
   .actions{
     display:flex;
     justify-content:flex-end;
     gap: 10px;
-    padding-top: 12px;
+    padding-top: 4px;
+    flex-wrap:wrap;
   }
+
   .btn{
     padding: 10px 14px;
     border-radius: 12px;
@@ -121,15 +356,66 @@
     cursor:pointer;
     text-decoration:none;
   }
+
   .btn:hover{ filter: brightness(1.06); }
 
-  /* responsive */
+  .btn-primary{
+    background: linear-gradient(135deg, rgba(58,110,255,0.30), rgba(161,85,255,0.28));
+    border-color: rgba(167,139,250,0.30);
+  }
+
+  .feedback{
+    margin-top:8px;
+    font-size:12px;
+    opacity:.85;
+  }
+
+  @media (max-width: 1250px){
+    .split{
+      grid-template-columns: 0.82fr 1.18fr;
+    }
+
+    .split.is-collapsed{
+      grid-template-columns: 64px minmax(0, 1fr);
+    }
+
+    th.col-comment, td.col-comment{
+      width:280px;
+    }
+  }
+
   @media (max-width: 1100px){
-    .split{ grid-template-columns: 1fr; }
+    .split{
+      grid-template-columns: 1fr;
+    }
+
+    .split.is-collapsed{
+      grid-template-columns: 1fr;
+    }
+
+    .left-col,
+    .split.is-collapsed .left-col{
+      min-height:auto;
+      overflow:auto;
+      padding:14px;
+    }
+
+    .collapsed-badge{
+      display:none !important;
+    }
+
+    .split.is-collapsed .left-content{
+      display:block;
+    }
+
     .grid{ grid-template-columns: 1fr 1fr; }
   }
+
   @media (max-width: 720px){
     .grid{ grid-template-columns: 1fr; }
+    th.col-comment, td.col-comment{
+      width:auto;
+    }
   }
 </style>
 {% endblock %}
@@ -150,127 +436,326 @@
     <form method="post">
       {% csrf_token %}
 
-      <div class="split">
+      <div class="split" id="eval-split-layout">
 
         <!-- LEFT -->
-        <section class="col">
-          <h3 class="col-title">🧾 Context & comments</h3>
-          <div class="col-sub">Trainer, training, rubric + qualitative feedback</div>
+        <section class="col left-col">
+          <div class="left-topbar">
+            <h3 class="col-title" style="margin:0;">🧾 Evaluation context</h3>
+            <button type="button" class="collapse-btn" id="toggle-left-panel" aria-expanded="true" title="Réduire le panneau gauche">
+              ◀
+            </button>
+          </div>
 
-          <div class="grid">
-            {% for field in form %}
-              {% if field.name == "evaluated_on" or field.name == "trainer" or field.name == "training" or field.name == "rubric" %}
-                <div class="field">
-                  {{ field.label_tag }}
-                  {{ field }}
-                  {% if field.errors %}
-                    <div style="color:#ffb4b4; font-weight:900; margin-top:6px;">{{ field.errors }}</div>
-                  {% endif %}
+          <div class="collapsed-badge">Context</div>
+
+          <div class="left-content">
+            <div class="stack">
+
+              <div class="meta-card">
+                <div class="hint">Trainer, training, rubric and evaluation date</div>
+
+                <div class="grid">
+                  {% for field in form %}
+                    {% if field.name == "evaluated_on" or field.name == "trainer" or field.name == "training" or field.name == "rubric" %}
+                      <div class="field">
+                        {{ field.label_tag }}
+                        {{ field }}
+                        {% if field.errors %}
+                          <div class="errors">{{ field.errors }}</div>
+                        {% endif %}
+                      </div>
+                    {% endif %}
+                  {% endfor %}
                 </div>
-              {% endif %}
-            {% endfor %}
-          </div>
+              </div>
 
-          <div class="grid" style="grid-template-columns:1fr 1fr; margin-top:12px;">
-            <div class="field">
-              {{ form.strengths.label_tag }}{{ form.strengths }}
-            </div>
-            <div class="field">
-              {{ form.improvements.label_tag }}{{ form.improvements }}
-            </div>
-          </div>
+              <div class="comments-card">
+                <h3 class="section-title">💬 Quick comments</h3>
+                <div class="grid">
+                  <div class="field">
+                    {{ form.strengths.label_tag }}{{ form.strengths }}
+                  </div>
+                  <div class="field">
+                    {{ form.improvements.label_tag }}{{ form.improvements }}
+                  </div>
+                </div>
+              </div>
 
-          <div class="grid" style="grid-template-columns:1fr 1fr; margin-top:12px;">
-            <div class="field">
-              {{ form.manager_comment.label_tag }}{{ form.manager_comment }}
-            </div>
-            <div class="field">
-              {{ form.trainer_comment.label_tag }}{{ form.trainer_comment }}
-            </div>
-          </div>
+              <details class="fold">
+                <summary>
+                  <span>🗂️ Advanced comments</span>
+                  <span style="opacity:.7;">manager / trainer</span>
+                </summary>
+                <div class="fold-body">
+                  <div class="grid-1">
+                    <div class="field">
+                      {{ form.manager_comment.label_tag }}{{ form.manager_comment }}
+                    </div>
+                    <div class="field">
+                      {{ form.trainer_comment.label_tag }}{{ form.trainer_comment }}
+                    </div>
+                  </div>
+                </div>
+              </details>
 
-          <div class="actions">
-            <button class="btn" type="submit">Save</button>
-            {% if mode == "edit" %}
-              <a class="btn" href="{% url 'trainer_eval:internal_eval_list' %}">Done</a>
-            {% endif %}
+              <div class="save-card">
+                <div class="grid" style="grid-template-columns:1fr 1fr;">
+                  {% if form.decision %}
+                    <div class="field">
+                      {{ form.decision.label_tag }}
+                      {{ form.decision }}
+                    </div>
+                  {% endif %}
+                  <div class="field">
+                    <label>Actions</label>
+                    <div class="actions" style="justify-content:flex-start; padding-top:0;">
+                      <button class="btn btn-primary" type="submit">Save</button>
+                      {% if mode == "edit" %}
+                        <a class="btn" href="{% url 'trainer_eval:internal_eval_list' %}">Done</a>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
           </div>
         </section>
 
         <!-- RIGHT -->
         <section class="col">
           <h3 class="col-title">✅ Criteria scores</h3>
-          <div class="col-sub">Score each criterion (0–5) + optional comment</div>
+          <div class="col-sub">Score each criterion + optional comment</div>
 
           <div class="scores">
             <div class="scores-head">Criteria scores</div>
 
-            {{ formset.management_form }}
+            {% if mode == "edit" %}
+              {{ formset.management_form }}
 
-            <table>
-              <thead>
-                <tr>
-                  <th>Criterion</th>
-                  <th style="width:120px;">Score (0-5)</th>
-                  <th>Comment</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% if formset.forms %}
-                  {% for f in formset.forms %}
-                    <tr>
-                      <td>
-                        {{ f.criterion }}
-                        {% if f.instance.criterion %}
-                          <div style="font-weight:950;">{{ f.instance.criterion.label }}</div>
-                          <div style="opacity:.7; font-size:12px;">{{ f.instance.criterion.get_section_display }}</div>
-                        {% else %}
-                          <div style="font-weight:950; opacity:.75;">(criterion)</div>
-                        {% endif %}
-                      </td>
-                      <td>{{ f.score }}</td>
-                      <td>{{ f.comment }}</td>
-                    </tr>
-                  {% endfor %}
-                {% else %}
+              <table>
+                <thead>
                   <tr>
-                    <td colspan="3" style="opacity:.75;">
-                      No rubric scores yet. Save once, then edit.
-                    </td>
+                    <th class="col-criterion">Criterion</th>
+                    <th class="col-score">Score</th>
+                    <th class="col-comment">Comment</th>
                   </tr>
+                </thead>
+                <tbody>
+                  {% if formset.forms %}
+                    {% for f in formset.forms %}
+                      <tr>
+                        <td class="col-criterion">
+                          {{ f.criterion }}
+                          {% if f.instance.criterion %}
+                            <div class="criterion-title">{{ f.instance.criterion.label }}</div>
+                            <div class="criterion-meta">
+                              {{ f.instance.criterion.get_section_display }}
+                              {% if f.instance.criterion.max_score %}• max {{ f.instance.criterion.max_score }}{% endif %}
+                              {% if f.instance.criterion.weight %}• weight {{ f.instance.criterion.weight }}{% endif %}
+                            </div>
+                          {% else %}
+                            <div class="criterion-title" style="opacity:.75;">(criterion)</div>
+                          {% endif %}
+                        </td>
+                        <td class="col-score">{{ f.score }}</td>
+                        <td class="col-comment">{{ f.comment }}</td>
+                      </tr>
+                    {% endfor %}
+                  {% else %}
+                    <tr>
+                      <td colspan="3" style="opacity:.75;">
+                        No criteria available for this rubric.
+                      </td>
+                    </tr>
+                  {% endif %}
+                </tbody>
+              </table>
+
+            {% else %}
+              <div id="criteria-create-wrap">
+                {% if create_criteria %}
+                  <table>
+                    <thead>
+                      <tr>
+                        <th class="col-criterion">Criterion</th>
+                        <th class="col-score">Score</th>
+                        <th class="col-comment">Comment</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for criterion in create_criteria %}
+                        <tr data-criterion-id="{{ criterion.id }}">
+                          <td class="col-criterion">
+                            <div class="criterion-title">{{ criterion.label }}</div>
+                            <div class="criterion-meta">
+                              {{ criterion.get_section_display }}
+                              {% if criterion.max_score %}• max {{ criterion.max_score }}{% endif %}
+                              {% if criterion.weight %}• weight {{ criterion.weight }}{% endif %}
+                            </div>
+                            {% if criterion.description %}
+                              <div class="criterion-desc">{{ criterion.description }}</div>
+                            {% endif %}
+                          </td>
+                          <td class="col-score">
+                            <input
+                              type="number"
+                              name="criterion_score_{{ criterion.id }}"
+                              min="0"
+                              max="{{ criterion.max_score }}"
+                              step="1"
+                              value="0"
+                            >
+                          </td>
+                          <td class="col-comment">
+                            <textarea
+                              class="compact"
+                              name="criterion_comment_{{ criterion.id }}"
+                              rows="2"
+                              style="min-height:56px;"
+                            ></textarea>
+                          </td>
+                        </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                {% else %}
+                  <div id="criteria-empty-state" style="padding:12px; opacity:.75;">
+                    Select a training and rubric to display criteria.
+                  </div>
                 {% endif %}
-              </tbody>
-            </table>
+              </div>
+            {% endif %}
+          </div>
+
+          <div class="mini-form">
+            <h3 class="col-title" style="margin:14px 0 8px;">➕ Add criterion</h3>
+            <div class="col-sub">Create a new criterion directly from this page</div>
+
+            <div class="grid">
+              <div class="field">
+                <label>Section</label>
+                {{ criterion_form.section }}
+              </div>
+              <div class="field">
+                <label>Label</label>
+                {{ criterion_form.label }}
+              </div>
+              <div class="field">
+                <label>Weight</label>
+                {{ criterion_form.weight }}
+              </div>
+              <div class="field">
+                <label>Max score</label>
+                {{ criterion_form.max_score }}
+              </div>
+              <div class="field">
+                <label>Sort order</label>
+                {{ criterion_form.sort_order }}
+              </div>
+              <div class="field">
+                <label>Active</label>
+                {{ criterion_form.is_active }}
+              </div>
+            </div>
+
+            <div class="field" style="margin-top:12px;">
+              <label>Description</label>
+              {{ criterion_form.description }}
+            </div>
+
+            <div class="actions">
+              <button class="btn" type="button" id="btn-add-criterion">Add criterion</button>
+            </div>
+
+            <div id="criterion-add-feedback" class="feedback"></div>
           </div>
         </section>
 
       </div>
     </form>
-      
-    </form>
   </div>
 </div>
+
 <script>
 (function(){
   const trainingSel = document.getElementById("id_training");
   const rubricSel = document.getElementById("id_rubric");
-  if(!trainingSel || !rubricSel) return;
+  const criteriaWrap = document.getElementById("criteria-create-wrap");
+  const addCriterionBtn = document.getElementById("btn-add-criterion");
+  const feedbackBox = document.getElementById("criterion-add-feedback");
+  const splitLayout = document.getElementById("eval-split-layout");
+  const toggleLeftBtn = document.getElementById("toggle-left-panel");
 
-  async function refreshRubrics(trainingId){
-    if(!trainingId){
-      rubricSel.innerHTML = '<option value="">---------</option>';
+  function escapeHtml(value){
+    return (value || "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function renderCriteria(criteria){
+    if(!criteriaWrap) return;
+
+    if(!criteria || !criteria.length){
+      criteriaWrap.innerHTML = `
+        <div id="criteria-empty-state" style="padding:12px; opacity:.75;">
+          No active criteria for this rubric.
+        </div>
+      `;
       return;
     }
 
-    const url = "{% url 'trainer_eval:rubrics_by_training' %}" + "?training_id=" + encodeURIComponent(trainingId);
+    criteriaWrap.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th class="col-criterion">Criterion</th>
+            <th class="col-score">Score</th>
+            <th class="col-comment">Comment</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${criteria.map(c => `
+            <tr data-criterion-id="${c.id}">
+              <td class="col-criterion">
+                <div class="criterion-title">${escapeHtml(c.label)}</div>
+                <div class="criterion-meta">
+                  ${escapeHtml(c.section)} • max ${c.max_score} • weight ${c.weight}
+                </div>
+                ${c.description ? `<div class="criterion-desc">${escapeHtml(c.description)}</div>` : ""}
+              </td>
+              <td class="col-score">
+                <input type="number" name="criterion_score_${c.id}" min="0" max="${c.max_score}" step="1" value="0">
+              </td>
+              <td class="col-comment">
+                <textarea class="compact" name="criterion_comment_${c.id}" rows="2" style="min-height:56px;"></textarea>
+              </td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    `;
+  }
+
+  async function loadRubricsForTraining(trainingId){
+    if(!rubricSel) return;
+
+    rubricSel.innerHTML = '<option value="">---------</option>';
+
+    if(!trainingId){
+      renderCriteria([]);
+      return;
+    }
+
+    const url = "{% url 'trainer_eval:rubrics_by_training' %}?training_id=" + encodeURIComponent(trainingId);
     const res = await fetch(url, {headers: {"X-Requested-With":"XMLHttpRequest"}});
     const data = await res.json();
 
-    const current = rubricSel.value;
-    rubricSel.innerHTML = '<option value="">---------</option>';
-
     let firstActiveId = null;
-
     (data.rubrics || []).forEach(r => {
       const opt = document.createElement("option");
       opt.value = r.id;
@@ -279,19 +764,117 @@
       if(r.is_active && !firstActiveId) firstActiveId = String(r.id);
     });
 
-    // on garde la sélection si possible, sinon on prend l'active, sinon rien
-    if(current && [...rubricSel.options].some(o => o.value === current)){
-      rubricSel.value = current;
-    } else if(firstActiveId){
+    if(firstActiveId){
       rubricSel.value = firstActiveId;
+      await loadCriteriaForRubric(firstActiveId);
+    } else {
+      renderCriteria([]);
     }
   }
 
-  trainingSel.addEventListener("change", () => refreshRubrics(trainingSel.value));
+  async function loadCriteriaForRubric(rubricId){
+    if(!rubricId){
+      renderCriteria([]);
+      return;
+    }
 
-  // au chargement : si training déjà pré-rempli, on charge la liste filtrée
-  if(trainingSel.value){
-    refreshRubrics(trainingSel.value);
+    const url = "{% url 'trainer_eval:criteria_by_rubric' %}?rubric_id=" + encodeURIComponent(rubricId);
+    const res = await fetch(url, {headers: {"X-Requested-With":"XMLHttpRequest"}});
+    const data = await res.json();
+    renderCriteria(data.criteria || []);
+  }
+
+  function applyCollapsedState(isCollapsed){
+    if(!splitLayout || !toggleLeftBtn) return;
+
+    splitLayout.classList.toggle("is-collapsed", isCollapsed);
+    toggleLeftBtn.setAttribute("aria-expanded", String(!isCollapsed));
+    toggleLeftBtn.textContent = isCollapsed ? "▶" : "◀";
+    toggleLeftBtn.title = isCollapsed ? "Ouvrir le panneau gauche" : "Réduire le panneau gauche";
+
+    try {
+      localStorage.setItem("bsmart_internal_eval_left_collapsed", isCollapsed ? "1" : "0");
+    } catch(e) {}
+  }
+
+  if(toggleLeftBtn && splitLayout && window.innerWidth > 1100){
+    let savedCollapsed = false;
+    try {
+      savedCollapsed = localStorage.getItem("bsmart_internal_eval_left_collapsed") === "1";
+    } catch(e) {}
+
+    applyCollapsedState(savedCollapsed);
+
+    toggleLeftBtn.addEventListener("click", function(){
+      const nextState = !splitLayout.classList.contains("is-collapsed");
+      applyCollapsedState(nextState);
+    });
+  }
+
+  if(trainingSel){
+    trainingSel.addEventListener("change", () => loadRubricsForTraining(trainingSel.value));
+  }
+
+  if(rubricSel){
+    rubricSel.addEventListener("change", () => loadCriteriaForRubric(rubricSel.value));
+  }
+
+  if(addCriterionBtn){
+    addCriterionBtn.addEventListener("click", async function(){
+      if(!rubricSel || !rubricSel.value){
+        if(feedbackBox) feedbackBox.textContent = "Select a rubric first.";
+        return;
+      }
+
+      const csrfInput = document.querySelector("input[name='csrfmiddlewaretoken']");
+      const section = document.getElementById("id_section");
+      const label = document.getElementById("id_label");
+      const description = document.getElementById("id_description");
+      const weight = document.getElementById("id_weight");
+      const maxScore = document.getElementById("id_max_score");
+      const sortOrder = document.getElementById("id_sort_order");
+      const isActive = document.getElementById("id_is_active");
+
+      const formData = new FormData();
+      formData.append("csrfmiddlewaretoken", csrfInput ? csrfInput.value : "");
+      formData.append("rubric_id", rubricSel.value);
+      formData.append("section", section ? section.value : "");
+      formData.append("label", label ? label.value : "");
+      formData.append("description", description ? description.value : "");
+      formData.append("weight", weight ? weight.value : "1");
+      formData.append("max_score", maxScore ? maxScore.value : "5");
+      formData.append("sort_order", sortOrder ? sortOrder.value : "100");
+      formData.append("is_active", isActive && isActive.checked ? "on" : "");
+
+      const res = await fetch("{% url 'trainer_eval:internal_eval_add_criterion' %}", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if(!res.ok || !data.ok){
+        if(feedbackBox) feedbackBox.textContent = "Unable to add criterion.";
+        return;
+      }
+
+      if(feedbackBox) feedbackBox.textContent = "✅ Criterion added.";
+
+      if(label) label.value = "";
+      if(description) description.value = "";
+      if(weight) weight.value = "1";
+      if(maxScore) maxScore.value = "5";
+      if(sortOrder) sortOrder.value = "100";
+      if(isActive) isActive.checked = true;
+
+      await loadCriteriaForRubric(rubricSel.value);
+    });
+  }
+
+  if(trainingSel && trainingSel.value){
+    loadRubricsForTraining(trainingSel.value);
+  } else if(rubricSel && rubricSel.value){
+    loadCriteriaForRubric(rubricSel.value);
   }
 })();
 </script>

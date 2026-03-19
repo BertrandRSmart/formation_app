@@ -2,6 +2,7 @@ from django import forms
 from django.db.models import Q
 from django.forms import inlineformset_factory
 
+
 from trainings.models import Session
 
 from projects.models import Project, ProjectStep
@@ -11,6 +12,7 @@ from .models import (
     InternalEvaluation,
     EvaluationScore,
     EvaluationRubric,
+    EvaluationCriterion, 
 
     # --- Contributions "points" (déjà existant chez toi) ---
     StrategicContribution,
@@ -117,6 +119,27 @@ EvaluationScoreFormSet = inlineformset_factory(
     can_delete=False,
 )
 
+# ------------------------------------------------------------
+# Ajout de critère depuis la page d'évaluation
+# ------------------------------------------------------------
+class EvaluationCriterionForm(forms.ModelForm):
+    class Meta:
+        model = EvaluationCriterion
+        fields = [
+            "section",
+            "label",
+            "description",
+            "weight",
+            "max_score",
+            "sort_order",
+            "is_active",
+        ]
+        widgets = {
+            "description": forms.Textarea(attrs={"rows": 3}),
+            "weight": forms.NumberInput(attrs={"min": 1, "max": 20, "step": 1}),
+            "max_score": forms.NumberInput(attrs={"min": 1, "max": 20, "step": 1}),
+            "sort_order": forms.NumberInput(attrs={"min": 1, "step": 1}),
+        }
 
 # ------------------------------------------------------------
 # Strategic Contributions (points)
@@ -260,3 +283,5 @@ ProjectScoreFormSet = inlineformset_factory(
     can_delete=False,
 )
 
+
+   

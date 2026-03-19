@@ -20,7 +20,7 @@ from .models import (
     ProjectRubric,
     ProjectContributionEvaluation,
 )
-from .forms import InternalEvaluationForm, EvaluationScoreFormSet
+from .forms import InternalEvaluationForm, EvaluationScoreFormSet, EvaluationCriterionForm
 
 from projects.models import ProjectCategory, Project, ProjectStep
 from django.db.models import Sum
@@ -28,6 +28,8 @@ from django.db.models import Sum
 from projects.models import ProjectCategory, Project, ProjectStep
 from .models import ProjectRubric, ProjectContributionEvaluation, ProjectScore
 from .forms import ProjectContributionEvaluationForm, ProjectScoreFormSet
+
+from django.http import JsonResponse, HttpResponse
 
 
 # ✅ Helpers
@@ -82,44 +84,161 @@ def rubrics_by_training(request):
     return JsonResponse({"rubrics": data})
 
 
+@staff_member_required
+def criteria_by_rubric(request):
+    rubric_id = request.GET.get("rubric_id")
+    if not rubric_id or not rubric_id.isdigit():
+        return JsonResponse({"criteria": []})
+
+    criteria = (
+        EvaluationCriterion.objects
+        .filter(rubric_id=int(rubric_id), is_active=True)
+        .order_by("section", "sort_order", "id")
+    )
+
+    return JsonResponse({
+        "criteria": [
+            {
+                "id": c.id,
+                "section": c.get_section_display(),
+                "label": c.label,
+                "description": c.description or "",
+                "weight": c.weight,
+                "max_score": c.max_score,
+                "sort_order": c.sort_order,
+            }
+            for c in criteria
+        ]
+    })
+
+@staff_member_required
+@transaction.atomic
+def internal_eval_add_criterion(request):
+    if request.method != "POST":
+        return JsonResponse({"ok": False, "error": "Méthode non autorisée."}, status=405)
+
+    rubric_id = request.POST.get("rubric_id")
+    if not rubric_id or not rubric_id.isdigit():
+        return JsonResponse({"ok": False, "error": "Rubric invalide."}, status=400)
+
+    rubric = get_object_or_404(EvaluationRubric, pk=int(rubric_id))
+
+    form = EvaluationCriterionForm(request.POST)
+    if not form.is_valid():
+        return JsonResponse({"ok": False, "errors": form.errors}, status=400)
+
+    criterion = form.save(commit=False)
+    criterion.rubric = rubric
+    criterion.save()
+
+    return JsonResponse({
+        "ok": True,
+        "criterion": {
+            "id": criterion.id,
+            "section": criterion.get_section_display(),
+            "label": criterion.label,
+            "description": criterion.description or "",
+            "weight": criterion.weight,
+            "max_score": criterion.max_score,
+            "sort_order": criterion.sort_order,
+        }
+    })
+
 # -------------------------
 # Internal Evaluations
 # -------------------------
+
 @staff_member_required
 @transaction.atomic
 def internal_eval_create(request):
+    create_criteria = []
+    criterion_form = EvaluationCriterionForm()
+
     if request.method == "POST":
         form = InternalEvaluationForm(request.POST)
+
+        rubric_id = request.POST.get("rubric")
+        if rubric_id and str(rubric_id).isdigit():
+            create_criteria = list(
+                EvaluationCriterion.objects
+                .filter(rubric_id=int(rubric_id), is_active=True)
+                .order_by("section", "sort_order", "id")
+            )
+
         if form.is_valid():
             evaluation = form.save(commit=False)
             evaluation.created_by = request.user
             evaluation.save()
 
-            # ✅ Génère les scores depuis la grille (si une rubric est choisie)
-            if evaluation.rubric and not evaluation.criterion_scores.exists():
-                criteria = (
-                    evaluation.rubric.criteria
-                    .filter(is_active=True)
-                    .order_by("section", "sort_order", "id")
-                )
-                EvaluationScore.objects.bulk_create(
-                    [EvaluationScore(evaluation=evaluation, criterion=c, score=0) for c in criteria]
+            scores_to_create = []
+            for criterion in create_criteria:
+                raw_score = request.POST.get(f"criterion_score_{criterion.id}", "0")
+                raw_comment = request.POST.get(f"criterion_comment_{criterion.id}", "")
+
+                try:
+                    score_value = int(raw_score or 0)
+                except (TypeError, ValueError):
+                    score_value = 0
+
+                score_value = max(0, min(score_value, int(criterion.max_score or 5)))
+
+                scores_to_create.append(
+                    EvaluationScore(
+                        evaluation=evaluation,
+                        criterion=criterion,
+                        score=score_value,
+                        comment=raw_comment or "",
+                    )
                 )
 
-            messages.success(request, "✅ Évaluation créée. Tu peux maintenant noter les critères.")
+            if scores_to_create:
+                EvaluationScore.objects.bulk_create(scores_to_create)
+
+            if hasattr(evaluation, "recompute_rubric_scores"):
+                evaluation.recompute_rubric_scores()
+                evaluation.save(update_fields=[
+                    "rubric_score_total",
+                    "rubric_score_max",
+                    "rubric_score_100",
+                    "decision",
+                ])
+
+            messages.success(request, "✅ Évaluation créée avec les notes par critère.")
             return redirect("trainer_eval:internal_eval_edit", pk=evaluation.pk)
-    else:
-        form = InternalEvaluationForm()
 
-    # En création, on ne montre pas encore les critères (ils seront créés après Save)
+    else:
+        initial = {}
+        training_id = request.GET.get("training")
+        rubric_id = request.GET.get("rubric")
+
+        if training_id and training_id.isdigit():
+            initial["training"] = int(training_id)
+        if rubric_id and rubric_id.isdigit():
+            initial["rubric"] = int(rubric_id)
+
+        form = InternalEvaluationForm(initial=initial)
+
+        selected_rubric_id = initial.get("rubric")
+        if selected_rubric_id:
+            create_criteria = list(
+                EvaluationCriterion.objects
+                .filter(rubric_id=selected_rubric_id, is_active=True)
+                .order_by("section", "sort_order", "id")
+            )
+
     formset = EvaluationScoreFormSet()
 
     return render(
         request,
         "trainer_eval/internal_eval_form.html",
-        {"form": form, "formset": formset, "mode": "create"},
+        {
+            "form": form,
+            "formset": formset,
+            "mode": "create",
+            "create_criteria": create_criteria,
+            "criterion_form": criterion_form,
+        },
     )
-
 
 def _product_filter_q(product: str) -> Q:
     """
@@ -314,7 +433,13 @@ def internal_eval_edit(request, pk):
     return render(
         request,
         "trainer_eval/internal_eval_form.html",
-        {"form": form, "formset": formset, "mode": "edit", "eval_obj": eval_obj},
+        {
+            "form": form,
+            "formset": formset,
+            "mode": "edit",
+            "eval_obj": eval_obj,
+            "criterion_form": EvaluationCriterionForm(),
+        },
     )
 
 

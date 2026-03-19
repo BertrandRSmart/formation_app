@@ -2,66 +2,705 @@
 {% block title %}{% if eval_obj %}Modifier{% else %}Nouvelle{% endif %} évaluation interne{% endblock %}
 
 {% block content %}
-<h1 style="margin:0 0 8px;">{% if eval_obj %}Modifier{% else %}Nouvelle{% endif %} évaluation interne</h1>
-<div style="color:#64748b; margin-bottom:16px;">
-  Laisse “Formation” vide pour une évaluation globale.
+<div style="background:red;color:white;padding:12px;font-size:22px;font-weight:900;">
+  TEMPLATE INTERNAL EVAL TEST
 </div>
 
-<form method="post" style="max-width:780px;">
-  {% csrf_token %}
+<div style="
+  min-height:100vh;
+  padding:92px 18px 24px;
+  box-sizing:border-box;
+  color:rgba(255,255,255,0.92);
+  background:
+    radial-gradient(1200px 600px at 18% -10%, rgba(21,96,130,0.25), transparent 55%),
+    radial-gradient(1000px 600px at 86% 10%, rgba(255,137,233,0.14), transparent 55%),
+    linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.00)),
+    #0B0F14;
+">
 
-  <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-    <div>
-      <label>Formateur</label>
-      {{ form.trainer }}
-      {% for e in form.trainer.errors %}<div style="color:#f87171;">{{ e }}</div>{% endfor %}
+  <style>
+    .ie-shell{
+      max-width:1450px;
+      margin:0 auto;
+      display:grid;
+      grid-template-columns:420px minmax(0,1fr);
+      gap:18px;
+      align-items:start;
+    }
+    .ie-card{
+      border-radius:22px;
+      border:1px solid rgba(255,255,255,0.10);
+      background:linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+      box-shadow:0 20px 60px rgba(0,0,0,0.35);
+      backdrop-filter:blur(10px);
+      overflow:hidden;
+    }
+    .ie-card-head{
+      padding:18px 18px 14px;
+      border-bottom:1px solid rgba(255,255,255,0.08);
+      background:linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.00));
+    }
+    .ie-eyebrow{
+      font-size:11px;
+      text-transform:uppercase;
+      letter-spacing:.16em;
+      color:rgba(255,255,255,0.52);
+      margin-bottom:6px;
+      font-weight:800;
+    }
+    .ie-title{
+      margin:0;
+      font-size:24px;
+      font-weight:950;
+      letter-spacing:.01em;
+    }
+    .ie-sub{
+      margin-top:6px;
+      color:rgba(255,255,255,0.62);
+      font-size:13px;
+      line-height:1.45;
+    }
+    .ie-card-body{ padding:18px; }
+
+    .ie-grid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:12px;
+    }
+    .ie-field{ display:flex; flex-direction:column; gap:6px; }
+    .ie-field-full{ grid-column:1 / -1; }
+
+    .ie-label{
+      font-size:12px;
+      font-weight:800;
+      color:rgba(255,255,255,0.72);
+      letter-spacing:.02em;
+    }
+    .ie-help{
+      color:rgba(255,255,255,0.54);
+      font-size:12px;
+      margin-top:2px;
+    }
+    .ie-errors{
+      margin-top:4px;
+      color:#fca5a5;
+      font-size:12px;
+    }
+
+    .ie-card input,
+    .ie-card select,
+    .ie-card textarea{
+      width:100%;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,0.10);
+      background:rgba(255,255,255,0.05);
+      color:rgba(255,255,255,0.95);
+      padding:10px 12px;
+      outline:none;
+      box-sizing:border-box;
+    }
+    .ie-card textarea{
+      min-height:92px;
+      resize:vertical;
+    }
+    .ie-card input:focus,
+    .ie-card select:focus,
+    .ie-card textarea:focus{
+      border-color:rgba(139,92,246,0.6);
+      box-shadow:0 0 0 3px rgba(139,92,246,0.16);
+    }
+
+    .ie-stats{
+      display:grid;
+      grid-template-columns:repeat(4, 1fr);
+      gap:12px;
+      margin-bottom:16px;
+    }
+    .ie-stat{
+      border-radius:18px;
+      border:1px solid rgba(255,255,255,0.08);
+      background:rgba(255,255,255,0.04);
+      padding:14px;
+    }
+    .ie-stat-label{
+      font-size:11px;
+      text-transform:uppercase;
+      letter-spacing:.12em;
+      color:rgba(255,255,255,0.52);
+      margin-bottom:6px;
+      font-weight:800;
+    }
+    .ie-stat-value{
+      font-size:24px;
+      font-weight:950;
+      color:white;
+    }
+
+    .ie-empty{
+      border-radius:18px;
+      border:1px dashed rgba(255,255,255,0.14);
+      background:rgba(255,255,255,0.03);
+      padding:18px;
+      color:rgba(255,255,255,0.62);
+      line-height:1.5;
+    }
+
+    .ie-criteria{
+      display:grid;
+      gap:14px;
+    }
+    .ie-criterion{
+      border-radius:18px;
+      border:1px solid rgba(255,255,255,0.08);
+      background:rgba(255,255,255,0.035);
+      padding:14px;
+    }
+    .ie-criterion-top{
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      align-items:flex-start;
+      margin-bottom:10px;
+    }
+    .ie-criterion-section{
+      display:inline-flex;
+      align-items:center;
+      padding:5px 10px;
+      border-radius:999px;
+      font-size:11px;
+      font-weight:900;
+      background:rgba(59,130,246,0.14);
+      color:#bfdbfe;
+      border:1px solid rgba(59,130,246,0.24);
+      margin-bottom:8px;
+    }
+    .ie-criterion-title{
+      font-size:15px;
+      font-weight:900;
+      color:white;
+      line-height:1.35;
+      margin-bottom:6px;
+    }
+    .ie-criterion-desc{
+      color:rgba(255,255,255,0.62);
+      font-size:13px;
+      line-height:1.45;
+    }
+    .ie-criterion-meta{
+      flex:0 0 150px;
+      text-align:right;
+      color:rgba(255,255,255,0.58);
+      font-size:12px;
+      font-weight:700;
+    }
+    .ie-criterion-fields{
+      display:grid;
+      grid-template-columns:140px minmax(0, 1fr);
+      gap:12px;
+      align-items:start;
+    }
+
+    .ie-actions{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      margin-top:18px;
+    }
+    .ie-btn{
+      appearance:none;
+      border:none;
+      cursor:pointer;
+      text-decoration:none;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:8px;
+      min-height:44px;
+      padding:0 16px;
+      border-radius:14px;
+      font-weight:900;
+      transition:.18s ease;
+    }
+    .ie-btn-primary{
+      color:white;
+      background:linear-gradient(135deg, #2563eb, #9333ea);
+      box-shadow:0 14px 32px rgba(37,99,235,0.26);
+    }
+    .ie-btn-secondary{
+      color:rgba(255,255,255,0.92);
+      background:rgba(255,255,255,0.06);
+      border:1px solid rgba(255,255,255,0.10);
+    }
+    .ie-btn:hover{ transform:translateY(-1px); }
+
+    .ie-add-criterion{
+      margin-top:16px;
+      border-top:1px solid rgba(255,255,255,0.08);
+      padding-top:16px;
+    }
+    .ie-add-title{
+      margin:0 0 10px;
+      font-size:15px;
+      font-weight:900;
+      color:white;
+    }
+
+    @media (max-width:1100px){
+      .ie-shell{ grid-template-columns:1fr; }
+      .ie-stats{ grid-template-columns:repeat(2,1fr); }
+    }
+    @media (max-width:720px){
+      .ie-grid,
+      .ie-criterion-fields,
+      .ie-stats{
+        grid-template-columns:1fr;
+      }
+    }
+  </style>
+
+  <form method="post">
+    {% csrf_token %}
+
+    <div class="ie-shell">
+
+      <section class="ie-card">
+        <div class="ie-card-head">
+          <div class="ie-eyebrow">Internal evaluation</div>
+          <h1 class="ie-title">{% if eval_obj %}Modifier{% else %}Nouvelle{% endif %} évaluation</h1>
+          <div class="ie-sub">
+            Sélectionne le formateur, la formation et la grille. Les critères associés apparaissent dans le panneau de droite.
+          </div>
+        </div>
+
+        <div class="ie-card-body">
+          <div class="ie-grid">
+            <div class="ie-field">
+              <label class="ie-label">Formateur</label>
+              {{ form.trainer }}
+              {% for e in form.trainer.errors %}<div class="ie-errors">{{ e }}</div>{% endfor %}
+            </div>
+
+            <div class="ie-field">
+              <label class="ie-label">Formation</label>
+              {{ form.training }}
+              {% for e in form.training.errors %}<div class="ie-errors">{{ e }}</div>{% endfor %}
+            </div>
+
+            <div class="ie-field">
+              <label class="ie-label">Date</label>
+              {{ form.evaluated_on }}
+              {% for e in form.evaluated_on.errors %}<div class="ie-errors">{{ e }}</div>{% endfor %}
+            </div>
+
+            <div class="ie-field">
+              <label class="ie-label">Grille d’évaluation</label>
+              {{ form.rubric }}
+              {% for e in form.rubric.errors %}<div class="ie-errors">{{ e }}</div>{% endfor %}
+            </div>
+
+            <div class="ie-field">
+              <label class="ie-label">Décision</label>
+              {{ form.decision }}
+            </div>
+
+            <div class="ie-field">
+              <label class="ie-label">Note socle (/20)</label>
+              {{ form.core_score_20 }}
+              {% for e in form.core_score_20.errors %}<div class="ie-errors">{{ e }}</div>{% endfor %}
+            </div>
+
+            <div class="ie-field">
+              <label class="ie-label">Note spécifique (/10)</label>
+              {{ form.specific_score_10 }}
+              {% for e in form.specific_score_10.errors %}<div class="ie-errors">{{ e }}</div>{% endfor %}
+            </div>
+
+            <div class="ie-field ie-field-full">
+              <label class="ie-label">Points forts</label>
+              {{ form.strengths }}
+            </div>
+
+            <div class="ie-field ie-field-full">
+              <label class="ie-label">Axes d’amélioration</label>
+              {{ form.improvements }}
+            </div>
+
+            <div class="ie-field ie-field-full">
+              <label class="ie-label">Commentaire manager</label>
+              {{ form.manager_comment }}
+            </div>
+
+            <div class="ie-field ie-field-full">
+              <label class="ie-label">Commentaire formateur</label>
+              {{ form.trainer_comment }}
+            </div>
+          </div>
+
+          <div class="ie-actions">
+            <button class="ie-btn ie-btn-primary" type="submit">Enregistrer l’évaluation</button>
+            <a class="ie-btn ie-btn-secondary" href="{% url 'trainer_eval:internal_eval_list' %}">Retour</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="ie-card">
+        <div class="ie-card-head">
+          <div class="ie-eyebrow">Criteria scores</div>
+          <h2 class="ie-title" style="font-size:22px;">Critères & remarques</h2>
+          <div class="ie-sub">
+            Saisie des notes par critère et de tes remarques d’observation.
+          </div>
+        </div>
+
+        <div class="ie-card-body">
+          <div class="ie-stats">
+            <div class="ie-stat">
+              <div class="ie-stat-label">Score grille</div>
+              <div class="ie-stat-value">{% if eval_obj %}{{ eval_obj.rubric_score_total }}{% else %}0{% endif %}</div>
+            </div>
+            <div class="ie-stat">
+              <div class="ie-stat-label">Maximum</div>
+              <div class="ie-stat-value">{% if eval_obj %}{{ eval_obj.rubric_score_max }}{% else %}0{% endif %}</div>
+            </div>
+            <div class="ie-stat">
+              <div class="ie-stat-label">Score /100</div>
+              <div class="ie-stat-value">{% if eval_obj %}{{ eval_obj.rubric_score_100 }}{% else %}0{% endif %}</div>
+            </div>
+            <div class="ie-stat">
+              <div class="ie-stat-label">Décision</div>
+              <div class="ie-stat-value" style="font-size:18px;">{% if eval_obj %}{{ eval_obj.get_decision_display }}{% else %}—{% endif %}</div>
+            </div>
+          </div>
+
+          <div style="color:#ff4d6d; font-weight:900; margin-bottom:10px;">
+            MODE = {{ mode }}
+          </div>
+
+
+          {% if mode == "edit" %}
+            {{ formset.management_form }}
+
+            {% if formset.non_form_errors %}
+              <div class="ie-errors" style="margin-bottom:12px;">{{ formset.non_form_errors }}</div>
+            {% endif %}
+
+            {% if formset.forms %}
+              <div class="ie-criteria">
+                {% for sf in formset.forms %}
+                  <div class="ie-criterion">
+                    {{ sf.id }}
+                    {{ sf.criterion }}
+
+                    <div class="ie-criterion-top">
+                      <div>
+                        <div class="ie-criterion-section">{{ sf.instance.criterion.get_section_display }}</div>
+                        <div class="ie-criterion-title">{{ sf.instance.criterion.label }}</div>
+                        {% if sf.instance.criterion.description %}
+                          <div class="ie-criterion-desc">{{ sf.instance.criterion.description }}</div>
+                        {% endif %}
+                      </div>
+
+                      <div class="ie-criterion-meta">
+                        Max {{ sf.instance.criterion.max_score }}<br>
+                        Poids {{ sf.instance.criterion.weight }}
+                      </div>
+                    </div>
+
+                    <div class="ie-criterion-fields">
+                      <div class="ie-field">
+                        <label class="ie-label">Score</label>
+                        {{ sf.score }}
+                        {% for e in sf.score.errors %}<div class="ie-errors">{{ e }}</div>{% endfor %}
+                      </div>
+
+                      <div class="ie-field">
+                        <label class="ie-label">Remarques / observations</label>
+                        {{ sf.comment }}
+                        {% for e in sf.comment.errors %}<div class="ie-errors">{{ e }}</div>{% endfor %}
+                      </div>
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <div class="ie-empty">Aucun critère disponible pour cette grille.</div>
+            {% endif %}
+
+          {% else %}
+            <div id="criteria-create-wrap">
+              {% if create_criteria %}
+                <div class="ie-criteria">
+                  {% for criterion in create_criteria %}
+                    <div class="ie-criterion" data-criterion-id="{{ criterion.id }}">
+                      <div class="ie-criterion-top">
+                        <div>
+                          <div class="ie-criterion-section">{{ criterion.get_section_display }}</div>
+                          <div class="ie-criterion-title">{{ criterion.label }}</div>
+                          {% if criterion.description %}
+                            <div class="ie-criterion-desc">{{ criterion.description }}</div>
+                          {% endif %}
+                        </div>
+
+                        <div class="ie-criterion-meta">
+                          Max {{ criterion.max_score }}<br>
+                          Poids {{ criterion.weight }}
+                        </div>
+                      </div>
+
+                      <div class="ie-criterion-fields">
+                        <div class="ie-field">
+                          <label class="ie-label">Score</label>
+                          <input type="number" name="criterion_score_{{ criterion.id }}" min="0" max="{{ criterion.max_score }}" step="1" value="0">
+                        </div>
+
+                        <div class="ie-field">
+                          <label class="ie-label">Remarques / observations</label>
+                          <textarea name="criterion_comment_{{ criterion.id }}" rows="2"></textarea>
+                        </div>
+                      </div>
+                    </div>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <div class="ie-empty" id="criteria-empty-state">
+                  Sélectionne une formation puis une grille pour afficher les critères.
+                </div>
+              {% endif %}
+            </div>
+          {% endif %}
+
+          <div class="ie-add-criterion">
+            <h3 class="ie-add-title">Ajouter un nouveau critère</h3>
+
+            <div class="ie-grid">
+              <div class="ie-field">
+                <label class="ie-label">Section</label>
+                {{ criterion_form.section }}
+              </div>
+
+              <div class="ie-field">
+                <label class="ie-label">Label</label>
+                {{ criterion_form.label }}
+              </div>
+
+              <div class="ie-field ie-field-full">
+                <label class="ie-label">Description</label>
+                {{ criterion_form.description }}
+              </div>
+
+              <div class="ie-field">
+                <label class="ie-label">Poids</label>
+                {{ criterion_form.weight }}
+              </div>
+
+              <div class="ie-field">
+                <label class="ie-label">Score max</label>
+                {{ criterion_form.max_score }}
+              </div>
+
+              <div class="ie-field">
+                <label class="ie-label">Ordre</label>
+                {{ criterion_form.sort_order }}
+              </div>
+
+              <div class="ie-field">
+                <label class="ie-label">Actif</label>
+                {{ criterion_form.is_active }}
+              </div>
+            </div>
+
+            <div class="ie-actions">
+              <button class="ie-btn ie-btn-secondary" type="button" id="btn-add-criterion">
+                + Ajouter ce critère à la grille
+              </button>
+            </div>
+
+            <div id="criterion-add-feedback" class="ie-help"></div>
+          </div>
+        </div>
+      </section>
+
     </div>
-    <div>
-      <label>Formation (optionnel)</label>
-      {{ form.training }}
-      {% for e in form.training.errors %}<div style="color:#f87171;">{{ e }}</div>{% endfor %}
-    </div>
+  </form>
+</div>
 
-    <div>
-      <label>Date</label>
-      {{ form.evaluated_on }}
-      {% for e in form.evaluated_on.errors %}<div style="color:#f87171;">{{ e }}</div>{% endfor %}
-    </div>
-    <div>
-      <label>Décision</label>
-      {{ form.decision }}
-    </div>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const trainingSelect = document.getElementById("id_training");
+  const rubricSelect = document.getElementById("id_rubric");
+  const criteriaWrap = document.getElementById("criteria-create-wrap");
+  const addCriterionBtn = document.getElementById("btn-add-criterion");
+  const feedbackBox = document.getElementById("criterion-add-feedback");
 
-    <div>
-      <label>Note socle (/20)</label>
-      {{ form.core_score_20 }}
-      {% for e in form.core_score_20.errors %}<div style="color:#f87171;">{{ e }}</div>{% endfor %}
-    </div>
-    <div>
-      <label>Note spécifique (/10)</label>
-      {{ form.specific_score_10 }}
-      {% for e in form.specific_score_10.errors %}<div style="color:#f87171;">{{ e }}</div>{% endfor %}
-    </div>
-  </div>
+  function escapeHtml(value) {
+    return (value || "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
 
-  <div style="margin-top:12px;">
-    <label>Points forts</label>
-    {{ form.strengths }}
-  </div>
+  function buildCriterionCard(c) {
+    return `
+      <div class="ie-criterion" data-criterion-id="${c.id}">
+        <div class="ie-criterion-top">
+          <div>
+            <div class="ie-criterion-section">${escapeHtml(c.section)}</div>
+            <div class="ie-criterion-title">${escapeHtml(c.label)}</div>
+            ${c.description ? `<div class="ie-criterion-desc">${escapeHtml(c.description)}</div>` : ""}
+          </div>
 
-  <div style="margin-top:12px;">
-    <label>Axes d’amélioration</label>
-    {{ form.improvements }}
-  </div>
+          <div class="ie-criterion-meta">
+            Max ${c.max_score}<br>
+            Poids ${c.weight}
+          </div>
+        </div>
 
-  <div style="margin-top:12px;">
-    <label>Commentaire manager (privé)</label>
-    {{ form.manager_comment }}
-  </div>
+        <div class="ie-criterion-fields">
+          <div class="ie-field">
+            <label class="ie-label">Score</label>
+            <input type="number" name="criterion_score_${c.id}" min="0" max="${c.max_score}" step="1" value="0">
+          </div>
 
-  <div style="display:flex; gap:10px; margin-top:14px;">
-    <button class="btn" type="submit">Enregistrer</button>
-    <a class="btn" href="{% url 'trainer_eval:internal_eval_list' %}" style="opacity:0.85;">Retour</a>
-  </div>
-</form>
+          <div class="ie-field">
+            <label class="ie-label">Remarques / observations</label>
+            <textarea name="criterion_comment_${c.id}" rows="2"></textarea>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderCriteria(criteria) {
+    if (!criteriaWrap) return;
+
+    if (!criteria || !criteria.length) {
+      criteriaWrap.innerHTML = `
+        <div class="ie-empty">
+          Aucun critère actif pour cette grille.
+        </div>
+      `;
+      return;
+    }
+
+    criteriaWrap.innerHTML = `
+      <div class="ie-criteria">
+        ${criteria.map(buildCriterionCard).join("")}
+      </div>
+    `;
+  }
+
+  async function loadRubricsForTraining(trainingId) {
+    if (!rubricSelect) return;
+
+    rubricSelect.innerHTML = `<option value="">---------</option>`;
+
+    if (!trainingId) {
+      renderCriteria([]);
+      return;
+    }
+
+    const url = "{% url 'trainer_eval:rubrics_by_training' %}?training_id=" + encodeURIComponent(trainingId);
+    const response = await fetch(url);
+    const data = await response.json();
+
+    (data.rubrics || []).forEach(r => {
+      const opt = document.createElement("option");
+      opt.value = r.id;
+      opt.textContent = r.label;
+      rubricSelect.appendChild(opt);
+    });
+
+    if ((data.rubrics || []).length) {
+      rubricSelect.value = data.rubrics[0].id;
+      await loadCriteriaForRubric(rubricSelect.value);
+    } else {
+      renderCriteria([]);
+    }
+  }
+
+  async function loadCriteriaForRubric(rubricId) {
+    if (!rubricId) {
+      renderCriteria([]);
+      return;
+    }
+
+    const url = "{% url 'trainer_eval:criteria_by_rubric' %}?rubric_id=" + encodeURIComponent(rubricId);
+    const response = await fetch(url);
+    const data = await response.json();
+    renderCriteria(data.criteria || []);
+  }
+
+  if (trainingSelect) {
+    trainingSelect.addEventListener("change", function () {
+      loadRubricsForTraining(this.value);
+    });
+  }
+
+  if (rubricSelect) {
+    rubricSelect.addEventListener("change", function () {
+      loadCriteriaForRubric(this.value);
+    });
+  }
+
+  if (addCriterionBtn) {
+    addCriterionBtn.addEventListener("click", async function () {
+      if (!rubricSelect || !rubricSelect.value) {
+        feedbackBox.textContent = "Sélectionne d’abord une grille.";
+        return;
+      }
+
+      const csrfInput = document.querySelector("input[name='csrfmiddlewaretoken']");
+      const section = document.getElementById("id_section");
+      const label = document.getElementById("id_label");
+      const description = document.getElementById("id_description");
+      const weight = document.getElementById("id_weight");
+      const maxScore = document.getElementById("id_max_score");
+      const sortOrder = document.getElementById("id_sort_order");
+      const isActive = document.getElementById("id_is_active");
+
+      const formData = new FormData();
+      formData.append("csrfmiddlewaretoken", csrfInput ? csrfInput.value : "");
+      formData.append("rubric_id", rubricSelect.value);
+      formData.append("section", section ? section.value : "");
+      formData.append("label", label ? label.value : "");
+      formData.append("description", description ? description.value : "");
+      formData.append("weight", weight ? weight.value : "1");
+      formData.append("max_score", maxScore ? maxScore.value : "5");
+      formData.append("sort_order", sortOrder ? sortOrder.value : "100");
+      formData.append("is_active", isActive && isActive.checked ? "on" : "");
+
+      const response = await fetch("{% url 'trainer_eval:internal_eval_add_criterion' %}", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.ok) {
+        feedbackBox.textContent = "Impossible d'ajouter le critère. Vérifie les champs.";
+        return;
+      }
+
+      feedbackBox.textContent = "✅ Critère ajouté à la grille.";
+
+      if (label) label.value = "";
+      if (description) description.value = "";
+      if (weight) weight.value = "1";
+      if (maxScore) maxScore.value = "5";
+      if (sortOrder) sortOrder.value = "100";
+      if (isActive) isActive.checked = true;
+
+      await loadCriteriaForRubric(rubricSelect.value);
+    });
+  }
+
+  if (trainingSelect && trainingSelect.value) {
+    loadRubricsForTraining(trainingSelect.value);
+  } else if (rubricSelect && rubricSelect.value) {
+    loadCriteriaForRubric(rubricSelect.value);
+  }
+});
+</script>
 {% endblock %}

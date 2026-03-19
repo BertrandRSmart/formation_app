@@ -15,11 +15,15 @@
       --shadow: 0 18px 45px rgba(0,0,0,0.55);
       --r: 18px;
 
-      /* accents */
       --c-form: #3B82F6;
       --c-violet: #A855F7;
       --c-proj: #FF89E9;
       --c-team: #DCEFE3;
+
+      --abs-cp: #ef4444;
+      --abs-rtt: #f59e0b;
+      --abs-sick: #a855f7;
+      --abs-other: #64748b;
     }
 
     .dash{
@@ -93,6 +97,7 @@
       margin: 10px 0 6px;
       color: rgba(255,255,255,0.86);
     }
+
     .field select{
       width: 100%;
       padding: 10px 12px;
@@ -114,13 +119,89 @@
       font-weight: 950;
       cursor: pointer;
     }
+
     .btn:hover{ filter: brightness(1.08); }
+
     .btn--primary{
       border-color: rgba(168,85,247,0.45);
       background: rgba(168,85,247,0.18);
     }
 
-    /* Calendrier : assure une hauteur mini pour ne jamais être “vide” */
+    .toggle-row{
+      margin-top: 14px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.10);
+      background: rgba(255,255,255,0.04);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 12px;
+    }
+
+    .toggle-meta{
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+    }
+
+    .toggle-title{
+      font-size: 13px;
+      font-weight: 950;
+      color: rgba(255,255,255,0.92);
+    }
+
+    .toggle-sub{
+      font-size: 12px;
+      color: rgba(255,255,255,0.60);
+    }
+
+    .switch{
+      position: relative;
+      width: 52px;
+      height: 30px;
+      flex: 0 0 auto;
+    }
+
+    .switch input{
+      opacity:0;
+      width:0;
+      height:0;
+      position:absolute;
+    }
+
+    .slider{
+      position:absolute;
+      inset:0;
+      cursor:pointer;
+      border-radius:999px;
+      background: rgba(255,255,255,0.16);
+      border:1px solid rgba(255,255,255,0.14);
+      transition:.2s ease;
+    }
+
+    .slider:before{
+      content:"";
+      position:absolute;
+      height:22px;
+      width:22px;
+      left:3px;
+      top:3px;
+      border-radius:50%;
+      background:#fff;
+      transition:.2s ease;
+      box-shadow: 0 4px 10px rgba(0,0,0,.35);
+    }
+
+    .switch input:checked + .slider{
+      background: rgba(168,85,247,0.35);
+      border-color: rgba(168,85,247,0.45);
+    }
+
+    .switch input:checked + .slider:before{
+      transform: translateX(22px);
+    }
+
     #calendar{
       background: rgba(255,255,255,0.08);
       border: 1px solid rgba(255,255,255,0.10);
@@ -160,7 +241,6 @@
       .dash{ position: static; min-height: 100vh; height:auto; padding: 92px 12px 18px; }
     }
 
-    /* ===== Tooltip (popup au survol des events) ===== */
     .fc-tooltip{
       position: fixed;
       z-index: 99999;
@@ -177,7 +257,6 @@
       transform: translate(12px, 12px);
     }
 
-    /* ===== Events annulés : hachures diagonales + aspect "désactivé" ===== */
     .fc .fc-event.is-cancelled,
     .fc .fc-event.is-cancelled .fc-event-main{
       opacity: .72;
@@ -188,13 +267,12 @@
       filter: saturate(.85);
     }
 
-    /* Overlay hachures */
     .fc .fc-event.is-cancelled::after{
       content:"";
       position:absolute;
       inset:0;
       pointer-events:none;
-      border-radius: 6px; /* FullCalendar met souvent un radius léger */
+      border-radius: 6px;
       background:
         repeating-linear-gradient(
           135deg,
@@ -206,7 +284,6 @@
       mix-blend-mode: overlay;
     }
 
-    /* Petit “X” discret (optionnel, mais très lisible) */
     .fc .fc-event.is-cancelled::before{
       content:"✖";
       position:absolute;
@@ -217,6 +294,14 @@
       color: rgba(255,255,255,.92);
       text-shadow: 0 1px 6px rgba(0,0,0,.55);
       pointer-events:none;
+    }
+
+    .fc .fc-event.is-absence{
+      opacity: .92;
+    }
+
+    .fc .fc-event.is-absence .fc-event-title{
+      font-style: italic;
     }
 
     .fc-tooltip .t1{ font-weight: 950; font-size: 13px; margin:0 0 6px; }
@@ -269,11 +354,22 @@
           </select>
         </div>
 
+        <div class="toggle-row">
+          <div class="toggle-meta">
+            <div class="toggle-title">Afficher les absences</div>
+            <div class="toggle-sub">Affiche ou masque les congés dans l’agenda</div>
+          </div>
+          <label class="switch" for="toggleAbsences">
+            <input type="checkbox" id="toggleAbsences" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+
         <button id="resetFilters" class="btn btn--primary">Réinitialiser</button>
 
         <hr style="margin:14px 0; border:none; border-top:1px solid rgba(255,255,255,0.10);" />
 
-        <div style="font-weight:950; margin:0 0 10px 0;">Légende (Formations)</div>
+        <div style="font-weight:950; margin:0 0 10px 0;">Légende</div>
         <div id="legend"></div>
 
         <div id="agendaError" class="small" style="margin-top:12px; color: rgba(255,120,120,0.95); display:none;"></div>
@@ -288,6 +384,7 @@
 <script>
 document.addEventListener('DOMContentLoaded', async () => {
   const errBox = document.getElementById("agendaError");
+  const toggleAbsences = document.getElementById("toggleAbsences");
 
   function showError(msg){
     if (!errBox) return;
@@ -298,6 +395,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   function buildEventsUrl() {
     const clientId = document.getElementById("filterClient").value;
     const trainerId = document.getElementById("filterTrainer").value;
+    const showAbsences = toggleAbsences.checked ? "1" : "0";
 
     const pageParams = new URLSearchParams(window.location.search);
     const product = (pageParams.get("product") || "").trim();
@@ -311,6 +409,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (product) url.searchParams.set("product", product);
     if (from) url.searchParams.set("from", from);
     if (to) url.searchParams.set("to", to);
+
+    url.searchParams.set("show_absences", showAbsences);
 
     return url.toString();
   }
@@ -335,6 +435,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     const data = await res.json();
     const legendEl = document.getElementById("legend");
     legendEl.innerHTML = "";
+
+    const formTitle = document.createElement("div");
+    formTitle.textContent = "Formations";
+    formTitle.style.fontWeight = "900";
+    formTitle.style.margin = "0 0 10px 0";
+    formTitle.style.fontSize = "13px";
+    formTitle.style.color = "rgba(255,255,255,0.92)";
+    legendEl.appendChild(formTitle);
 
     data.forEach(group => {
       const title = document.createElement("div");
@@ -369,6 +477,53 @@ document.addEventListener('DOMContentLoaded', async () => {
         legendEl.appendChild(row);
       });
     });
+
+    if (toggleAbsences.checked) {
+      const sep = document.createElement("hr");
+      sep.style.margin = "14px 0";
+      sep.style.border = "none";
+      sep.style.borderTop = "1px solid rgba(255,255,255,0.10)";
+      legendEl.appendChild(sep);
+
+      const absTitle = document.createElement("div");
+      absTitle.textContent = "Absences";
+      absTitle.style.fontWeight = "900";
+      absTitle.style.margin = "0 0 10px 0";
+      absTitle.style.fontSize = "13px";
+      absTitle.style.color = "rgba(255,255,255,0.92)";
+      legendEl.appendChild(absTitle);
+
+      const absenceItems = [
+        { label: "Congé", color: "var(--abs-cp)" },
+        { label: "RTT", color: "var(--abs-rtt)" },
+        { label: "Maladie", color: "var(--abs-sick)" },
+        { label: "Autre", color: "var(--abs-other)" },
+      ];
+
+      absenceItems.forEach(item => {
+        const row = document.createElement("div");
+        row.style.display = "flex";
+        row.style.alignItems = "center";
+        row.style.gap = "10px";
+        row.style.marginBottom = "8px";
+
+        const dot = document.createElement("span");
+        dot.style.width = "14px";
+        dot.style.height = "14px";
+        dot.style.borderRadius = "4px";
+        dot.style.background = item.color;
+        dot.style.border = "1px solid rgba(255,255,255,0.18)";
+
+        const txt = document.createElement("span");
+        txt.textContent = item.label;
+        txt.style.fontSize = "13px";
+        txt.style.color = "rgba(255,255,255,0.86)";
+
+        row.appendChild(dot);
+        row.appendChild(txt);
+        legendEl.appendChild(row);
+      });
+    }
   }
 
   try {
@@ -379,7 +534,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     showError("Impossible de charger les filtres/légende : " + e.message);
   }
 
-    // ===== Tooltip singleton =====
   let _fcTip = null;
 
   function tipEnsure(){
@@ -417,27 +571,40 @@ document.addEventListener('DOMContentLoaded', async () => {
       .replaceAll("'","&#039;");
   }
 
-    function buildTip(event){
+  function buildTip(event){
     const p = event.extendedProps || {};
-
     const title = esc(event.title);
-    const trainingTitle = esc(p.training_title || p.training || ""); // ✅
 
+    if (p.is_absence) {
+      const trainer = esc(p.trainer || "");
+      const absenceType = esc(p.absence_type || "Absence");
+      const dates = esc(p.dates_label || "");
+      const notes = esc(p.notes || "");
+
+      return `
+        <div class="t1">${title}</div>
+        <div class="meta">
+          ${trainer ? `<div><span class="k">Formateur</span> ${trainer}</div>` : ""}
+          ${absenceType ? `<div><span class="k">Type</span> ${absenceType}</div>` : ""}
+          ${dates ? `<div><span class="k">Dates</span> ${dates}</div>` : ""}
+          ${notes ? `<div class="sep"></div><div style="opacity:.92">${notes}</div>` : ""}
+        </div>
+      `;
+    }
+
+    const trainingTitle = esc(p.training_title || p.training || "");
     const ref = esc(p.reference);
     const client = esc(p.client);
     const trainer = esc(p.trainer);
     const location = esc(p.location);
     const status = esc(p.status);
     const notes = esc(p.notes);
-
-    const dates = event.allDay
-      ? esc(p.dates_label || "")
-      : "";
+    const dates = event.allDay ? esc(p.dates_label || "") : "";
 
     return `
       <div class="t1">${title}${ref ? ` <span style="opacity:.65">(${ref})</span>` : ""}</div>
       <div class="meta">
-        ${trainingTitle ? `<div><span class="k">Formation</span> ${trainingTitle}</div>` : ""}  <!-- ✅ -->
+        ${trainingTitle ? `<div><span class="k">Formation</span> ${trainingTitle}</div>` : ""}
         ${client ? `<div><span class="k">Client</span> ${client}</div>` : ""}
         ${trainer ? `<div><span class="k">Formateur</span> ${trainer}</div>` : ""}
         ${location ? `<div><span class="k">Lieu</span> ${location}</div>` : ""}
@@ -446,9 +613,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         ${notes ? `<div class="sep"></div><div style="opacity:.92">${notes}</div>` : ""}
       </div>
     `;
-  
   }
-
 
   const calendarEl = document.getElementById('calendar');
   if (!calendarEl) {
@@ -487,17 +652,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     eventDidMount: (info) => {
       const el = info.el;
-      const p = info.event.extendedProps || {}; 
+      const p = info.event.extendedProps || {};
 
-      // ✅ Marque cancelled
       const status = (p.status || "").toString().toLowerCase();
       if (status === "cancelled" || status === "canceled" || status === "annulee" || status === "annulé" || status === "annule") {
         el.classList.add("is-cancelled");
       }
-      
-      const onEnter = (e) => {
-        tipShow(buildTip(info.event), e.clientX, e.clientY);
-      };
+
+      if (p.is_absence) {
+        el.classList.add("is-absence");
+      }
+
+      const onEnter = (e) => tipShow(buildTip(info.event), e.clientX, e.clientY);
       const onMove = (e) => tipMove(e.clientX, e.clientY);
       const onLeave = () => tipHide();
 
@@ -505,9 +671,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       el.addEventListener("mousemove", onMove);
       el.addEventListener("mouseleave", onLeave);
     },
-    
+
     eventClick: (info) => {
       const p = info.event.extendedProps || {};
+      if (p.is_absence) return;
       if (p.detail_url) window.open(p.detail_url, "_blank");
     }
   });
@@ -517,9 +684,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById("filterClient").addEventListener("change", () => calendar.refetchEvents());
   document.getElementById("filterTrainer").addEventListener("change", () => calendar.refetchEvents());
 
-  document.getElementById("resetFilters").addEventListener("click", () => {
+  toggleAbsences.addEventListener("change", async () => {
+    await loadLegend();
+    calendar.refetchEvents();
+  });
+
+  document.getElementById("resetFilters").addEventListener("click", async () => {
     document.getElementById("filterClient").value = "";
     document.getElementById("filterTrainer").value = "";
+    toggleAbsences.checked = true;
+    await loadLegend();
     calendar.refetchEvents();
   });
 });

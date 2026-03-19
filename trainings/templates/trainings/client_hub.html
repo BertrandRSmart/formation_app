@@ -1,0 +1,1484 @@
+{% extends "trainings/base.html" %}
+{% load static %}
+
+{% block title %}Client Hub — BSmart Application{% endblock %}
+{% block body_class %}no-scroll{% endblock %}
+
+{% block content %}
+<div class="clienthub-v3">
+  <div class="clienthub-frame">
+
+    <!-- LEFT -->
+    <aside class="panel glass left-col">
+      <div class="panel-head">
+        <div>
+          <div class="eyebrow">Client Hub</div>
+          <h1>Gestion clients</h1>
+          <p>Clients, référents, participants et historique complet.</p>
+        </div>
+      </div>
+
+      <div class="left-scroll">
+
+        <section class="block">
+          <div class="block-title">Client</div>
+          <form method="get" class="stack-form">
+            <input type="hidden" name="mode" value="client">
+            <div class="field">
+              <label for="client">Choisir un client</label>
+              <select name="client" id="client" onchange="this.form.submit()">
+                <option value="">Tous les clients</option>
+                {% for c in client_options %}
+                  <option value="{{ c.id }}" {% if selected_client_id == c.id|stringformat:"s" %}selected{% endif %}>
+                    {{ c.name }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+          </form>
+
+          {% if selected_client %}
+            <div class="info-card">
+              <strong>{{ selected_client.name }}</strong>
+              <div class="muted">Client actif</div>
+            </div>
+          {% else %}
+            <div class="info-card">
+              <strong>Vue globale</strong>
+              <div class="muted">Sélectionne un client pour ouvrir sa vue dédiée.</div>
+            </div>
+          {% endif %}
+        </section>
+
+        <section class="block">
+          <div class="block-title">Référents</div>
+
+          <form method="get" class="stack-form">
+            {% if selected_client_id %}
+              <input type="hidden" name="client" value="{{ selected_client_id }}">
+            {% endif %}
+            <input type="hidden" name="mode" value="referrer">
+
+            <div class="field">
+              <label for="referrer">Choisir un référent</label>
+              <select name="referrer" id="referrer" onchange="this.form.submit()">
+                <option value="">Tous les référents</option>
+                {% for r in referrer_options %}
+                  <option value="{{ r.id }}" {% if selected_referrer and selected_referrer.id == r.id %}selected{% endif %}>
+                    {{ r.first_name }} {{ r.last_name }}
+                    {% if r.client %} — {{ r.client.name }}{% endif %}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+          </form>
+
+          <div class="drawer-actions">
+            <button type="button" class="btn-primary" onclick="openReferrerDrawer('create')">
+              + Créer un nouveau référent
+            </button>
+
+            {% if selected_referrer %}
+              <button type="button" class="btn-secondary" onclick="openReferrerDrawer('edit')">
+                Éditer le référent
+              </button>
+            {% endif %}
+          </div>
+        </section>
+
+        <section class="block">
+          <div class="block-title">Recherche participant</div>
+          <form method="get" class="stack-form">
+            {% if selected_client_id %}
+              <input type="hidden" name="client" value="{{ selected_client_id }}">
+            {% endif %}
+            <input type="hidden" name="mode" value="participant">
+            <div class="field">
+              <label for="q">Nom, prénom, email, service</label>
+              <input type="text" id="q" name="q" value="{{ q }}" placeholder="Recherche participant...">
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn-primary">Rechercher</button>
+              <a href="{% url 'trainings:client_hub' %}" class="btn-secondary">Reset</a>
+            </div>
+          </form>
+
+          <div class="result-list">
+            {% for p in participant_results %}
+              <a class="result-card {% if selected_participant and selected_participant.id == p.id %}is-active{% endif %}"
+                 href="{% url 'trainings:client_hub' %}?participant={{ p.id }}&mode=participant{% if selected_client_id %}&client={{ selected_client_id }}{% endif %}">
+                <strong>{{ p.first_name }} {{ p.last_name }}</strong>
+                <span>{{ p.email|default:"Email non renseigné" }}</span>
+                <span>{% if p.client %}{{ p.client.name }}{% else %}Client non renseigné{% endif %}</span>
+              </a>
+            {% empty %}
+              <div class="empty-box">Aucun participant trouvé.</div>
+            {% endfor %}
+          </div>
+        </section>
+
+      </div>
+    </aside>
+
+    <!-- CENTER -->
+    <main class="panel glass center-col">
+      <div class="panel-head sticky">
+        <div>
+          <div class="eyebrow">Vue active</div>
+          <h2>
+            {% if mode == "participant" and selected_participant %}
+              {{ selected_participant.first_name }} {{ selected_participant.last_name }}
+            {% elif mode == "referrer" and selected_referrer %}
+              {{ selected_referrer.first_name }} {{ selected_referrer.last_name }}
+            {% elif mode == "client" and selected_client %}
+              {{ selected_client.name }}
+            {% else %}
+              Client Relationship Hub
+            {% endif %}
+          </h2>
+
+          <div class="badge-row">
+            {% if selected_client %}
+              <span class="badge">Client : {{ selected_client.name }}</span>
+            {% endif %}
+            {% if mode == "participant" %}
+              <span class="badge">Vue participant</span>
+            {% elif mode == "referrer" %}
+              <span class="badge">Vue référent</span>
+            {% elif mode == "client" %}
+              <span class="badge">Vue client</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="center-scroll">
+
+        {% if mode == "client" and selected_client %}
+          <section class="content-block">
+            <div class="kpi-grid">
+              <div class="kpi-card"><div class="kpi-label">Référents</div><div class="kpi-value">{{ client_kpis.referrers_count }}</div></div>
+              <div class="kpi-card"><div class="kpi-label">Participants</div><div class="kpi-value">{{ client_kpis.participants_count }}</div></div>
+              <div class="kpi-card"><div class="kpi-label">Sessions</div><div class="kpi-value">{{ client_kpis.sessions_count }}</div></div>
+              <div class="kpi-card"><div class="kpi-label">Formations distinctes</div><div class="kpi-value">{{ client_kpis.trainings_count }}</div></div>
+            </div>
+          </section>
+
+          <section class="content-block">
+            <div class="section-title-row">
+              <h3>Analytics client</h3>
+              <span class="count-pill">Vue consolidée</span>
+            </div>
+
+            <div class="charts-grid">
+              <div class="chart-card">
+                <div class="chart-head">
+                  <strong>Sessions par produit</strong>
+                  <span>ArgonOS / Mercure / autres</span>
+                </div>
+                <div class="chart-wrap">
+                  <canvas id="clientProductChart"></canvas>
+                </div>
+              </div>
+
+              <div class="chart-card">
+                <div class="chart-head">
+                  <strong>Sessions par formation</strong>
+                  <span>Volume par type de formation</span>
+                </div>
+                <div class="chart-wrap">
+                  <canvas id="clientTrainingSessionsChart"></canvas>
+                </div>
+              </div>
+
+              <div class="chart-card">
+                <div class="chart-head">
+                  <strong>Participants par formation</strong>
+                  <span>Participation cumulée</span>
+                </div>
+                <div class="chart-wrap">
+                  <canvas id="clientTrainingParticipantsChart"></canvas>
+                </div>
+              </div>
+
+              <div class="chart-card">
+                <div class="chart-head">
+                  <strong>Évolution mensuelle</strong>
+                  <span>Nombre de sessions par mois</span>
+                </div>
+                <div class="chart-wrap">
+                  <canvas id="clientMonthlySessionsChart"></canvas>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="content-block">
+            <div class="section-title-row">
+              <h3>Référents du client</h3>
+              <span class="count-pill">{{ client_referrers|length }}</span>
+            </div>
+            <div class="cards-grid">
+              {% for r in client_referrers %}
+                <a class="mini-card-link" href="{% url 'trainings:client_hub' %}?referrer={{ r.id }}&client={{ selected_client.id }}&mode=referrer">
+                  <strong>{{ r.first_name }} {{ r.last_name }}</strong>
+                  <span>{{ r.role|default:"Rôle non renseigné" }}</span>
+                  <span>{{ r.email|default:"Email non renseigné" }}</span>
+                </a>
+              {% empty %}
+                <div class="empty-box">Aucun référent pour ce client.</div>
+              {% endfor %}
+            </div>
+          </section>
+
+          <section class="content-block">
+            <div class="section-title-row">
+              <h3>Participants du client</h3>
+              <span class="count-pill">{{ client_participants|length }}</span>
+            </div>
+            <div class="table-wrap">
+              <table class="hub-table">
+                <thead>
+                  <tr>
+                    <th>Participant</th>
+                    <th>Email</th>
+                    <th>Référent</th>
+                    <th>Sessions</th>
+                    <th>Dernière session</th>
+                    <th>Prochaine session</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in client_participants %}
+                    <tr>
+                      <td>
+                        <a class="table-link" href="{% url 'trainings:client_hub' %}?participant={{ row.participant.id }}&client={{ selected_client.id }}&mode=participant">
+                          {{ row.participant.first_name }} {{ row.participant.last_name }}
+                        </a>
+                      </td>
+                      <td>{{ row.participant.email|default:"—" }}</td>
+                      <td>
+                        {% if row.participant.referrer %}
+                          {{ row.participant.referrer.first_name }} {{ row.participant.referrer.last_name }}
+                        {% else %}
+                          —
+                        {% endif %}
+                      </td>
+                      <td>{{ row.sessions_count }}</td>
+                      <td>{% if row.last_session and row.last_session.start_date %}{{ row.last_session.start_date|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+                      <td>{% if row.next_session and row.next_session.start_date %}{{ row.next_session.start_date|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+                    </tr>
+                  {% empty %}
+                    <tr><td colspan="6" class="table-empty">Aucun participant pour ce client.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="content-block">
+            <div class="section-title-row">
+              <h3>Historique formations du client</h3>
+              <span class="count-pill">{{ client_session_rows|length }}</span>
+            </div>
+            <div class="table-wrap">
+              <table class="hub-table">
+                <thead>
+                  <tr>
+                    <th>Participant</th>
+                    <th>Référence</th>
+                    <th>Date</th>
+                    <th>Formation</th>
+                    <th>Type</th>
+                    <th>Formateur</th>
+                    <th>Statut</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in client_session_rows %}
+                    <tr>
+                      <td>{{ row.participant.first_name }} {{ row.participant.last_name }}</td>
+                      <td>{{ row.session.reference|default:"—" }}</td>
+                      <td>{% if row.session.start_date %}{{ row.session.start_date|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+                      <td>{{ row.training_title }}</td>
+                      <td>{{ row.training_type }}</td>
+                      <td>{{ row.trainer_name }}</td>
+                      <td>{{ row.registration.get_status_display }}</td>
+                    </tr>
+                  {% empty %}
+                    <tr><td colspan="7" class="table-empty">Aucune session trouvée.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        {% endif %}
+
+        {% if mode == "participant" and selected_participant %}
+          <section class="content-block">
+            <div class="info-grid">
+              <div class="info-card"><div class="info-label">Email</div><div class="info-value">{{ selected_participant.email|default:"—" }}</div></div>
+              <div class="info-card"><div class="info-label">Service</div><div class="info-value">{{ selected_participant.company_service|default:"—" }}</div></div>
+              <div class="info-card"><div class="info-label">Client</div><div class="info-value">{% if selected_participant.client %}{{ selected_participant.client.name }}{% else %}—{% endif %}</div></div>
+              <div class="info-card"><div class="info-label">Référent</div><div class="info-value">{% if selected_participant.referrer %}{{ selected_participant.referrer.first_name }} {{ selected_participant.referrer.last_name }}{% else %}—{% endif %}</div></div>
+            </div>
+
+            <div class="kpi-grid">
+              <div class="kpi-card"><div class="kpi-label">Sessions</div><div class="kpi-value">{{ participant_kpis.total_sessions }}</div></div>
+              <div class="kpi-card"><div class="kpi-label">Présences</div><div class="kpi-value">{{ participant_kpis.present_count }}</div></div>
+              <div class="kpi-card"><div class="kpi-label">Absences</div><div class="kpi-value">{{ participant_kpis.absent_count }}</div></div>
+              <div class="kpi-card"><div class="kpi-label">Formations distinctes</div><div class="kpi-value">{{ participant_kpis.distinct_trainings }}</div></div>
+            </div>
+          </section>
+
+          <section class="content-block two-sections">
+            <div class="subpanel">
+              <div class="section-title-row">
+                <h3>Même client</h3>
+              </div>
+              <div class="cards-list">
+                {% for p in participant_related_same_client %}
+                  <a class="mini-card-link" href="{% url 'trainings:client_hub' %}?participant={{ p.id }}&mode=participant">
+                    <strong>{{ p.first_name }} {{ p.last_name }}</strong>
+                    <span>{{ p.email }}</span>
+                  </a>
+                {% empty %}
+                  <div class="empty-box">Aucun autre participant du même client.</div>
+                {% endfor %}
+              </div>
+            </div>
+
+            <div class="subpanel">
+              <div class="section-title-row">
+                <h3>Même référent</h3>
+              </div>
+              <div class="cards-list">
+                {% for p in participant_related_same_referrer %}
+                  <a class="mini-card-link" href="{% url 'trainings:client_hub' %}?participant={{ p.id }}&mode=participant">
+                    <strong>{{ p.first_name }} {{ p.last_name }}</strong>
+                    <span>{{ p.email }}</span>
+                  </a>
+                {% empty %}
+                  <div class="empty-box">Aucun autre participant du même référent.</div>
+                {% endfor %}
+              </div>
+            </div>
+          </section>
+
+          <section class="content-block">
+            <div class="section-title-row">
+              <h3>Historique des formations</h3>
+              <span class="count-pill">{{ participant_rows|length }}</span>
+            </div>
+            <div class="table-wrap">
+              <table class="hub-table">
+                <thead>
+                  <tr>
+                    <th>Référence</th>
+                    <th>Date</th>
+                    <th>Formation</th>
+                    <th>Type</th>
+                    <th>Client</th>
+                    <th>Formateur</th>
+                    <th>Lieu</th>
+                    <th>Statut</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in participant_rows %}
+                    <tr>
+                      <td>{{ row.session.reference|default:"—" }}</td>
+                      <td>{% if row.session.start_date %}{{ row.session.start_date|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+                      <td>{{ row.training_title }}</td>
+                      <td>{{ row.training_type }}</td>
+                      <td>{{ row.client_name }}</td>
+                      <td>{{ row.trainer_name }}</td>
+                      <td>{{ row.location }}</td>
+                      <td>{{ row.registration.get_status_display }}</td>
+                    </tr>
+                  {% empty %}
+                    <tr><td colspan="8" class="table-empty">Aucune formation trouvée.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        {% endif %}
+
+        {% if mode == "referrer" and selected_referrer %}
+          <section class="content-block">
+            <div class="info-grid">
+              <div class="info-card"><div class="info-label">Email</div><div class="info-value">{{ selected_referrer.email|default:"—" }}</div></div>
+              <div class="info-card"><div class="info-label">Rôle</div><div class="info-value">{{ selected_referrer.role|default:"—" }}</div></div>
+              <div class="info-card"><div class="info-label">Service</div><div class="info-value">{{ selected_referrer.company_service|default:"—" }}</div></div>
+              <div class="info-card"><div class="info-label">Client</div><div class="info-value">{% if selected_referrer.client %}{{ selected_referrer.client.name }}{% else %}—{% endif %}</div></div>
+            </div>
+
+            <div class="kpi-grid">
+              <div class="kpi-card"><div class="kpi-label">Participants liés</div><div class="kpi-value">{{ referrer_kpis.participants_count }}</div></div>
+              <div class="kpi-card"><div class="kpi-label">Sessions liées</div><div class="kpi-value">{{ referrer_kpis.sessions_count }}</div></div>
+              <div class="kpi-card"><div class="kpi-label">Formations distinctes</div><div class="kpi-value">{{ referrer_kpis.trainings_count }}</div></div>
+              <div class="kpi-card"><div class="kpi-label">Présences</div><div class="kpi-value">{{ referrer_kpis.present_count }}</div></div>
+            </div>
+          </section>
+
+          <section class="content-block">
+            <div class="section-title-row">
+              <h3>Analytics référent</h3>
+              <span class="count-pill">Vue ciblée</span>
+            </div>
+
+            <div class="charts-grid">
+              <div class="chart-card">
+                <div class="chart-head">
+                  <strong>Sessions par produit</strong>
+                  <span>ArgonOS / Mercure / autres</span>
+                </div>
+                <div class="chart-wrap">
+                  <canvas id="referrerProductChart"></canvas>
+                </div>
+              </div>
+
+              <div class="chart-card">
+                <div class="chart-head">
+                  <strong>Sessions par formation</strong>
+                  <span>Volume par type de formation</span>
+                </div>
+                <div class="chart-wrap">
+                  <canvas id="referrerTrainingSessionsChart"></canvas>
+                </div>
+              </div>
+
+              <div class="chart-card">
+                <div class="chart-head">
+                  <strong>Participants par formation</strong>
+                  <span>Participation cumulée</span>
+                </div>
+                <div class="chart-wrap">
+                  <canvas id="referrerTrainingParticipantsChart"></canvas>
+                </div>
+              </div>
+
+              <div class="chart-card">
+                <div class="chart-head">
+                  <strong>Évolution mensuelle</strong>
+                  <span>Nombre de sessions par mois</span>
+                </div>
+                <div class="chart-wrap">
+                  <canvas id="referrerMonthlySessionsChart"></canvas>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="content-block">
+            <div class="section-title-row">
+              <h3>Participants rattachés</h3>
+              <span class="count-pill">{{ referrer_participants|length }}</span>
+            </div>
+            <div class="table-wrap">
+              <table class="hub-table">
+                <thead>
+                  <tr>
+                    <th>Participant</th>
+                    <th>Email</th>
+                    <th>Client</th>
+                    <th>Nb formations</th>
+                    <th>Dernière session</th>
+                    <th>Prochaine session</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in referrer_participants %}
+                    <tr>
+                      <td>
+                        <a class="table-link" href="{% url 'trainings:client_hub' %}?participant={{ row.participant.id }}&mode=participant{% if selected_client %}&client={{ selected_client.id }}{% endif %}">
+                          {{ row.participant.first_name }} {{ row.participant.last_name }}
+                        </a>
+                      </td>
+                      <td>{{ row.participant.email|default:"—" }}</td>
+                      <td>{% if row.participant.client %}{{ row.participant.client.name }}{% else %}—{% endif %}</td>
+                      <td>{{ row.trainings_count }}</td>
+                      <td>{% if row.last_session and row.last_session.start_date %}{{ row.last_session.start_date|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+                      <td>{% if row.next_session and row.next_session.start_date %}{{ row.next_session.start_date|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+                    </tr>
+                  {% empty %}
+                    <tr><td colspan="6" class="table-empty">Aucun participant lié à ce référent.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="content-block">
+            <div class="section-title-row">
+              <h3>Historique consolidé</h3>
+              <span class="count-pill">{{ referrer_session_rows|length }}</span>
+            </div>
+            <div class="table-wrap">
+              <table class="hub-table">
+                <thead>
+                  <tr>
+                    <th>Participant</th>
+                    <th>Référence</th>
+                    <th>Date</th>
+                    <th>Formation</th>
+                    <th>Formateur</th>
+                    <th>Statut</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in referrer_session_rows %}
+                    <tr>
+                      <td>{{ row.participant.first_name }} {{ row.participant.last_name }}</td>
+                      <td>{{ row.session.reference|default:"—" }}</td>
+                      <td>{% if row.session.start_date %}{{ row.session.start_date|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+                      <td>{{ row.training_title }}</td>
+                      <td>{{ row.trainer_name }}</td>
+                      <td>{{ row.registration.get_status_display }}</td>
+                    </tr>
+                  {% empty %}
+                    <tr><td colspan="6" class="table-empty">Aucune session liée à ce référent.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        {% endif %}
+
+        {% if not selected_client and not selected_referrer and not selected_participant %}
+          <section class="content-block">
+            <div class="empty-hero">
+              Sélectionne un client, un référent ou lance une recherche participant pour ouvrir une vue détaillée.
+            </div>
+          </section>
+        {% endif %}
+
+      </div>
+    </main>
+
+    <!-- RIGHT -->
+    <aside class="panel glass right-col">
+      <div class="panel-head">
+        <div>
+          <div class="eyebrow">Résumé</div>
+          <h3>Synthèse</h3>
+        </div>
+      </div>
+
+      <div class="right-scroll">
+        {% if mode == "client" and selected_client %}
+          <div class="summary-card">
+            <div class="summary-label">Client</div>
+            <div class="summary-value">{{ selected_client.name }}</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">Dernière activité</div>
+            <div class="summary-value">
+              {% if client_kpis.last_activity and client_kpis.last_activity.start_date %}
+                {{ client_kpis.last_activity.start_date|date:"d/m/Y" }}
+              {% else %}
+                —
+              {% endif %}
+            </div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">Prochaine session</div>
+            <div class="summary-value">
+              {% if client_kpis.next_activity and client_kpis.next_activity.start_date %}
+                {{ client_kpis.next_activity.start_date|date:"d/m/Y" }}
+              {% else %}
+                —
+              {% endif %}
+            </div>
+          </div>
+        {% elif mode == "referrer" and selected_referrer %}
+          <div class="summary-card">
+            <div class="summary-label">Référent</div>
+            <div class="summary-value">{{ selected_referrer.first_name }} {{ selected_referrer.last_name }}</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">Client</div>
+            <div class="summary-value">{% if selected_referrer.client %}{{ selected_referrer.client.name }}{% else %}—{% endif %}</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">Prochaine activité</div>
+            <div class="summary-value">
+              {% if referrer_kpis.next_activity and referrer_kpis.next_activity.start_date %}
+                {{ referrer_kpis.next_activity.start_date|date:"d/m/Y" }}
+              {% else %}
+                —
+              {% endif %}
+            </div>
+          </div>
+        {% elif mode == "participant" and selected_participant %}
+          <div class="summary-card">
+            <div class="summary-label">Participant</div>
+            <div class="summary-value">{{ selected_participant.first_name }} {{ selected_participant.last_name }}</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">Référent</div>
+            <div class="summary-value">
+              {% if selected_participant.referrer %}
+                {{ selected_participant.referrer.first_name }} {{ selected_participant.referrer.last_name }}
+              {% else %}
+                —
+              {% endif %}
+            </div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">Prochaine session</div>
+            <div class="summary-value">
+              {% if participant_kpis.next_session and participant_kpis.next_session.start_date %}
+                {{ participant_kpis.next_session.start_date|date:"d/m/Y" }}
+              {% else %}
+                —
+              {% endif %}
+            </div>
+          </div>
+        {% else %}
+          <div class="summary-card">
+            <div class="summary-label">Vue</div>
+            <div class="summary-value">Sélection en attente</div>
+          </div>
+        {% endif %}
+      </div>
+    </aside>
+
+  </div>
+
+  <!-- DRAWER OVERLAY -->
+  <div id="referrerDrawerOverlay" class="drawer-overlay" onclick="closeReferrerDrawer()"></div>
+
+  <!-- DRAWER -->
+  <aside id="referrerDrawer" class="referrer-drawer glass">
+    <div class="drawer-head">
+      <div>
+        <div class="eyebrow" id="drawerEyebrow">
+          {% if referrer_panel_mode == "edit" %}Édition{% else %}Création{% endif %}
+        </div>
+        <h3 id="drawerTitle">
+          {% if referrer_panel_mode == "edit" %}Modifier le référent{% else %}Créer un nouveau référent{% endif %}
+        </h3>
+      </div>
+      <button type="button" class="drawer-close" onclick="closeReferrerDrawer()">✕</button>
+    </div>
+
+    <div class="drawer-body">
+      <form method="post" class="stack-form">
+        {% csrf_token %}
+        <input type="hidden" id="drawerActionInput" name="action" value="{% if referrer_panel_mode == 'edit' %}edit_referrer{% else %}create_referrer{% endif %}">
+        <input type="hidden" name="redirect_client" value="{{ selected_client_id }}">
+        <input type="hidden" id="drawerReferrerIdInput" name="referrer_id" value="{% if referrer_edit_target %}{{ referrer_edit_target.id }}{% endif %}">
+
+        <div class="field">{{ referrer_form.client.label_tag }}{{ referrer_form.client }}</div>
+        <div class="two-col">
+          <div class="field">{{ referrer_form.first_name.label_tag }}{{ referrer_form.first_name }}</div>
+          <div class="field">{{ referrer_form.last_name.label_tag }}{{ referrer_form.last_name }}</div>
+        </div>
+        <div class="field">{{ referrer_form.role.label_tag }}{{ referrer_form.role }}</div>
+        <div class="field">{{ referrer_form.email.label_tag }}{{ referrer_form.email }}</div>
+        <div class="field">{{ referrer_form.company_service.label_tag }}{{ referrer_form.company_service }}</div>
+        <div class="field">{{ referrer_form.service_address.label_tag }}{{ referrer_form.service_address }}</div>
+
+        <div class="drawer-submit">
+          <button type="submit" class="btn-primary full" id="drawerSubmitBtn">
+            {% if referrer_panel_mode == "edit" %}Enregistrer les modifications{% else %}Enregistrer le référent{% endif %}
+          </button>
+        </div>
+      </form>
+    </div>
+  </aside>
+</div>
+
+<style>
+  html, body{ height:100%; margin:0; }
+  body{ overflow:hidden !important; }
+  main{ height:100%; overflow:hidden; }
+
+  :root{
+    --bg:#0B0F14;
+    --text:rgba(255,255,255,.92);
+    --muted:rgba(255,255,255,.66);
+    --border:rgba(255,255,255,.08);
+    --panel:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+    --shadow:0 18px 45px rgba(0,0,0,.45);
+    --violet:#7C3AED;
+    --blue:#3B82F6;
+  }
+
+  *{ box-sizing:border-box; }
+
+  .clienthub-v3{
+    position:fixed;
+    inset:0;
+    padding:92px 18px 18px;
+    overflow:hidden;
+    color:var(--text);
+    background:
+      radial-gradient(1200px 700px at 12% -8%, rgba(59,130,246,.18), transparent 55%),
+      radial-gradient(1000px 700px at 88% 4%, rgba(124,58,237,.16), transparent 55%),
+      linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,0)),
+      #0B0F14;
+  }
+
+  .clienthub-frame{
+    height:calc(100vh - 110px);
+    display:grid;
+    grid-template-columns: 330px minmax(0,1fr) 300px;
+    gap:14px;
+    min-height:0;
+  }
+
+  .glass{
+    border-radius:22px;
+    border:1px solid var(--border);
+    background:var(--panel);
+    box-shadow:var(--shadow);
+    backdrop-filter:blur(14px);
+    -webkit-backdrop-filter:blur(14px);
+  }
+
+  .panel{
+    min-height:0;
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+  }
+
+  .panel-head{
+    padding:16px 16px 14px;
+    border-bottom:1px solid rgba(255,255,255,.08);
+  }
+
+  .panel-head.sticky{
+    flex:0 0 auto;
+  }
+
+  .panel-head h1,
+  .panel-head h2,
+  .panel-head h3{
+    margin:0;
+    font-weight:950;
+    letter-spacing:-.2px;
+  }
+
+  .panel-head p{
+    margin:6px 0 0;
+    color:var(--muted);
+    font-size:12px;
+    line-height:1.35;
+  }
+
+  .eyebrow{
+    font-size:10px;
+    text-transform:uppercase;
+    letter-spacing:.14em;
+    color:rgba(255,255,255,.48);
+    margin-bottom:6px;
+    font-weight:800;
+  }
+
+  .left-scroll,
+  .center-scroll,
+  .right-scroll{
+    min-height:0;
+    overflow:auto;
+    padding:14px;
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+  }
+
+  .block,
+  .content-block{
+    display:grid;
+    gap:10px;
+  }
+
+  .block-title{
+    font-size:12px;
+    font-weight:950;
+    color:rgba(255,255,255,.86);
+    letter-spacing:.02em;
+  }
+
+  .stack-form{
+    display:grid;
+    gap:10px;
+  }
+
+  .field{
+    display:grid;
+    gap:6px;
+  }
+
+  .field label{
+    font-size:11px;
+    font-weight:800;
+    color:rgba(255,255,255,.78);
+  }
+
+  .field input,
+  .field select,
+  .field textarea,
+  .hub-input{
+    width:100%;
+    min-height:40px;
+    border:1px solid rgba(255,255,255,.10);
+    background:rgba(255,255,255,.05);
+    color:white;
+    border-radius:12px;
+    padding:10px 12px;
+    outline:none;
+    font-size:13px;
+  }
+
+  textarea.hub-input,
+  .field textarea{
+    min-height:84px;
+    resize:vertical;
+  }
+
+  .two-col{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+  }
+
+  .form-actions{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+  }
+
+  .drawer-actions{
+    display:grid;
+    gap:8px;
+  }
+
+  .btn-primary,
+  .btn-secondary{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    min-height:40px;
+    padding:0 12px;
+    border-radius:12px;
+    text-decoration:none;
+    font-weight:900;
+    border:1px solid transparent;
+    white-space:nowrap;
+    font-size:12px;
+    cursor:pointer;
+  }
+
+  .btn-primary{
+    background:linear-gradient(135deg, rgba(124,58,237,.95), rgba(59,130,246,.95));
+    color:white;
+  }
+
+  .btn-secondary{
+    background:rgba(255,255,255,.05);
+    border-color:rgba(255,255,255,.10);
+    color:white;
+  }
+
+  .btn-primary.full{ width:100%; }
+
+  .info-card,
+  .summary-card,
+  .result-card,
+  .mini-card-link{
+    border-radius:16px;
+    border:1px solid rgba(255,255,255,.08);
+    background:rgba(0,0,0,.22);
+    padding:12px;
+    color:inherit;
+    text-decoration:none;
+    display:grid;
+    gap:4px;
+  }
+
+  .result-card.is-active{
+    border-color:rgba(124,58,237,.45);
+    background:rgba(124,58,237,.14);
+  }
+
+  .result-card span,
+  .mini-card-link span{
+    font-size:11px;
+    color:var(--muted);
+  }
+
+  .result-list,
+  .cards-list,
+  .cards-grid{
+    display:grid;
+    gap:8px;
+  }
+
+  .cards-grid{
+    grid-template-columns:repeat(2, minmax(0,1fr));
+  }
+
+  .info-grid,
+  .kpi-grid{
+    display:grid;
+    gap:10px;
+  }
+
+  .info-grid{
+    grid-template-columns:repeat(4, minmax(0,1fr));
+  }
+
+  .kpi-grid{
+    grid-template-columns:repeat(4, minmax(0,1fr));
+  }
+
+  .info-card{
+    background:rgba(255,255,255,.045);
+  }
+
+  .info-label,
+  .kpi-label,
+  .summary-label{
+    font-size:11px;
+    color:var(--muted);
+    margin-bottom:4px;
+    font-weight:700;
+  }
+
+  .info-value,
+  .summary-value{
+    font-size:13px;
+    font-weight:850;
+    line-height:1.25;
+    word-break:break-word;
+  }
+
+  .kpi-card{
+    border-radius:18px;
+    border:1px solid rgba(255,255,255,.10);
+    background:rgba(0,0,0,.24);
+    padding:14px;
+  }
+
+  .kpi-value{
+    margin-top:6px;
+    font-size:28px;
+    font-weight:950;
+    line-height:1;
+  }
+
+  .badge-row{
+    margin-top:8px;
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+
+  .badge,
+  .count-pill{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    min-height:24px;
+    padding:0 10px;
+    border-radius:999px;
+    font-size:11px;
+    font-weight:900;
+    border:1px solid rgba(124,58,237,.34);
+    background:rgba(124,58,237,.16);
+    color:white;
+  }
+
+  .section-title-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:10px;
+  }
+
+  .section-title-row h3{
+    margin:0;
+    font-size:14px;
+    font-weight:950;
+  }
+
+  .two-sections{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:12px;
+  }
+
+  .subpanel{
+    display:grid;
+    gap:10px;
+    border-radius:18px;
+    border:1px solid rgba(255,255,255,.08);
+    background:rgba(255,255,255,.03);
+    padding:12px;
+  }
+
+  .charts-grid{
+    display:grid;
+    grid-template-columns:repeat(2, minmax(0,1fr));
+    gap:12px;
+  }
+
+  .chart-card{
+    border-radius:18px;
+    border:1px solid rgba(255,255,255,.08);
+    background:rgba(255,255,255,.03);
+    padding:12px;
+    display:grid;
+    gap:10px;
+    min-height:280px;
+  }
+
+  .chart-head{
+    display:grid;
+    gap:4px;
+  }
+
+  .chart-head strong{
+    font-size:13px;
+    font-weight:900;
+  }
+
+  .chart-head span{
+    font-size:11px;
+    color:var(--muted);
+  }
+
+  .chart-wrap{
+    position:relative;
+    min-height:210px;
+  }
+
+  .chart-wrap canvas{
+    width:100% !important;
+    height:210px !important;
+  }
+
+  .table-wrap{
+    border-radius:18px;
+    border:1px solid rgba(255,255,255,.08);
+    background:rgba(255,255,255,.03);
+    overflow:auto;
+  }
+
+  .hub-table{
+    width:100%;
+    min-width:900px;
+    border-collapse:collapse;
+  }
+
+  .hub-table thead th{
+    background:rgba(16,18,24,.96);
+    color:rgba(255,255,255,.72);
+    font-size:10px;
+    text-align:left;
+    padding:9px 10px;
+    border-bottom:1px solid rgba(255,255,255,.08);
+    white-space:nowrap;
+  }
+
+  .hub-table tbody td{
+    padding:9px 10px;
+    border-bottom:1px solid rgba(255,255,255,.06);
+    font-size:11px;
+    white-space:nowrap;
+  }
+
+  .hub-table tbody tr:last-child td{
+    border-bottom:none;
+  }
+
+  .hub-table tbody tr:hover{
+    background:rgba(255,255,255,.03);
+  }
+
+  .table-link{
+    color:#c4b5fd;
+    text-decoration:none;
+    font-weight:800;
+  }
+
+  .table-link:hover{
+    text-decoration:underline;
+  }
+
+  .table-empty,
+  .empty-box,
+  .empty-hero{
+    color:var(--muted);
+    text-align:center;
+  }
+
+  .table-empty{
+    padding:18px !important;
+  }
+
+  .empty-box{
+    border-radius:14px;
+    border:1px solid rgba(255,255,255,.08);
+    background:rgba(255,255,255,.03);
+    padding:14px;
+    font-size:12px;
+  }
+
+  .empty-hero{
+    border-radius:18px;
+    border:1px solid rgba(255,255,255,.08);
+    background:rgba(255,255,255,.03);
+    padding:22px;
+    font-size:13px;
+  }
+
+  .muted{
+    color:var(--muted);
+    font-size:11px;
+  }
+
+  .drawer-overlay{
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,.45);
+    backdrop-filter:blur(2px);
+    opacity:0;
+    pointer-events:none;
+    transition:.22s ease;
+    z-index:120;
+  }
+
+  .drawer-overlay.is-open{
+    opacity:1;
+    pointer-events:auto;
+  }
+
+  .referrer-drawer{
+    position:fixed;
+    top:92px;
+    right:18px;
+    width:440px;
+    max-width:calc(100vw - 36px);
+    height:calc(100vh - 110px);
+    z-index:130;
+    transform:translateX(110%);
+    transition:.24s ease;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+  }
+
+  .referrer-drawer.is-open{
+    transform:translateX(0);
+  }
+
+  .drawer-head{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:12px;
+    padding:16px;
+    border-bottom:1px solid rgba(255,255,255,.08);
+  }
+
+  .drawer-close{
+    width:36px;
+    height:36px;
+    border-radius:10px;
+    border:1px solid rgba(255,255,255,.10);
+    background:rgba(255,255,255,.05);
+    color:white;
+    cursor:pointer;
+    font-weight:900;
+  }
+
+  .drawer-body{
+    padding:14px;
+    overflow:auto;
+  }
+
+  .drawer-submit{
+    margin-top:8px;
+  }
+
+  @media (max-width: 1550px){
+    .clienthub-frame{
+      grid-template-columns:300px minmax(0,1fr) 260px;
+    }
+    .info-grid,
+    .kpi-grid{
+      grid-template-columns:repeat(2, minmax(0,1fr));
+    }
+  }
+
+  @media (max-width: 1220px){
+    body{ overflow:auto !important; }
+    .clienthub-v3{
+      position:static;
+      inset:auto;
+      padding:86px 14px 14px;
+      overflow:visible;
+    }
+    .clienthub-frame{
+      height:auto;
+      grid-template-columns:1fr;
+    }
+    .left-scroll,
+    .center-scroll,
+    .right-scroll{
+      overflow:visible;
+    }
+    .two-sections,
+    .cards-grid,
+    .charts-grid{
+      grid-template-columns:1fr;
+    }
+    .referrer-drawer{
+      top:86px;
+      right:14px;
+      left:14px;
+      width:auto;
+      max-width:none;
+      height:calc(100vh - 100px);
+    }
+  }
+
+  @media (max-width: 700px){
+    .info-grid,
+    .kpi-grid,
+    .two-col,
+    .form-actions{
+      grid-template-columns:1fr;
+    }
+  }
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  function openReferrerDrawer(mode){
+    const drawer = document.getElementById("referrerDrawer");
+    const overlay = document.getElementById("referrerDrawerOverlay");
+    const eyebrow = document.getElementById("drawerEyebrow");
+    const title = document.getElementById("drawerTitle");
+    const actionInput = document.getElementById("drawerActionInput");
+    const referrerIdInput = document.getElementById("drawerReferrerIdInput");
+    const submitBtn = document.getElementById("drawerSubmitBtn");
+
+    if (mode === "edit") {
+      if (eyebrow) eyebrow.textContent = "Édition";
+      if (title) title.textContent = "Modifier le référent";
+      if (actionInput) actionInput.value = "edit_referrer";
+      if (referrerIdInput) referrerIdInput.value = "{% if selected_referrer %}{{ selected_referrer.id }}{% endif %}";
+      if (submitBtn) submitBtn.textContent = "Enregistrer les modifications";
+    } else {
+      if (eyebrow) eyebrow.textContent = "Création";
+      if (title) title.textContent = "Créer un nouveau référent";
+      if (actionInput) actionInput.value = "create_referrer";
+      if (referrerIdInput) referrerIdInput.value = "";
+      if (submitBtn) submitBtn.textContent = "Enregistrer le référent";
+    }
+
+    if (drawer) drawer.classList.add("is-open");
+    if (overlay) overlay.classList.add("is-open");
+  }
+
+  function closeReferrerDrawer(){
+    const drawer = document.getElementById("referrerDrawer");
+    const overlay = document.getElementById("referrerDrawerOverlay");
+    if (drawer) drawer.classList.remove("is-open");
+    if (overlay) overlay.classList.remove("is-open");
+  }
+
+  function buildBaseOptions() {
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          labels: { color: "rgba(255,255,255,.78)" }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: "rgba(255,255,255,.66)" },
+          grid: { color: "rgba(255,255,255,.06)" }
+        },
+        y: {
+          ticks: { color: "rgba(255,255,255,.66)" },
+          grid: { color: "rgba(255,255,255,.06)" },
+          beginAtZero: true
+        }
+      }
+    };
+  }
+
+  function buildPieOptions() {
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: "bottom",
+          labels: { color: "rgba(255,255,255,.78)" }
+        }
+      }
+    };
+  }
+
+  function createDoughnutChart(canvasId, labels, values){
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) {
+      console.warn("Canvas introuvable :", canvasId);
+      return;
+    }
+    if (!labels || !values || !labels.length || !values.length) {
+      console.warn("Données absentes pour :", canvasId, labels, values);
+      return;
+    }
+
+    new Chart(canvas, {
+      type: "doughnut",
+      data: {
+        labels: labels,
+        datasets: [{
+          data: values,
+          backgroundColor: [
+            "rgba(124,58,237,.85)",
+            "rgba(59,130,246,.85)",
+            "rgba(16,185,129,.85)",
+            "rgba(245,158,11,.85)",
+            "rgba(239,68,68,.85)"
+          ],
+          borderColor: "rgba(11,15,20,1)",
+          borderWidth: 2
+        }]
+      },
+      options: buildPieOptions()
+    });
+  }
+
+  function createBarChart(canvasId, labels, values, legendLabel, color){
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) {
+      console.warn("Canvas introuvable :", canvasId);
+      return;
+    }
+    if (!labels || !values || !labels.length || !values.length) {
+      console.warn("Données absentes pour :", canvasId, labels, values);
+      return;
+    }
+
+    new Chart(canvas, {
+      type: "bar",
+      data: {
+        labels: labels,
+        datasets: [{
+          label: legendLabel,
+          data: values,
+          backgroundColor: color,
+          borderRadius: 10
+        }]
+      },
+      options: buildBaseOptions()
+    });
+  }
+
+  function createLineChart(canvasId, labels, values, legendLabel){
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) {
+      console.warn("Canvas introuvable :", canvasId);
+      return;
+    }
+    if (!labels || !values || !labels.length || !values.length) {
+      console.warn("Données absentes pour :", canvasId, labels, values);
+      return;
+    }
+
+    new Chart(canvas, {
+      type: "line",
+      data: {
+        labels: labels,
+        datasets: [{
+          label: legendLabel,
+          data: values,
+          borderColor: "rgba(16,185,129,.95)",
+          backgroundColor: "rgba(16,185,129,.18)",
+          fill: true,
+          tension: .28
+        }]
+      },
+      options: buildBaseOptions()
+    });
+  }
+
+  {% if referrer_panel_mode == "create" or referrer_panel_mode == "edit" %}
+  document.addEventListener("DOMContentLoaded", function(){
+    openReferrerDrawer("{{ referrer_panel_mode }}");
+  });
+  {% endif %}
+
+  document.addEventListener("DOMContentLoaded", function(){
+    if (!window.Chart) {
+      console.error("Chart.js non chargé");
+      return;
+    }
+
+    console.log("Chart.js chargé OK");
+
+    {% if mode == "client" and selected_client %}
+      const clientProductLabels = {{ client_chart_product_labels|default:"[]"|safe }};
+      const clientProductValues = {{ client_chart_product_values|default:"[]"|safe }};
+      const clientTrainingLabels = {{ client_chart_training_labels|default:"[]"|safe }};
+      const clientTrainingSessionValues = {{ client_chart_training_session_values|default:"[]"|safe }};
+      const clientTrainingParticipantValues = {{ client_chart_training_participant_values|default:"[]"|safe }};
+      const clientMonthLabels = {{ client_chart_month_labels|default:"[]"|safe }};
+      const clientMonthValues = {{ client_chart_month_values|default:"[]"|safe }};
+
+      console.log("Client charts:", {
+        clientProductLabels,
+        clientProductValues,
+        clientTrainingLabels,
+        clientTrainingSessionValues,
+        clientTrainingParticipantValues,
+        clientMonthLabels,
+        clientMonthValues
+      });
+
+      createDoughnutChart("clientProductChart", clientProductLabels, clientProductValues);
+      createBarChart("clientTrainingSessionsChart", clientTrainingLabels, clientTrainingSessionValues, "Sessions", "rgba(124,58,237,.72)");
+      createBarChart("clientTrainingParticipantsChart", clientTrainingLabels, clientTrainingParticipantValues, "Participants", "rgba(59,130,246,.72)");
+      createLineChart("clientMonthlySessionsChart", clientMonthLabels, clientMonthValues, "Sessions");
+    {% endif %}
+
+    {% if mode == "referrer" and selected_referrer %}
+      const referrerProductLabels = {{ referrer_chart_product_labels|default:"[]"|safe }};
+      const referrerProductValues = {{ referrer_chart_product_values|default:"[]"|safe }};
+      const referrerTrainingLabels = {{ referrer_chart_training_labels|default:"[]"|safe }};
+      const referrerTrainingSessionValues = {{ referrer_chart_training_session_values|default:"[]"|safe }};
+      const referrerTrainingParticipantValues = {{ referrer_chart_training_participant_values|default:"[]"|safe }};
+      const referrerMonthLabels = {{ referrer_chart_month_labels|default:"[]"|safe }};
+      const referrerMonthValues = {{ referrer_chart_month_values|default:"[]"|safe }};
+
+      console.log("Referrer charts:", {
+        referrerProductLabels,
+        referrerProductValues,
+        referrerTrainingLabels,
+        referrerTrainingSessionValues,
+        referrerTrainingParticipantValues,
+        referrerMonthLabels,
+        referrerMonthValues
+      });
+
+      createDoughnutChart("referrerProductChart", referrerProductLabels, referrerProductValues);
+      createBarChart("referrerTrainingSessionsChart", referrerTrainingLabels, referrerTrainingSessionValues, "Sessions", "rgba(124,58,237,.72)");
+      createBarChart("referrerTrainingParticipantsChart", referrerTrainingLabels, referrerTrainingParticipantValues, "Participants", "rgba(59,130,246,.72)");
+      createLineChart("referrerMonthlySessionsChart", referrerMonthLabels, referrerMonthValues, "Sessions");
+    {% endif %}
+  });
+</script>
+{% endblock %}
